@@ -67,9 +67,9 @@ FunctionPass *createSIInsertWaitcntsPass();
 FunctionPass *createSIInsertWaterfallPass();
 FunctionPass *createSIPreAllocateWWMRegsPass();
 FunctionPass *createSIFormMemoryClausesPass();
+
 FunctionPass *createSIPostRABundlerPass();
-FunctionPass *createAMDGPUSimplifyLibCallsPass(const TargetOptions &,
-                                               const TargetMachine *);
+FunctionPass *createAMDGPUSimplifyLibCallsPass(const TargetMachine *);
 FunctionPass *createAMDGPUUseNativeCallsPass();
 FunctionPass *createAMDGPUCodeGenPreparePass();
 FunctionPass *createAMDGPUMachineCFGStructurizerPass();
@@ -186,6 +186,9 @@ extern const char *const SIScratchSizeSymbol;
 
 void initializeSIRemoveShortExecBranchesPass(PassRegistry &);
 extern char &SIRemoveShortExecBranchesID;
+
+void initializeSIPreEmitPeepholePass(PassRegistry &);
+extern char &SIPreEmitPeepholeID;
 
 void initializeSIInsertSkipsPass(PassRegistry &);
 extern char &SIInsertSkipsPassID;

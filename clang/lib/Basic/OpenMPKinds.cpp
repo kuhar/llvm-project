@@ -154,6 +154,16 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind,
 #define OPENMP_DEPEND_KIND(Name) .Case(#Name, OMPC_DEPEND_##Name)
 #include "clang/Basic/OpenMPKinds.def"
         .Default(OMPC_DEPEND_unknown);
+  case OMPC_device:
+    return llvm::StringSwitch<OpenMPDeviceClauseModifier>(Str)
+#define OPENMP_DEVICE_MODIFIER(Name) .Case(#Name, OMPC_DEVICE_##Name)
+#include "clang/Basic/OpenMPKinds.def"
+        .Default(OMPC_DEVICE_unknown);
+  case OMPC_reduction:
+    return llvm::StringSwitch<OpenMPReductionClauseModifier>(Str)
+#define OPENMP_REDUCTION_MODIFIER(Name) .Case(#Name, OMPC_REDUCTION_##Name)
+#include "clang/Basic/OpenMPKinds.def"
+        .Default(OMPC_REDUCTION_unknown);
   case OMPC_unknown:
   case OMPC_threadprivate:
   case OMPC_if:
@@ -167,7 +177,6 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind,
   case OMPC_private:
   case OMPC_firstprivate:
   case OMPC_shared:
-  case OMPC_reduction:
   case OMPC_task_reduction:
   case OMPC_in_reduction:
   case OMPC_aligned:
@@ -187,7 +196,6 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind,
   case OMPC_acquire:
   case OMPC_release:
   case OMPC_relaxed:
-  case OMPC_device:
   case OMPC_threads:
   case OMPC_simd:
   case OMPC_num_teams:
@@ -207,6 +215,9 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind,
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_destroy:
+  case OMPC_detach:
+  case OMPC_inclusive:
+  case OMPC_exclusive:
     break;
   }
   llvm_unreachable("Invalid OpenMP simple clause kind");
@@ -379,6 +390,26 @@ const char *clang::getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind,
 #include "clang/Basic/OpenMPKinds.def"
     }
     llvm_unreachable("Invalid OpenMP 'depend' clause type");
+  case OMPC_device:
+    switch (Type) {
+    case OMPC_DEVICE_unknown:
+      return "unknown";
+#define OPENMP_DEVICE_MODIFIER(Name)                                           \
+  case OMPC_DEVICE_##Name:                                                     \
+    return #Name;
+#include "clang/Basic/OpenMPKinds.def"
+    }
+    llvm_unreachable("Invalid OpenMP 'device' clause modifier");
+  case OMPC_reduction:
+    switch (Type) {
+    case OMPC_REDUCTION_unknown:
+      return "unknown";
+#define OPENMP_REDUCTION_MODIFIER(Name)                                        \
+  case OMPC_REDUCTION_##Name:                                                  \
+    return #Name;
+#include "clang/Basic/OpenMPKinds.def"
+    }
+    llvm_unreachable("Invalid OpenMP 'reduction' clause modifier");
   case OMPC_unknown:
   case OMPC_threadprivate:
   case OMPC_if:
@@ -392,7 +423,6 @@ const char *clang::getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind,
   case OMPC_private:
   case OMPC_firstprivate:
   case OMPC_shared:
-  case OMPC_reduction:
   case OMPC_task_reduction:
   case OMPC_in_reduction:
   case OMPC_aligned:
@@ -412,7 +442,6 @@ const char *clang::getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind,
   case OMPC_acquire:
   case OMPC_release:
   case OMPC_relaxed:
-  case OMPC_device:
   case OMPC_threads:
   case OMPC_simd:
   case OMPC_num_teams:
@@ -432,6 +461,9 @@ const char *clang::getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind,
   case OMPC_match:
   case OMPC_nontemporal:
   case OMPC_destroy:
+  case OMPC_detach:
+  case OMPC_inclusive:
+  case OMPC_exclusive:
     break;
   }
   llvm_unreachable("Invalid OpenMP simple clause kind");
@@ -554,6 +586,8 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
     }
     break;
   case OMPD_task:
+    if (OpenMPVersion < 50 && CKind == OMPC_detach)
+      return false;
     switch (CKind) {
 #define OPENMP_TASK_CLAUSE(Name)                                               \
   case OMPC_##Name:                                                            \
@@ -587,6 +621,18 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
 #include "clang/Basic/OpenMPKinds.def"
     case OMPC_depobj:
       return true;
+    default:
+      break;
+    }
+    break;
+  case OMPD_scan:
+    if (OpenMPVersion < 50)
+      return false;
+    switch (CKind) {
+#define OPENMP_SCAN_CLAUSE(Name)                                               \
+  case OMPC_##Name:                                                            \
+    return true;
+#include "clang/Basic/OpenMPKinds.def"
     default:
       break;
     }
@@ -979,6 +1025,8 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
       break;
     }
     break;
+  case OMPD_begin_declare_variant:
+  case OMPD_end_declare_variant:
   case OMPD_declare_target:
   case OMPD_end_declare_target:
   case OMPD_unknown:
@@ -1234,6 +1282,7 @@ void clang::getOpenMPCaptureRegions(
   case OMPD_cancel:
   case OMPD_flush:
   case OMPD_depobj:
+  case OMPD_scan:
   case OMPD_declare_reduction:
   case OMPD_declare_mapper:
   case OMPD_declare_simd:
@@ -1241,6 +1290,8 @@ void clang::getOpenMPCaptureRegions(
   case OMPD_end_declare_target:
   case OMPD_requires:
   case OMPD_declare_variant:
+  case OMPD_begin_declare_variant:
+  case OMPD_end_declare_variant:
     llvm_unreachable("OpenMP Directive is not allowed");
   case OMPD_unknown:
     llvm_unreachable("Unknown OpenMP directive");

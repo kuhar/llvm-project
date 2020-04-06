@@ -70,6 +70,8 @@ public:
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV85A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
+  void getTargetDefinesARMV86A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
@@ -96,7 +98,7 @@ public:
       Constraint += 2;
       break;
     default:
-      R = std::string(1, *Constraint);
+      R = TargetInfo::convertConstraint(Constraint);
       break;
     }
     return R;

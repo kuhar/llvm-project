@@ -24,6 +24,7 @@
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "llvm/Frontend/OpenMP/OMPIRBuilder.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/AtomicOrdering.h"
 using namespace clang;
@@ -3535,9 +3536,13 @@ void CodeGenFunction::EmitOMPTaskBasedDirective(
         // initializer/combiner/finalizer.
         CGF.CGM.getOpenMPRuntime().emitTaskReductionFixups(CGF, S.getBeginLoc(),
                                                            RedCG, Cnt);
-        llvm::Value *ReductionsPtr =
-            CGF.EmitLoadOfScalar(CGF.EmitLValue(TaskgroupDescriptors[Cnt]),
-                                 TaskgroupDescriptors[Cnt]->getExprLoc());
+        llvm::Value *ReductionsPtr;
+        if (const Expr *TRExpr = TaskgroupDescriptors[Cnt]) {
+          ReductionsPtr = CGF.EmitLoadOfScalar(CGF.EmitLValue(TRExpr),
+                                               TRExpr->getExprLoc());
+        } else {
+          ReductionsPtr = llvm::ConstantPointerNull::get(CGF.VoidPtrTy);
+        }
         Address Replacement = CGF.CGM.getOpenMPRuntime().getTaskReductionItem(
             CGF, S.getBeginLoc(), ReductionsPtr, RedCG.getSharedLValue(Cnt));
         Replacement = Address(
@@ -4615,6 +4620,9 @@ static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,
   case OMPC_nontemporal:
   case OMPC_order:
   case OMPC_destroy:
+  case OMPC_detach:
+  case OMPC_inclusive:
+  case OMPC_exclusive:
     llvm_unreachable("Clause is not allowed in 'omp atomic'.");
   }
 }
@@ -4723,9 +4731,10 @@ static void emitCommonOMPTargetDirective(CodeGenFunction &CGF,
   }
 
   // Check if we have any device clause associated with the directive.
-  const Expr *Device = nullptr;
+  llvm::PointerIntPair<const Expr *, 2, OpenMPDeviceClauseModifier> Device(
+      nullptr, OMPC_DEVICE_unknown);
   if (auto *C = S.getSingleClause<OMPDeviceClause>())
-    Device = C->getDevice();
+    Device.setPointerAndInt(C->getDevice(), C->getModifier());
 
   // Check if we have an if clause whose conditional always evaluates to false
   // or if we do not have any targets specified. If so the target region is not

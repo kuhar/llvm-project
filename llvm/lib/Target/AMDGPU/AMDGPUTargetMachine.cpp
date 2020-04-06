@@ -25,6 +25,7 @@
 #include "AMDGPUTargetTransformInfo.h"
 #include "GCNIterativeScheduler.h"
 #include "GCNSchedStrategy.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "R600MachineScheduler.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
@@ -200,6 +201,11 @@ static cl::opt<bool> EnableScalarIRPasses(
   cl::init(true),
   cl::Hidden);
 
+static cl::opt<bool> EnableStructurizerWorkarounds(
+    "amdgpu-enable-structurizer-workarounds",
+    cl::desc("Enable workarounds for the StructurizeCFG pass"), cl::init(false),
+    cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
@@ -250,6 +256,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSIWholeQuadModePass(*PR);
   initializeSILowerControlFlowPass(*PR);
   initializeSIRemoveShortExecBranchesPass(*PR);
+  initializeSIPreEmitPeepholePass(*PR);
   initializeSIInsertSkipsPass(*PR);
   initializeSIBufMemMergePass(*PR);
   initializeSIMemoryLegalizerPass(*PR);
@@ -387,6 +394,12 @@ AMDGPUTargetMachine::AMDGPUTargetMachine(const Target &T, const Triple &TT,
                         getEffectiveCodeModel(CM, CodeModel::Small), OptLevel),
       TLOF(createTLOF(getTargetTriple())) {
   initAsmInfo();
+  if (TT.getArch() == Triple::amdgcn) {
+    if (getMCSubtargetInfo()->checkFeatures("+wavefrontsize64"))
+      MRI.reset(llvm::createGCNMCRegisterInfo(AMDGPUDwarfFlavour::Wave64));
+    else if (getMCSubtargetInfo()->checkFeatures("+wavefrontsize32"))
+      MRI.reset(llvm::createGCNMCRegisterInfo(AMDGPUDwarfFlavour::Wave32));
+  }
 }
 
 bool AMDGPUTargetMachine::EnableLateStructurizeCFG = false;
@@ -441,20 +454,19 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
       }
       PM.add(createAMDGPUUnifyMetadataPass());
       PM.add(createAMDGPUPrintfRuntimeBinding());
-      PM.add(createAMDGPUPropagateAttributesLatePass(this));
-      if (Internalize) {
+      if (Internalize)
         PM.add(createInternalizePass(mustPreserveGV));
+      PM.add(createAMDGPUPropagateAttributesLatePass(this));
+      if (Internalize)
         PM.add(createGlobalDCEPass());
-      }
       if (EarlyInline)
         PM.add(createAMDGPUAlwaysInlinePass(false));
   });
 
-  const auto &Opt = Options;
   Builder.addExtension(
     PassManagerBuilder::EP_EarlyAsPossible,
-    [AMDGPUAA, LibCallSimplify, &Opt, this](const PassManagerBuilder &,
-                                            legacy::PassManagerBase &PM) {
+    [AMDGPUAA, LibCallSimplify, this](const PassManagerBuilder &,
+                                      legacy::PassManagerBase &PM) {
       if (AMDGPUAA) {
         PM.add(createAMDGPUAAWrapperPass());
         PM.add(createAMDGPUExternalAAWrapperPass());
@@ -462,7 +474,7 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
       PM.add(llvm::createAMDGPUPropagateAttributesEarlyPass(this));
       PM.add(llvm::createAMDGPUUseNativeCallsPass());
       if (LibCallSimplify)
-        PM.add(llvm::createAMDGPUSimplifyLibCallsPass(Opt, this));
+        PM.add(llvm::createAMDGPUSimplifyLibCallsPass(this));
   });
 
   Builder.addExtension(
@@ -868,6 +880,9 @@ bool GCNPassConfig::addPreISel() {
   // regions formed by them.
   addPass(&AMDGPUUnifyDivergentExitNodesID);
   if (!LateCFGStructurize) {
+    if (EnableStructurizerWorkarounds) {
+      addPass(createUnifyLoopExitsPass());
+    }
     addPass(createStructurizeCFGPass(true)); // true -> SkipUniformRegions
   }
 
@@ -1052,6 +1067,7 @@ void GCNPassConfig::addPreEmitPass() {
   addPass(&PostRAHazardRecognizerID);
 
   addPass(&SIRemoveShortExecBranchesID);
+  addPass(&SIPreEmitPeepholeID);
   addPass(&SIInsertSkipsPassID);
   addPass(&BranchRelaxationPassID);
 }
@@ -1081,11 +1097,14 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
 
   MFI->initializeBaseYamlFields(YamlMFI);
 
-  auto parseRegister = [&](const yaml::StringValue &RegName, unsigned &RegVal) {
-    if (parseNamedRegisterReference(PFS, RegVal, RegName.Value, Error)) {
+  auto parseRegister = [&](const yaml::StringValue &RegName, Register &RegVal) {
+    // FIXME: Update parseNamedRegsiterReference to take a Register.
+    unsigned TempReg;
+    if (parseNamedRegisterReference(PFS, TempReg, RegName.Value, Error)) {
       SourceRange = RegName.SourceRange;
       return true;
     }
+    RegVal = TempReg;
 
     return false;
   };
@@ -1103,7 +1122,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   };
 
   if (parseRegister(YamlMFI.ScratchRSrcReg, MFI->ScratchRSrcReg) ||
-      parseRegister(YamlMFI.ScratchWaveOffsetReg, MFI->ScratchWaveOffsetReg) ||
       parseRegister(YamlMFI.FrameOffsetReg, MFI->FrameOffsetReg) ||
       parseRegister(YamlMFI.StackPtrOffsetReg, MFI->StackPtrOffsetReg))
     return true;
@@ -1111,11 +1129,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   if (MFI->ScratchRSrcReg != AMDGPU::PRIVATE_RSRC_REG &&
       !AMDGPU::SGPR_128RegClass.contains(MFI->ScratchRSrcReg)) {
     return diagnoseRegisterClass(YamlMFI.ScratchRSrcReg);
-  }
-
-  if (MFI->ScratchWaveOffsetReg != AMDGPU::SCRATCH_WAVE_OFFSET_REG &&
-      !AMDGPU::SGPR_32RegClass.contains(MFI->ScratchWaveOffsetReg)) {
-    return diagnoseRegisterClass(YamlMFI.ScratchWaveOffsetReg);
   }
 
   if (MFI->FrameOffsetReg != AMDGPU::FP_REG &&

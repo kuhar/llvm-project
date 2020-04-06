@@ -1359,7 +1359,6 @@ namespace llvm {
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerLRINT_LLRINT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerSTRICT_FSETCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
@@ -1595,32 +1594,6 @@ namespace llvm {
     }
   }
 
-  /// Helper function to scale a shuffle or target shuffle mask, replacing each
-  /// mask index with the scaled sequential indices for an equivalent narrowed
-  /// mask. This is the reverse process to canWidenShuffleElements, but can
-  /// always succeed.
-  template <typename T>
-  void scaleShuffleMask(size_t Scale, ArrayRef<T> Mask,
-                        SmallVectorImpl<T> &ScaledMask) {
-    assert(0 < Scale && "Unexpected scaling factor");
-    size_t NumElts = Mask.size();
-    ScaledMask.assign(NumElts * Scale, -1);
-
-    for (size_t i = 0; i != NumElts; ++i) {
-      int M = Mask[i];
-
-      // Repeat sentinel values in every mask element.
-      if (M < 0) {
-        for (size_t s = 0; s != Scale; ++s)
-          ScaledMask[(Scale * i) + s] = M;
-        continue;
-      }
-
-      // Scale mask element and increment across each mask element.
-      for (size_t s = 0; s != Scale; ++s)
-        ScaledMask[(Scale * i) + s] = (Scale * M) + s;
-    }
-  }
 } // end namespace llvm
 
 #endif // LLVM_LIB_TARGET_X86_X86ISELLOWERING_H

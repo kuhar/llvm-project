@@ -51,7 +51,7 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
   ///         !llvm<"{ float, i1 }">
   ///     %shfl_pred = llvm.extractvalue %shfl[1 : index] :
   ///         !llvm<"{ float, i1 }">
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
@@ -84,7 +84,7 @@ struct GPUShuffleOpLowering : public ConvertToLLVMPattern {
         loc, predTy, shfl, rewriter.getIndexArrayAttr(1));
 
     rewriter.replaceOp(op, {shflValue, isActiveSrcLane});
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -94,7 +94,7 @@ struct GPUFuncOpLowering : ConvertToLLVMPattern {
                              typeConverter.getDialect()->getContext(),
                              typeConverter) {}
 
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     assert(operands.empty() && "func op is not expected to have operands");
@@ -219,7 +219,7 @@ struct GPUFuncOpLowering : ConvertToLLVMPattern {
                                       signatureConversion);
 
     rewriter.eraseOp(gpuFuncOp);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -229,11 +229,11 @@ struct GPUReturnOpLowering : public ConvertToLLVMPattern {
                              typeConverter.getDialect()->getContext(),
                              typeConverter) {}
 
-  PatternMatchResult
+  LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, operands);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -279,8 +279,6 @@ public:
                         LLVM::LogOp, LLVM::Log10Op, LLVM::Log2Op>();
     target.addIllegalOp<FuncOp>();
     target.addLegalDialect<NVVM::NVVMDialect>();
-    target.addDynamicallyLegalOp<mlir::LLVM::CallOp>(
-        gpu::filterIllegalLLVMIntrinsics({"tanh", "tanhf"}, m.getContext()));
     // TODO(csigg): Remove once we support replacing non-root ops.
     target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
     if (failed(applyPartialConversion(m, target, patterns, &converter)))

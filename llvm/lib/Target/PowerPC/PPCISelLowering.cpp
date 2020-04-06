@@ -764,7 +764,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     else
       setOperationAction(ISD::MUL, MVT::v4i32, Custom);
 
-    setOperationAction(ISD::MUL, MVT::v8i16, Custom);
+    setOperationAction(ISD::MUL, MVT::v8i16, Legal);
     setOperationAction(ISD::MUL, MVT::v16i8, Custom);
 
     setOperationAction(ISD::SCALAR_TO_VECTOR, MVT::v4f32, Custom);
@@ -3447,10 +3447,7 @@ static bool CalculateStackSlotUsed(EVT ArgVT, EVT OrigVT,
 /// ensure minimum alignment required for target.
 static unsigned EnsureStackAlignment(const PPCFrameLowering *Lowering,
                                      unsigned NumBytes) {
-  unsigned TargetAlign = Lowering->getStackAlignment();
-  unsigned AlignMask = TargetAlign - 1;
-  NumBytes = (NumBytes + AlignMask) & ~AlignMask;
-  return NumBytes;
+  return alignTo(NumBytes, Lowering->getStackAlign());
 }
 
 SDValue PPCTargetLowering::LowerFormalArguments(
@@ -6841,9 +6838,6 @@ static bool CC_AIX(unsigned ValNo, MVT ValVT, MVT LocVT,
   if (ValVT == MVT::f128)
     report_fatal_error("f128 is unimplemented on AIX.");
 
-  if (ArgFlags.isByVal())
-    report_fatal_error("Passing structure by value is unimplemented.");
-
   if (ArgFlags.isNest())
     report_fatal_error("Nest arguments are unimplemented.");
 
@@ -6856,6 +6850,34 @@ static bool CC_AIX(unsigned ValNo, MVT ValVT, MVT LocVT,
   static const MCPhysReg GPR_64[] = {// 64-bit registers.
                                      PPC::X3, PPC::X4, PPC::X5, PPC::X6,
                                      PPC::X7, PPC::X8, PPC::X9, PPC::X10};
+
+  if (ArgFlags.isByVal()) {
+    if (ArgFlags.getNonZeroByValAlign() > PtrByteSize)
+      report_fatal_error("Pass-by-value arguments with alignment greater than "
+                         "register width are not supported.");
+
+    const unsigned ByValSize = ArgFlags.getByValSize();
+
+    // An empty aggregate parameter takes up no storage and no registers,
+    // but needs a MemLoc for a stack slot for the formal arguments side.
+    if (ByValSize == 0) {
+      State.addLoc(CCValAssign::getMem(ValNo, MVT::INVALID_SIMPLE_VALUE_TYPE,
+                                       State.getNextStackOffset(), RegVT,
+                                       LocInfo));
+      return false;
+    }
+
+    if (ByValSize <= PtrByteSize) {
+      State.AllocateStack(PtrByteSize, PtrByteSize);
+      if (unsigned Reg = State.AllocateReg(IsPPC64 ? GPR_64 : GPR_32)) {
+        State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, RegVT, LocInfo));
+        return false;
+      }
+    }
+
+    report_fatal_error(
+        "Pass-by-value arguments are only supported in a single register.");
+  }
 
   // Arguments always reserve parameter save area.
   switch (ValVT.SimpleTy) {
@@ -6958,6 +6980,24 @@ static SDValue truncateScalarIntegerArg(ISD::ArgFlagsTy Flags, EVT ValVT,
   return DAG.getNode(ISD::TRUNCATE, dl, ValVT, ArgValue);
 }
 
+static unsigned mapArgRegToOffsetAIX(unsigned Reg, const PPCFrameLowering *FL) {
+  const unsigned LASize = FL->getLinkageSize();
+
+  if (PPC::GPRCRegClass.contains(Reg)) {
+    assert(Reg >= PPC::R3 && Reg <= PPC::R10 &&
+           "Reg must be a valid argument register!");
+    return LASize + 4 * (Reg - PPC::R3);
+  }
+
+  if (PPC::G8RCRegClass.contains(Reg)) {
+    assert(Reg >= PPC::X3 && Reg <= PPC::X10 &&
+           "Reg must be a valid argument register!");
+    return LASize + 8 * (Reg - PPC::X3);
+  }
+
+  llvm_unreachable("Only general purpose registers expected.");
+}
+
 SDValue PPCTargetLowering::LowerFormalArguments_AIX(
     SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &dl,
@@ -6995,12 +7035,12 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
   CCInfo.AllocateStack(LinkageSize, PtrByteSize);
   CCInfo.AnalyzeFormalArguments(Ins, CC_AIX);
 
+  SmallVector<SDValue, 8> MemOps;
+
   for (CCValAssign &VA : ArgLocs) {
     EVT ValVT = VA.getValVT();
     MVT LocVT = VA.getLocVT();
     ISD::ArgFlagsTy Flags = Ins[VA.getValNo()].Flags;
-    assert(!Flags.isByVal() &&
-           "Passing structure by value is unimplemented for formal arguments.");
     assert((VA.isRegLoc() || VA.isMemLoc()) &&
            "Unexpected location for function call argument.");
 
@@ -7012,6 +7052,59 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
     // the register.
     if (VA.isMemLoc() && VA.needsCustom())
       continue;
+
+    if (Flags.isByVal() && VA.isMemLoc()) {
+      if (Flags.getByValSize() != 0)
+        report_fatal_error(
+            "ByVal arguments passed on stack not implemented yet");
+
+      const int FI = MF.getFrameInfo().CreateFixedObject(
+          PtrByteSize, VA.getLocMemOffset(), /* IsImmutable */ false,
+          /* IsAliased */ true);
+      SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
+      InVals.push_back(FIN);
+
+      continue;
+    }
+
+    if (Flags.isByVal()) {
+      assert(VA.isRegLoc() && "MemLocs should already be handled.");
+
+      const unsigned ByValSize = Flags.getByValSize();
+      if (ByValSize > PtrByteSize)
+        report_fatal_error("Formal arguments greater then register size not "
+                           "implemented yet.");
+
+      const MCPhysReg ArgReg = VA.getLocReg();
+      const PPCFrameLowering *FL = Subtarget.getFrameLowering();
+      const unsigned Offset = mapArgRegToOffsetAIX(ArgReg, FL);
+
+      const unsigned StackSize = alignTo(ByValSize, PtrByteSize);
+      const int FI = MF.getFrameInfo().CreateFixedObject(
+          StackSize, Offset, /* IsImmutable */ false, /* IsAliased */ true);
+      SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
+
+      InVals.push_back(FIN);
+
+      const unsigned VReg = MF.addLiveIn(ArgReg, IsPPC64 ? &PPC::G8RCRegClass
+                                                         : &PPC::GPRCRegClass);
+
+      // Since the callers side has left justified the aggregate in the
+      // register, we can simply store the entire register into the stack
+      // slot.
+      // The store to the fixedstack object is needed becuase accessing a
+      // field of the ByVal will use a gep and load. Ideally we will optimize
+      // to extracting the value from the register directly, and elide the
+      // stores when the arguments address is not taken, but that will need to
+      // be future work.
+      SDValue CopyFrom = DAG.getCopyFromReg(Chain, dl, VReg, LocVT);
+      SDValue Store =
+          DAG.getStore(CopyFrom.getValue(1), dl, CopyFrom, FIN,
+                       MachinePointerInfo::getFixedStack(MF, FI, 0));
+
+      MemOps.push_back(Store);
+      continue;
+    }
 
     if (VA.isRegLoc()) {
       MVT::SimpleValueType SVT = ValVT.getSimpleVT().SimpleTy;
@@ -7059,6 +7152,9 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
       EnsureStackAlignment(Subtarget.getFrameLowering(), CallerReservedArea);
   PPCFunctionInfo *FuncInfo = MF.getInfo<PPCFunctionInfo>();
   FuncInfo->setMinReservedArea(CallerReservedArea);
+
+  if (!MemOps.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, dl, MVT::Other, MemOps);
 
   return Chain;
 }
@@ -7130,9 +7226,64 @@ SDValue PPCTargetLowering::LowerCall_AIX(
     CCValAssign &VA = ArgLocs[I++];
 
     SDValue Arg = OutVals[VA.getValNo()];
+    ISD::ArgFlagsTy Flags = Outs[VA.getValNo()].Flags;
+    const MVT LocVT = VA.getLocVT();
+    const MVT ValVT = VA.getValVT();
 
-    if (!VA.isRegLoc() && !VA.isMemLoc())
-      report_fatal_error("Unexpected location for function call argument.");
+    if (Flags.isByVal()) {
+      const unsigned ByValSize = Flags.getByValSize();
+
+      // Nothing to do for zero-sized ByVals on the caller side.
+      if (!ByValSize)
+        continue;
+
+      assert(
+          VA.isRegLoc() && ByValSize <= PtrByteSize &&
+          "Pass-by-value arguments are only supported in a single register.");
+
+      // Loads must be a power-of-2 size and cannot be larger than the
+      // ByValSize. For example: a 7 byte by-val arg requires 4, 2 and 1 byte
+      // loads.
+      SDValue RegVal;
+      for (unsigned Bytes = 0; Bytes != ByValSize;) {
+        unsigned N = PowerOf2Floor(ByValSize - Bytes);
+        const MVT VT =
+            N == 1 ? MVT::i8
+                   : ((N == 2) ? MVT::i16 : (N == 4 ? MVT::i32 : MVT::i64));
+
+        SDValue LoadAddr = Arg;
+        if (Bytes != 0) {
+          // Adjust the load offset by the number of bytes read so far.
+          SDNodeFlags Flags;
+          Flags.setNoUnsignedWrap(true);
+          LoadAddr = DAG.getNode(ISD::ADD, dl, LocVT, Arg,
+                                 DAG.getConstant(Bytes, dl, LocVT), Flags);
+        }
+        SDValue Load = DAG.getExtLoad(ISD::ZEXTLOAD, dl, PtrVT, Chain, LoadAddr,
+                                      MachinePointerInfo(), VT);
+        MemOpChains.push_back(Load.getValue(1));
+
+        Bytes += N;
+        assert(LocVT.getSizeInBits() >= (Bytes * 8));
+        if (unsigned NumSHLBits = LocVT.getSizeInBits() - (Bytes * 8)) {
+          // By-val arguments are passed left-justfied in register.
+          EVT ShiftAmountTy =
+              getShiftAmountTy(Load->getValueType(0), DAG.getDataLayout());
+          SDValue SHLAmt = DAG.getConstant(NumSHLBits, dl, ShiftAmountTy);
+          SDValue ShiftedLoad =
+              DAG.getNode(ISD::SHL, dl, Load.getValueType(), Load, SHLAmt);
+          RegVal = RegVal ? DAG.getNode(ISD::OR, dl, LocVT, RegVal, ShiftedLoad)
+                          : ShiftedLoad;
+        } else {
+          assert(!RegVal && Bytes == ByValSize &&
+                 "Pass-by-value argument handling unexpectedly incomplete.");
+          RegVal = Load;
+        }
+      }
+
+      RegsToPass.push_back(std::make_pair(VA.getLocReg(), RegVal));
+      continue;
+    }
 
     switch (VA.getLocInfo()) {
     default:
@@ -7165,20 +7316,20 @@ SDValue PPCTargetLowering::LowerCall_AIX(
     // Custom handling is used for GPR initializations for vararg float
     // arguments.
     assert(VA.isRegLoc() && VA.needsCustom() && CFlags.IsVarArg &&
-           VA.getValVT().isFloatingPoint() && VA.getLocVT().isInteger() &&
+           ValVT.isFloatingPoint() && LocVT.isInteger() &&
            "Unexpected register handling for calling convention.");
 
     SDValue ArgAsInt =
-        DAG.getBitcast(MVT::getIntegerVT(VA.getValVT().getSizeInBits()), Arg);
+        DAG.getBitcast(MVT::getIntegerVT(ValVT.getSizeInBits()), Arg);
 
-    if (Arg.getValueType().getStoreSize() == VA.getLocVT().getStoreSize())
+    if (Arg.getValueType().getStoreSize() == LocVT.getStoreSize())
       // f32 in 32-bit GPR
       // f64 in 64-bit GPR
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), ArgAsInt));
-    else if (Arg.getValueType().getSizeInBits() < VA.getLocVT().getSizeInBits())
+    else if (Arg.getValueType().getSizeInBits() < LocVT.getSizeInBits())
       // f32 in 64-bit GPR.
       RegsToPass.push_back(std::make_pair(
-          VA.getLocReg(), DAG.getZExtOrTrunc(ArgAsInt, dl, VA.getLocVT())));
+          VA.getLocReg(), DAG.getZExtOrTrunc(ArgAsInt, dl, LocVT)));
     else {
       // f64 in two 32-bit GPRs
       // The 2 GPRs are marked custom and expected to be adjacent in ArgLocs.
@@ -7749,7 +7900,7 @@ void PPCTargetLowering::LowerFP_TO_INTForReuse(SDValue Op, ReuseLoadInfo &RLI,
   if (i32Stack) {
     MachineFunction &MF = DAG.getMachineFunction();
     MachineMemOperand *MMO =
-      MF.getMachineMemOperand(MPI, MachineMemOperand::MOStore, 4, 4);
+        MF.getMachineMemOperand(MPI, MachineMemOperand::MOStore, 4, Align(4));
     SDValue Ops[] = { DAG.getEntryNode(), Tmp, FIPtr };
     Chain = DAG.getMemIntrinsicNode(PPCISD::STFIWX, dl,
               DAG.getVTList(MVT::Other), Ops, MVT::i32, MMO);
@@ -7903,7 +8054,7 @@ bool PPCTargetLowering::canReuseLoadAddress(SDValue Op, EVT MemVT,
   RLI.MPI = LD->getPointerInfo();
   RLI.IsDereferenceable = LD->isDereferenceable();
   RLI.IsInvariant = LD->isInvariant();
-  RLI.Alignment = LD->getAlignment();
+  RLI.Alignment = LD->getAlign();
   RLI.AAInfo = LD->getAAInfo();
   RLI.Ranges = LD->getRanges();
 
@@ -8229,7 +8380,7 @@ SDValue PPCTargetLowering::LowerINT_TO_FP(SDValue Op,
       RLI.Chain = Store;
       RLI.MPI =
           MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FrameIdx);
-      RLI.Alignment = 4;
+      RLI.Alignment = Align(4);
 
       MachineMemOperand *MMO =
         MF.getMachineMemOperand(RLI.MPI, MachineMemOperand::MOLoad, 4,
@@ -8281,7 +8432,7 @@ SDValue PPCTargetLowering::LowerINT_TO_FP(SDValue Op,
       RLI.Chain = Store;
       RLI.MPI =
           MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FrameIdx);
-      RLI.Alignment = 4;
+      RLI.Alignment = Align(4);
     }
 
     MachineMemOperand *MMO =
@@ -10300,13 +10451,6 @@ SDValue PPCTargetLowering::LowerMUL(SDValue Op, SelectionDAG &DAG) const {
     HiProd = BuildIntrinsicOp(Intrinsic::ppc_altivec_vslw, HiProd,
                               Neg16, DAG, dl);
     return DAG.getNode(ISD::ADD, dl, MVT::v4i32, LoProd, HiProd);
-  } else if (Op.getValueType() == MVT::v8i16) {
-    SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
-
-    SDValue Zero = BuildSplatI(0, 1, MVT::v8i16, DAG, dl);
-
-    return BuildIntrinsicOp(Intrinsic::ppc_altivec_vmladduhm,
-                            LHS, RHS, Zero, DAG, dl);
   } else if (Op.getValueType() == MVT::v16i8) {
     SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
     bool isLittleEndian = Subtarget.isLittleEndian();
@@ -11892,9 +12036,9 @@ PPCTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
         int FrameIdx = MFI.CreateStackObject(8, 8, false);
 
         MachineMemOperand *MMOStore = F->getMachineMemOperand(
-          MachinePointerInfo::getFixedStack(*F, FrameIdx, 0),
-          MachineMemOperand::MOStore, MFI.getObjectSize(FrameIdx),
-          MFI.getObjectAlignment(FrameIdx));
+            MachinePointerInfo::getFixedStack(*F, FrameIdx, 0),
+            MachineMemOperand::MOStore, MFI.getObjectSize(FrameIdx),
+            MFI.getObjectAlign(FrameIdx));
 
         // Store the SrcReg into the stack.
         BuildMI(*BB, MI, dl, TII->get(StoreOp))
@@ -11904,9 +12048,9 @@ PPCTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
           .addMemOperand(MMOStore);
 
         MachineMemOperand *MMOLoad = F->getMachineMemOperand(
-          MachinePointerInfo::getFixedStack(*F, FrameIdx, 0),
-          MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIdx),
-          MFI.getObjectAlignment(FrameIdx));
+            MachinePointerInfo::getFixedStack(*F, FrameIdx, 0),
+            MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIdx),
+            MFI.getObjectAlign(FrameIdx));
 
         // Load from the stack where SrcReg is stored, and save to DestReg,
         // so we have done the RegClass conversion from RegClass::SrcReg to
@@ -13506,8 +13650,8 @@ SDValue PPCTargetLowering::expandVSXLoadForLE(SDNode *N,
 
   // Do not expand to PPCISD::LXVD2X + PPCISD::XXSWAPD when the load is
   // aligned and the type is a vector with elements up to 4 bytes
-  if (Subtarget.needsSwapsForVSXMemOps() && !(MMO->getAlignment()%16)
-      && VecTy.getScalarSizeInBits() <= 32 ) {
+  if (Subtarget.needsSwapsForVSXMemOps() && MMO->getAlign() >= Align(16) &&
+      VecTy.getScalarSizeInBits() <= 32) {
     return SDValue();
   }
 
@@ -13577,8 +13721,8 @@ SDValue PPCTargetLowering::expandVSXStoreForLE(SDNode *N,
 
   // Do not expand to PPCISD::XXSWAPD and PPCISD::STXVD2X when the load is
   // aligned and the type is a vector with elements up to 4 bytes
-  if (Subtarget.needsSwapsForVSXMemOps() && !(MMO->getAlignment()%16)
-      && VecTy.getScalarSizeInBits() <= 32 ) {
+  if (Subtarget.needsSwapsForVSXMemOps() && MMO->getAlign() >= Align(16) &&
+      VecTy.getScalarSizeInBits() <= 32) {
     return SDValue();
   }
 
@@ -13624,7 +13768,7 @@ SDValue PPCTargetLowering::combineStoreFPToInt(SDNode *N,
         (Op1VT == MVT::i32 || Op1VT == MVT::i64 ||
          (Subtarget.hasP9Vector() && (Op1VT == MVT::i16 || Op1VT == MVT::i8)));
 
-  if (ResVT == MVT::ppcf128 || !Subtarget.hasP8Altivec() ||
+  if (ResVT == MVT::ppcf128 || !Subtarget.hasP8Vector() ||
       cast<StoreSDNode>(N)->isTruncatingStore() || !ValidTypeForStoreFltAsInt)
     return SDValue();
 
@@ -15298,22 +15442,48 @@ bool PPCTargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
 
 bool PPCTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                                    EVT VT) const {
-  VT = VT.getScalarType();
+  return isFMAFasterThanFMulAndFAdd(
+      MF.getFunction(), VT.getTypeForEVT(MF.getFunction().getContext()));
+}
 
-  if (!VT.isSimple())
-    return false;
-
-  switch (VT.getSimpleVT().SimpleTy) {
-  case MVT::f32:
-  case MVT::f64:
+bool PPCTargetLowering::isFMAFasterThanFMulAndFAdd(const Function &F,
+                                                   Type *Ty) const {
+  switch (Ty->getScalarType()->getTypeID()) {
+  case Type::FloatTyID:
+  case Type::DoubleTyID:
     return true;
-  case MVT::f128:
-    return (EnableQuadPrecision && Subtarget.hasP9Vector());
+  case Type::FP128TyID:
+    return EnableQuadPrecision && Subtarget.hasP9Vector();
   default:
-    break;
+    return false;
   }
+}
 
-  return false;
+// Currently this is a copy from AArch64TargetLowering::isProfitableToHoist.
+// FIXME: add more patterns which are profitable to hoist.
+bool PPCTargetLowering::isProfitableToHoist(Instruction *I) const {
+  if (I->getOpcode() != Instruction::FMul)
+    return true;
+
+  if (!I->hasOneUse())
+    return true;
+
+  Instruction *User = I->user_back();
+  assert(User && "A single use instruction with no uses.");
+
+  if (User->getOpcode() != Instruction::FSub &&
+      User->getOpcode() != Instruction::FAdd)
+    return true;
+
+  const TargetOptions &Options = getTargetMachine().Options;
+  const Function *F = I->getFunction();
+  const DataLayout &DL = F->getParent()->getDataLayout();
+  Type *Ty = User->getOperand(0)->getType();
+
+  return !(
+      isFMAFasterThanFMulAndFAdd(*F, Ty) &&
+      isOperationLegalOrCustom(ISD::FMA, getValueType(DL, Ty)) &&
+      (Options.AllowFPOpFusion == FPOpFusion::Fast || Options.UnsafeFPMath));
 }
 
 const MCPhysReg *
