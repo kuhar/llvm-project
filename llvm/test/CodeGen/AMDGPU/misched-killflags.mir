@@ -1,3 +1,5 @@
+# Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+# Notified per clause 4(b) of the license.
 # RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -verify-machineinstrs -run-pass=post-RA-sched -o - %s | FileCheck %s
 # Make sure ScheduleDAGInstrs::fixupKills does not produce invalid kill flags.
 ---
@@ -6,6 +8,7 @@ tracksRegLiveness: true
 machineFunctionInfo:
   isEntryFunction: true
   scratchRSrcReg:  '$sgpr0_sgpr1_sgpr2_sgpr3'
+  scratchWaveOffsetReg: '$sgpr7'
   frameOffsetReg:  '$sgpr7'
 body: |
   bb.0:

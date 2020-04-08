@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mattr=+code-object-v3 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX700 --check-prefix=WAVE64 --check-prefix=NOTES %s
 ; RUN: llc -mattr=+code-object-v3 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX803 --check-prefix=WAVE64 --check-prefix=NOTES %s
 ; RUN: llc -mattr=+code-object-v3 -mtriple=amdgcn-amd-amdhsa -mcpu=gfx900 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes | FileCheck --check-prefix=CHECK --check-prefix=GFX900 --check-prefix=WAVE64 --check-prefix=NOTES %s
@@ -48,10 +50,10 @@ entry:
 }
 
 ; CHECK:   .name:       num_spilled_sgprs
-; GFX700:   .sgpr_spill_count: 38
-; GFX803:   .sgpr_spill_count: 22
-; GFX900:   .sgpr_spill_count: 22
-; GFX1010:  .sgpr_spill_count: 22
+; GFX700:   .sgpr_spill_count: 40
+; GFX803:   .sgpr_spill_count: 24
+; GFX900:   .sgpr_spill_count: 24
+; GFX1010:  .sgpr_spill_count: 24
 ; CHECK:   .symbol:     num_spilled_sgprs.kd
 define amdgpu_kernel void @num_spilled_sgprs(
     i32 addrspace(1)* %out0, i32 addrspace(1)* %out1, [8 x i32],

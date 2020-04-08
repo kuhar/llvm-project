@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mattr=-code-object-v3 -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,CI %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mattr=-code-object-v3 -mcpu=fiji -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI,VI-NOBUG %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mattr=-code-object-v3 -mcpu=iceland -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI,VI-BUG %s
@@ -13,14 +15,14 @@ define void @use_vcc() #1 {
 }
 
 ; GCN-LABEL: {{^}}indirect_use_vcc:
-; GCN: v_writelane_b32 v32, s33, 2
+; GCN: v_writelane_b32 v32, s34, 2
 ; GCN: v_writelane_b32 v32, s30, 0
 ; GCN: v_writelane_b32 v32, s31, 1
 ; GCN: s_swappc_b64
 ; GCN: v_readlane_b32 s4, v32, 0
 ; GCN: v_readlane_b32 s5, v32, 1
-; GCN: v_readlane_b32 s33, v32, 2
-; GCN: ; NumSgprs: 36
+; GCN: v_readlane_b32 s34, v32, 2
+; GCN: ; NumSgprs: 37
 ; GCN: ; NumVgprs: 33
 define void @indirect_use_vcc() #1 {
   call void @use_vcc()
@@ -29,8 +31,8 @@ define void @indirect_use_vcc() #1 {
 
 ; GCN-LABEL: {{^}}indirect_2level_use_vcc_kernel:
 ; GCN: is_dynamic_callstack = 0
-; CI: ; NumSgprs: 38
-; VI-NOBUG: ; NumSgprs: 40
+; CI: ; NumSgprs: 39
+; VI-NOBUG: ; NumSgprs: 41
 ; VI-BUG: ; NumSgprs: 96
 ; GCN: ; NumVgprs: 33
 define amdgpu_kernel void @indirect_2level_use_vcc_kernel(i32 addrspace(1)* %out) #0 {
@@ -48,8 +50,8 @@ define void @use_flat_scratch() #1 {
 }
 
 ; GCN-LABEL: {{^}}indirect_use_flat_scratch:
-; CI: ; NumSgprs: 38
-; VI: ; NumSgprs: 40
+; CI: ; NumSgprs: 39
+; VI: ; NumSgprs: 41
 ; GCN: ; NumVgprs: 33
 define void @indirect_use_flat_scratch() #1 {
   call void @use_flat_scratch()
@@ -58,8 +60,8 @@ define void @indirect_use_flat_scratch() #1 {
 
 ; GCN-LABEL: {{^}}indirect_2level_use_flat_scratch_kernel:
 ; GCN: is_dynamic_callstack = 0
-; CI: ; NumSgprs: 38
-; VI-NOBUG: ; NumSgprs: 40
+; CI: ; NumSgprs: 39
+; VI-NOBUG: ; NumSgprs: 41
 ; VI-BUG: ; NumSgprs: 96
 ; GCN: ; NumVgprs: 33
 define amdgpu_kernel void @indirect_2level_use_flat_scratch_kernel(i32 addrspace(1)* %out) #0 {

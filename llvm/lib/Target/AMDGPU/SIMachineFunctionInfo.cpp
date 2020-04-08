@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,13 +81,16 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     // Non-entry functions have no special inputs for now, other registers
     // required for scratch access.
     ScratchRSrcReg = AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3;
+    ScratchWaveOffsetReg = AMDGPU::SGPR33;
 
     // TODO: Pick a high register, and shift down, similar to a kernel.
-    FrameOffsetReg = AMDGPU::SGPR33;
+    FrameOffsetReg = AMDGPU::SGPR34;
     StackPtrOffsetReg = AMDGPU::SGPR32;
 
     ArgInfo.PrivateSegmentBuffer =
       ArgDescriptor::createRegister(ScratchRSrcReg);
+    ArgInfo.PrivateSegmentWaveByteOffset =
+      ArgDescriptor::createRegister(ScratchWaveOffsetReg);
 
     if (F.hasFnAttribute("amdgpu-implicitarg-ptr"))
       ImplicitArgPtr = true;
@@ -512,6 +517,7 @@ yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
     WaveLimiter(MFI.needsWaveLimiter()),
     HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
     ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
+    ScratchWaveOffsetReg(regToString(MFI.getScratchWaveOffsetReg(), TRI)),
     FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
     StackPtrOffsetReg(regToString(MFI.getStackPtrOffsetReg(), TRI)),
     ArgInfo(convertArgumentInfo(MFI.getArgInfo(), TRI)),

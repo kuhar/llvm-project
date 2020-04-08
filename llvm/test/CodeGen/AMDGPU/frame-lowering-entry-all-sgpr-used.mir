@@ -1,3 +1,5 @@
+# Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+# Notified per clause 4(b) of the license.
 # RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs -run-pass=prologepilog %s -o - | FileCheck %s
 
 # CHECK-LABEL: all_sgpr_used
@@ -26,6 +28,7 @@ machineFunctionInfo:
   isEntryFunction: true
   waveLimiter:     true
   scratchRSrcReg:  '$sgpr96_sgpr97_sgpr98_sgpr99'
+  scratchWaveOffsetReg: '$sgpr101'
   frameOffsetReg:  '$sgpr101'
   stackPtrOffsetReg: '$sgpr32'
   argumentInfo:    

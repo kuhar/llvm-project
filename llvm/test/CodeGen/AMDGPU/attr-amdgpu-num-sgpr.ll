@@ -1,12 +1,14 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn--amdhsa -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=TOSGPR -check-prefix=ALL %s
 
 ; FIXME: Vectorization can increase required SGPR count beyond limit.
 
-; ALL-LABEL: {{^}}max_10_sgprs:
+; ALL-LABEL: {{^}}max_9_sgprs:
 
 ; ALL: SGPRBlocks: 1
-; ALL: NumSGPRsForWavesPerEU: 10
-define amdgpu_kernel void @max_10_sgprs() #0 {
+; ALL: NumSGPRsForWavesPerEU: 9
+define amdgpu_kernel void @max_9_sgprs() #0 {
   %one = load volatile i32, i32 addrspace(4)* undef
   %two = load volatile i32, i32 addrspace(4)* undef
   %three = load volatile i32, i32 addrspace(4)* undef
@@ -17,8 +19,7 @@ define amdgpu_kernel void @max_10_sgprs() #0 {
   %eight = load volatile i32, i32 addrspace(4)* undef
   %nine = load volatile i32, i32 addrspace(4)* undef
   %ten = load volatile i32, i32 addrspace(4)* undef
-  %eleven = load volatile i32, i32 addrspace(4)* undef
-  call void asm sideeffect "", "s,s,s,s,s,s,s,s,s,s"(i32 %one, i32 %two, i32 %three, i32 %four, i32 %five, i32 %six, i32 %seven, i32 %eight, i32 %nine, i32 %ten)
+  call void asm sideeffect "", "s,s,s,s,s,s,s,s,s"(i32 %one, i32 %two, i32 %three, i32 %four, i32 %five, i32 %six, i32 %seven, i32 %eight, i32 %nine)
   store volatile i32 %one, i32 addrspace(1)* undef
   store volatile i32 %two, i32 addrspace(1)* undef
   store volatile i32 %three, i32 addrspace(1)* undef
@@ -29,7 +30,6 @@ define amdgpu_kernel void @max_10_sgprs() #0 {
   store volatile i32 %eight, i32 addrspace(1)* undef
   store volatile i32 %nine, i32 addrspace(1)* undef
   store volatile i32 %ten, i32 addrspace(1)* undef
-  store volatile i32 %eleven, i32 addrspace(1)* undef
   ret void
 }
 

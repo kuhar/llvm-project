@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
 ; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=1 -march=amdgcn -mcpu=tonga  -verify-machineinstrs < %s | FileCheck -check-prefix=TOVGPR -check-prefix=GCN %s
 ; RUN: llc -O0 -amdgpu-spill-sgpr-to-vgpr=0 -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=TOVMEM -check-prefix=GCN %s
@@ -14,7 +16,7 @@
 
 ; TOVMEM-DAG: s_mov_b32 [[M0_COPY:s[0-9]+]], m0
 ; TOVMEM-DAG: v_mov_b32_e32 [[SPILL_VREG:v[0-9]+]], [[M0_COPY]]
-; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:12 ; 4-byte Folded Spill
+; TOVMEM: buffer_store_dword [[SPILL_VREG]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Spill
 
 ; GCN: s_cbranch_scc1 [[ENDIF:BB[0-9]+_[0-9]+]]
 
@@ -22,7 +24,7 @@
 ; TOVGPR: v_readlane_b32 [[M0_RESTORE:s[0-9]+]], [[SPILL_VREG]], 2
 ; TOVGPR: s_mov_b32 m0, [[M0_RESTORE]]
 
-; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, 0 offset:12 ; 4-byte Folded Reload
+; TOVMEM: buffer_load_dword [[RELOAD_VREG:v[0-9]+]], off, s{{\[[0-9]+:[0-9]+\]}}, s{{[0-9]+}} offset:12 ; 4-byte Folded Reload
 ; TOVMEM: s_waitcnt vmcnt(0)
 ; TOVMEM: v_readfirstlane_b32 [[M0_RESTORE:s[0-9]+]], [[RELOAD_VREG]]
 ; TOVMEM: s_mov_b32 m0, [[M0_RESTORE]]

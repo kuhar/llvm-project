@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs -enable-ipra -amdgpu-sroa=0 < %s | FileCheck -check-prefix=GCN %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs -amdgpu-sroa=0 < %s | FileCheck -check-prefix=GCN %s
 
@@ -30,7 +32,7 @@ define hidden void @func() #1 {
 ; GCN-NOT: writelane
 ; GCN: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, v8
 
-; GCN: ; NumSgprs: 37
+; GCN: ; NumSgprs: 38
 ; GCN: ; NumVgprs: 9
 define amdgpu_kernel void @kernel_call() #0 {
   %vgpr = load volatile i32, i32 addrspace(1)* undef

@@ -1,9 +1,11 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -mattr=+trap-handler < %s | FileCheck %s --check-prefixes=GCN,TRAP-HANDLER-ENABLE
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -mattr=-trap-handler < %s | FileCheck %s --check-prefixes=GCN,TRAP-HANDLER-DISABLE
 
 ; GCN-LABEL: {{^}}amdhsa_trap_num_sgprs
-; TRAP-HANDLER-ENABLE:  NumSgprs: 61
-; TRAP-HANDLER-DISABLE: NumSgprs: 79
+; TRAP-HANDLER-ENABLE:  NumSgprs: 60
+; TRAP-HANDLER-DISABLE: NumSgprs: 78
 define amdgpu_kernel void @amdhsa_trap_num_sgprs(
     i32 addrspace(1)* %out0, i32 %in0,
     i32 addrspace(1)* %out1, i32 %in1,

@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -284,6 +286,7 @@ struct SIMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   uint32_t HighBitsOf32BitAddress = 0;
 
   StringValue ScratchRSrcReg = "$private_rsrc_reg";
+  StringValue ScratchWaveOffsetReg = "$scratch_wave_offset_reg";
   StringValue FrameOffsetReg = "$fp_reg";
   StringValue StackPtrOffsetReg = "$sp_reg";
 
@@ -310,6 +313,8 @@ template <> struct MappingTraits<SIMachineFunctionInfo> {
     YamlIO.mapOptional("waveLimiter", MFI.WaveLimiter, false);
     YamlIO.mapOptional("scratchRSrcReg", MFI.ScratchRSrcReg,
                        StringValue("$private_rsrc_reg"));
+    YamlIO.mapOptional("scratchWaveOffsetReg", MFI.ScratchWaveOffsetReg,
+                       StringValue("$scratch_wave_offset_reg"));
     YamlIO.mapOptional("frameOffsetReg", MFI.FrameOffsetReg,
                        StringValue("$fp_reg"));
     YamlIO.mapOptional("stackPtrOffsetReg", MFI.StackPtrOffsetReg,
@@ -333,14 +338,14 @@ class SIMachineFunctionInfo final : public AMDGPUMachineFunction {
   // Registers that may be reserved for spilling purposes. These may be the same
   // as the input registers.
   Register ScratchRSrcReg = AMDGPU::PRIVATE_RSRC_REG;
+  Register ScratchWaveOffsetReg = AMDGPU::SCRATCH_WAVE_OFFSET_REG;
 
-  // This is the the unswizzled offset from the current dispatch's scratch wave
-  // base to the beginning of the current function's frame.
+  // This is the current function's incremented size from the kernel's scratch
+  // wave offset register. For an entry function, this is exactly the same as
+  // the ScratchWaveOffsetReg.
   Register FrameOffsetReg = AMDGPU::FP_REG;
 
-  // This is an ABI register used in the non-entry calling convention to
-  // communicate the unswizzled offset from the current dispatch's scratch wave
-  // base to the beginning of the new function's frame.
+  // Top of the stack SGPR offset derived from the ScratchWaveOffsetReg.
   Register StackPtrOffsetReg = AMDGPU::SP_REG;
 
   AMDGPUFunctionArgInfo ArgInfo;
@@ -707,6 +712,10 @@ public:
     ScratchRSrcReg = Reg;
   }
 
+  Register getScratchWaveOffsetReg() const {
+    return ScratchWaveOffsetReg;
+  }
+
   Register getFrameOffsetReg() const {
     return FrameOffsetReg;
   }
@@ -727,6 +736,11 @@ public:
   // MIR.
   Register getStackPtrOffsetReg() const {
     return StackPtrOffsetReg;
+  }
+
+  void setScratchWaveOffsetReg(Register Reg) {
+    assert(Reg != 0 && "Should never be unset");
+    ScratchWaveOffsetReg = Reg;
   }
 
   Register getQueuePtrUserSGPR() const {

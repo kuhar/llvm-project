@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd- -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX8,GFX89 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx803 -verify-machineinstrs < %s | FileCheck --check-prefixes=GCN,GFX8,GFX89 %s
 ; RUN: llc -mtriple=amdgcn-amd- -mcpu=gfx900 -verify-machineinstrs -amdgpu-enable-global-sgpr-addr < %s | FileCheck --check-prefixes=GCN,GFX9,GFX89 %s
@@ -447,8 +449,8 @@ entry:
 }
 
 ; GCN-LABEL: {{^}}nontemporal_private_0:
-; GFX89: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], 0 offen glc slc{{$}}
-; GFX10: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], 0 offen slc{{$}}
+; GFX89: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}} offen glc slc{{$}}
+; GFX10: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}} offen slc{{$}}
 ; GFX10:         .amdhsa_kernel nontemporal_private_0
 ; GFX10WGP-NOT:  .amdhsa_workgroup_processor_mode 0
 ; GFX10CU:       .amdhsa_workgroup_processor_mode 0
@@ -462,8 +464,8 @@ entry:
 }
 
 ; GCN-LABEL: {{^}}nontemporal_private_1:
-; GFX89: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], 0 offen glc slc{{$}}
-; GFX10: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], 0 offen slc{{$}}
+; GFX89: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}} offen glc slc{{$}}
+; GFX10: buffer_load_dword v{{[0-9]+}}, v{{[0-9]+}}, s[{{[0-9]+}}:{{[0-9]+}}], s{{[0-9]+}} offen slc{{$}}
 ; GFX10:         .amdhsa_kernel nontemporal_private_1
 ; GFX10WGP-NOT:  .amdhsa_workgroup_processor_mode 0
 ; GFX10CU:       .amdhsa_workgroup_processor_mode 0
