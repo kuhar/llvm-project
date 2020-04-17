@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89,VI %s
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX89,GFX9 %s
@@ -767,8 +769,8 @@ declare <2 x half> @llvm.fabs.v2f16(<2 x half>) #1
 declare <2 x half> @llvm.minnum.v2f16(<2 x half>, <2 x half>) #1
 declare <2 x half> @llvm.maxnum.v2f16(<2 x half>, <2 x half>) #1
 
-attributes #0 = { nounwind }
+attributes #0 = { nounwind "target-features"="-fp32-denormals" }
 attributes #1 = { nounwind readnone }
-attributes #2 = { nounwind "amdgpu-dx10-clamp"="false" "target-features"="-fp-exceptions" "no-nans-fp-math"="false" }
-attributes #3 = { nounwind "amdgpu-dx10-clamp"="true" "target-features"="+fp-exceptions" "no-nans-fp-math"="false" }
-attributes #4 = { nounwind "amdgpu-dx10-clamp"="false" "target-features"="+fp-exceptions" "no-nans-fp-math"="false" }
+attributes #2 = { nounwind "amdgpu-dx10-clamp"="false" "target-features"="-fp32-denormals,-fp-exceptions" "no-nans-fp-math"="false" }
+attributes #3 = { nounwind "amdgpu-dx10-clamp"="true" "target-features"="-fp32-denormals,+fp-exceptions" "no-nans-fp-math"="false" }
+attributes #4 = { nounwind "amdgpu-dx10-clamp"="false" "target-features"="-fp32-denormals,+fp-exceptions" "no-nans-fp-math"="false" }

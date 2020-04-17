@@ -41,7 +41,7 @@ namespace serialization {
     /// Version 4 of AST files also requires that the version control branch and
     /// revision match exactly, since there is no backward compatibility of
     /// AST files at this time.
-    const unsigned VERSION_MAJOR = 9;
+    const unsigned VERSION_MAJOR = 10;
 
     /// AST file minor version number supported by this version of
     /// Clang.
@@ -181,7 +181,7 @@ namespace serialization {
       /// Raw source location of end of range.
       unsigned End;
 
-      /// Offset in the AST file.
+      /// Offset in the AST file relative to ModuleFile::MacroOffsetsBase.
       uint32_t BitOffset;
 
       PPEntityOffset(SourceRange R, uint32_t BitOffset)
@@ -221,12 +221,18 @@ namespace serialization {
       /// Raw source location.
       unsigned Loc = 0;
 
-      /// Offset in the AST file.
-      uint32_t BitOffset = 0;
+      /// Offset in the AST file. Split 64-bit integer into low/high parts
+      /// to keep structure alignment 32-bit and don't have padding gap.
+      /// This structure is serialized "as is" to the AST file and undefined
+      /// value in the padding affects AST hash.
+      uint32_t BitOffsetLow = 0;
+      uint32_t BitOffsetHigh = 0;
 
       DeclOffset() = default;
-      DeclOffset(SourceLocation Loc, uint32_t BitOffset)
-        : Loc(Loc.getRawEncoding()), BitOffset(BitOffset) {}
+      DeclOffset(SourceLocation Loc, uint64_t BitOffset) {
+        setLocation(Loc);
+        setBitOffset(BitOffset);
+      }
 
       void setLocation(SourceLocation L) {
         Loc = L.getRawEncoding();
@@ -234,6 +240,15 @@ namespace serialization {
 
       SourceLocation getLocation() const {
         return SourceLocation::getFromRawEncoding(Loc);
+      }
+
+      void setBitOffset(uint64_t Offset) {
+        BitOffsetLow = Offset;
+        BitOffsetHigh = Offset >> 32;
+      }
+
+      uint64_t getBitOffset() const {
+        return BitOffsetLow | (uint64_t(BitOffsetHigh) << 32);
       }
     };
 
@@ -1019,6 +1034,9 @@ namespace serialization {
       /// The placeholder type for OpenMP array shaping operation.
       PREDEF_TYPE_OMP_ARRAY_SHAPING = 70,
 
+      /// The placeholder type for OpenMP iterator expression.
+      PREDEF_TYPE_OMP_ITERATOR = 71,
+
       /// OpenCL image types with auto numeration
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
       PREDEF_TYPE_##Id##_ID,
@@ -1131,27 +1149,30 @@ namespace serialization {
       /// The internal '__builtin_ms_va_list' typedef.
       PREDEF_DECL_BUILTIN_MS_VA_LIST_ID = 11,
 
+      /// The predeclared '_GUID' struct.
+      PREDEF_DECL_BUILTIN_MS_GUID_ID = 12,
+
       /// The extern "C" context.
-      PREDEF_DECL_EXTERN_C_CONTEXT_ID = 12,
+      PREDEF_DECL_EXTERN_C_CONTEXT_ID = 13,
 
       /// The internal '__make_integer_seq' template.
-      PREDEF_DECL_MAKE_INTEGER_SEQ_ID = 13,
+      PREDEF_DECL_MAKE_INTEGER_SEQ_ID = 14,
 
       /// The internal '__NSConstantString' typedef.
-      PREDEF_DECL_CF_CONSTANT_STRING_ID = 14,
+      PREDEF_DECL_CF_CONSTANT_STRING_ID = 15,
 
       /// The internal '__NSConstantString' tag type.
-      PREDEF_DECL_CF_CONSTANT_STRING_TAG_ID = 15,
+      PREDEF_DECL_CF_CONSTANT_STRING_TAG_ID = 16,
 
       /// The internal '__type_pack_element' template.
-      PREDEF_DECL_TYPE_PACK_ELEMENT_ID = 16,
+      PREDEF_DECL_TYPE_PACK_ELEMENT_ID = 17,
     };
 
     /// The number of declaration IDs that are predefined.
     ///
     /// For more information about predefined declarations, see the
     /// \c PredefinedDeclIDs type and the PREDEF_DECL_*_ID constants.
-    const unsigned int NUM_PREDEF_DECL_IDS = 17;
+    const unsigned int NUM_PREDEF_DECL_IDS = 18;
 
     /// Record of updates for a declaration that was modified after
     /// being deserialized. This can occur within DECLTYPES_BLOCK_ID.
@@ -1224,6 +1245,9 @@ namespace serialization {
 
       /// A MSPropertyDecl record.
       DECL_MS_PROPERTY,
+
+      /// A MSGuidDecl record.
+      DECL_MS_GUID,
 
       /// A VarDecl record.
       DECL_VAR,
@@ -1872,6 +1896,7 @@ namespace serialization {
       STMT_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD_DIRECTIVE,
       EXPR_OMP_ARRAY_SECTION,
       EXPR_OMP_ARRAY_SHAPING,
+      EXPR_OMP_ITERATOR,
 
       // ARC
       EXPR_OBJC_BRIDGED_CAST,     // ObjCBridgedCastExpr
@@ -1883,6 +1908,9 @@ namespace serialization {
       EXPR_COAWAIT,
       EXPR_COYIELD,
       EXPR_DEPENDENT_COAWAIT,
+
+      // FixedPointLiteral
+      EXPR_FIXEDPOINT_LITERAL,
     };
 
     /// The kinds of designators that can occur in a

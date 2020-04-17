@@ -1,8 +1,10 @@
-; RUN: llc -march=amdgcn -mcpu=hawaii -start-after=sink -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=SI -check-prefix=FUNC %s
-; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=hawaii -mattr=+flat-for-global -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=SI -check-prefix=FUNC %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mcpu=hawaii -start-after=sink -mattr=-fp32-denormals,+flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=SI -check-prefix=FUNC %s
+; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=hawaii -mattr=-fp32-denormals,+flat-for-global -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=SI -check-prefix=FUNC %s
 
-; RUN: llc -march=amdgcn -mcpu=fiji -start-after=sink --verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=VI -check-prefix=FUNC %s
-; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=fiji -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=VI -check-prefix=FUNC %s
+; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp32-denormals -start-after=sink --verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-SAFE -check-prefix=VI -check-prefix=FUNC %s
+; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=fiji -mattr=-fp32-denormals -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=GCN-NSZ -check-prefix=VI -check-prefix=FUNC %s
 
 ; --------------------------------------------------------------------------------
 ; fadd tests

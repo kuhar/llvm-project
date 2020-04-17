@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=fiji -amdgpu-sdwa-peephole=0 -mattr=-fp64-fp16-denormals -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=NOSDWA,GCN %s
 ; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=fiji -amdgpu-sdwa-peephole -mattr=-fp64-fp16-denormals -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=VI,GFX89,SDWA,GCN %s
 ; RUN: llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=gfx900 -amdgpu-sdwa-peephole -mattr=-fp64-fp16-denormals -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GFX9,GFX9_10,SDWA,GCN %s

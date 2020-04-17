@@ -1,8 +1,10 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -mattr=+fp16-denormals -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-flat-for-global -mattr=-fp16-denormals -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp32-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
+; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp32-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-fp32-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-fp32-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GFX8_9_10 %s
 
 ; Make sure fdiv is promoted to f32.
 

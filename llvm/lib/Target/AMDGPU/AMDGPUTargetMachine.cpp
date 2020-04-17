@@ -175,13 +175,6 @@ static cl::opt<bool> EnableAtomicOptimizations(
   cl::init(false),
   cl::Hidden);
 
-// Enable conditional discard transformations
-static cl::opt<bool> EnableConditionalDiscardTransformations(
-  "amdgpu-conditional-discard-transformations",
-  cl::desc("Enable conditional discard transformations"),
-  cl::init(false),
-  cl::Hidden);
-
 // Enable Mode register optimization
 static cl::opt<bool> EnableSIModeRegisterPass(
   "amdgpu-mode-register",
@@ -873,17 +866,17 @@ bool GCNPassConfig::addPreISel() {
 
   addPass(createSinkingPass());
 
-  if (EnableConditionalDiscardTransformations)
-    addPass(createAMDGPUConditionalDiscardPass());
+  addPass(createAMDGPUConditionalDiscardPass());
 
   // Merge divergent exit nodes. StructurizeCFG won't recognize the multi-exit
   // regions formed by them.
   addPass(&AMDGPUUnifyDivergentExitNodesID);
   if (!LateCFGStructurize) {
     if (EnableStructurizerWorkarounds) {
+      addPass(createFixIrreduciblePass());
       addPass(createUnifyLoopExitsPass());
     }
-    addPass(createStructurizeCFGPass(true)); // true -> SkipUniformRegions
+    addPass(createStructurizeCFGPass(false)); // true -> SkipUniformRegions
   }
 
   // This is a temporary fix for the issue of dealing with in loop uniform values
@@ -1098,8 +1091,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   MFI->initializeBaseYamlFields(YamlMFI);
 
   auto parseRegister = [&](const yaml::StringValue &RegName, Register &RegVal) {
-    // FIXME: Update parseNamedRegsiterReference to take a Register.
-    unsigned TempReg;
+    Register TempReg;
     if (parseNamedRegisterReference(PFS, TempReg, RegName.Value, Error)) {
       SourceRange = RegName.SourceRange;
       return true;
@@ -1156,7 +1148,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
       return false;
 
     if (A->IsRegister) {
-      unsigned Reg;
+      Register Reg;
       if (parseNamedRegisterReference(PFS, Reg, A->RegisterName.Value, Error)) {
         SourceRange = A->RegisterName.SourceRange;
         return true;

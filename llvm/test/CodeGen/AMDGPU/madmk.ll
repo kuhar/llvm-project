@@ -1,5 +1,7 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
-; XUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
+; XUN: llc -march=amdgcn -mcpu=tonga -mattr=-fp32-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
  ; FIXME: None of these trigger madmk emission anymore. It is still
  ; possible, but requires the correct registers to be used which is

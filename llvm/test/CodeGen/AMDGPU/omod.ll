@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=SI %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=VI %s
 
@@ -275,7 +277,7 @@ declare half @llvm.minnum.f16(half, half) #1
 declare half @llvm.maxnum.f16(half, half) #1
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #1
 
-attributes #0 = { nounwind "no-signed-zeros-fp-math"="true" }
+attributes #0 = { nounwind "target-features"="-fp32-denormals" "no-signed-zeros-fp-math"="true" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind "target-features"="+fp32-denormals" "no-signed-zeros-fp-math"="true" }
 attributes #3 = { nounwind "target-features"="-fp64-fp16-denormals" "no-signed-zeros-fp-math"="true" }

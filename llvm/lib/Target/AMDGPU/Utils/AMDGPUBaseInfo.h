@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 
@@ -644,10 +646,12 @@ bool isArgPassedInSGPR(const Argument *Arg);
 /// offsets.
 uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
 
-/// \returns The encoding that will be used for \p ByteOffset in the SMRD offset
-/// field, or None if it won't fit. This is useful on all subtargets.
+/// \returns The encoding that will be used for \p ByteOffset in the
+/// SMRD offset field, or None if it won't fit. On GFX9 and GFX10
+/// S_LOAD instructions have a signed offset, on other subtargets it is
+/// unsigned. S_BUFFER has an unsigned offset for all subtargets.
 Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
-                                       int64_t ByteOffset);
+                                       int64_t ByteOffset, bool IsBuffer);
 
 /// \return The encoding that can be used for a 32-bit literal offset in an SMRD
 /// instruction. This is only useful on CI.s
@@ -704,8 +708,8 @@ struct SIModeRegisterDefaults {
     SIModeRegisterDefaults Mode;
     Mode.DX10Clamp = true;
     Mode.IEEE = IsCompute;
-    Mode.FP32InputDenormals = false; // FIXME: Should be on by default.
-    Mode.FP32OutputDenormals = false; // FIXME: Should be on by default.
+    Mode.FP32InputDenormals = true;
+    Mode.FP32OutputDenormals = true;
     Mode.FP64FP16InputDenormals = true;
     Mode.FP64FP16OutputDenormals = true;
     return Mode;

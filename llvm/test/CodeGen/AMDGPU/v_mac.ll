@@ -1,6 +1,8 @@
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=GCN %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tonga -mattr=-fp64-fp16-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=VI -check-prefix=VI-FLUSH -check-prefix=GCN %s
-; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tonga -mattr=+fp64-fp16-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=VI -check-prefix=VI-DENORM -check-prefix=GCN %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=GCN %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=tonga -mattr=-fp32-denormals,-fp64-fp16-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=VI -check-prefix=VI-FLUSH -check-prefix=GCN %s
+; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -mcpu=tonga -mattr=-fp32-denormals,+fp64-fp16-denormals,-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=VI -check-prefix=VI-DENORM -check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}mac_vvv:
 ; GCN: buffer_load_dword [[A:v[0-9]+]], off, s[{{[0-9]+:[0-9]+}}], 0{{$}}

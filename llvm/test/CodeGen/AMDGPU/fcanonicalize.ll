@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN:  llc -amdgpu-scalarize-global-loads=false -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 declare float @llvm.fabs.f32(float) #0
@@ -625,7 +627,7 @@ define <4 x double> @v_test_canonicalize_v4f64(<4 x double> %arg) #1 {
 }
 
 attributes #0 = { nounwind readnone }
-attributes #1 = { nounwind }
+attributes #1 = { nounwind "target-features"="-fp32-denormals" }
 attributes #2 = { nounwind "target-features"="-fp32-denormals,-fp64-fp16-denormals" }
 attributes #3 = { nounwind "target-features"="+fp32-denormals,+fp64-fp16-denormals" }
 attributes #4 = { nounwind "target-features"="-fp32-denormals,-fp64-fp16-denormals" "target-cpu"="tonga" }

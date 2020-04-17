@@ -1,4 +1,6 @@
-; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck --check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}rcp_uint:
 ; GCN: v_rcp_iflag_f32_e32

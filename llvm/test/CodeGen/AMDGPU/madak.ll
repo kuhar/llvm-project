@@ -1,8 +1,10 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX6,GFX6_8_9,MAD %s
-; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX8,GFX6_8_9,GFX8_9,GFX8_9_10,MAD %s
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs  -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX9,GFX6_8_9,GFX8_9,GFX8_9_10,MAD %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX10,GFX8_9_10,GFX10-MAD %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs -fp-contract=fast -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX10,GFX8_9_10,FMA %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX6,GFX6_8_9,MAD %s
+; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX8,GFX6_8_9,GFX8_9,GFX8_9_10,MAD %s
+; RUN: llc -march=amdgcn -mcpu=gfx900 -mattr=-fp32-denormals -verify-machineinstrs  -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX9,GFX6_8_9,GFX8_9,GFX8_9_10,MAD %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-fp32-denormals -verify-machineinstrs -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX10,GFX8_9_10,GFX10-MAD %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-fp32-denormals -verify-machineinstrs -fp-contract=fast -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefixes=GCN,GFX10,GFX8_9_10,FMA %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() nounwind readnone
 declare float @llvm.fabs.f32(float) nounwind readnone

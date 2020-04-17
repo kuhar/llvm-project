@@ -90,7 +90,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // unset everything else if it is disabled
 
   // Assuming ECC is enabled is the conservative default.
-  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+sram-ecc,+xnack,");
+  SmallString<256> FullFS("+promote-alloca,+load-store-opt,+enable-ds128,+sram-ecc,+xnack,");
 
   if (isAmdHsaOS()) // Turn on FlatForGlobal for HSA.
     FullFS += "+flat-for-global,+unaligned-buffer-access,+trap-handler,";
@@ -99,7 +99,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   // denormals, but should be checked. Should we issue a warning somewhere
   // if someone tries to enable these?
   if (getGeneration() >= AMDGPUSubtarget::SOUTHERN_ISLANDS) {
-    FullFS += "+fp64-fp16-denormals,";
+    FullFS += "+fp64-fp16-denormals,+fp32-denormals,";
   } else {
     FullFS += "-fp32-denormals,";
   }
@@ -200,6 +200,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     MaxPrivateElementSize(0),
 
     FastFMAF32(false),
+    FastDenormalF32(false),
     HalfRate64Ops(false),
 
     FP64FP16Denormals(false),

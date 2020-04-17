@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,VI,GFX89 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9,GFX89 %s
 ; RUN: llc -march=amdgcn -mcpu=kaveri -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CI %s
@@ -739,6 +741,6 @@ define <4 x half> @v_test_canonicalize_reg_undef_reg_reg_v4f16(half %val0, half 
 }
 
 attributes #0 = { nounwind readnone }
-attributes #1 = { nounwind }
-attributes #2 = { nounwind "target-features"="-fp64-fp16-denormals" }
-attributes #3 = { nounwind "target-features"="+fp64-fp16-denormals" }
+attributes #1 = { nounwind "target-features"="-fp32-denormals" }
+attributes #2 = { nounwind "target-features"="-fp32-denormals,-fp64-fp16-denormals" }
+attributes #3 = { nounwind "target-features"="-fp32-denormals,+fp64-fp16-denormals" }

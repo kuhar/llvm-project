@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 
@@ -1248,8 +1250,12 @@ static bool hasSMEMByteOffset(const MCSubtargetInfo &ST) {
   return isGCN3Encoding(ST) || isGFX10(ST);
 }
 
-static bool isLegalSMRDEncodedImmOffset(const MCSubtargetInfo &ST,
-                                        int64_t EncodedOffset) {
+static bool hasSMRDSignedImmOffset(const MCSubtargetInfo &ST) {
+  return isGFX9(ST) || isGFX10(ST);
+}
+
+static bool isLegalSMRDEncodedUnsignedOffset(const MCSubtargetInfo &ST,
+                                             int64_t EncodedOffset) {
   return hasSMEMByteOffset(ST) ? isUInt<20>(EncodedOffset)
                                : isUInt<8>(EncodedOffset);
 }
@@ -1268,21 +1274,27 @@ uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST,
 }
 
 Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
-                                       int64_t ByteOffset) {
+                                       int64_t ByteOffset, bool IsBuffer) {
+  // The signed version is always a byte offset.
+  if (!IsBuffer && hasSMRDSignedImmOffset(ST)) {
+    assert(hasSMEMByteOffset(ST));
+    return isInt<20>(ByteOffset) ? Optional<int64_t>(ByteOffset) : None;
+  }
+
   if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
     return None;
 
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
-  return isLegalSMRDEncodedImmOffset(ST, EncodedOffset) ?
-    Optional<int64_t>(EncodedOffset) : None;
+  return isLegalSMRDEncodedUnsignedOffset(ST, EncodedOffset)
+             ? Optional<int64_t>(EncodedOffset)
+             : None;
 }
 
 Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
                                                 int64_t ByteOffset) {
-  if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
+  if (!isCI(ST) || !isDwordAligned(ByteOffset))
     return None;
 
-  assert(isCI(ST));
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
   return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset) : None;
 }

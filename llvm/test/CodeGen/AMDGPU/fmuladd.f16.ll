@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp64-fp16-denormals -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,VI-FLUSH,VI %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp64-fp16-denormals -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,VI-FLUSH,VI %s
 

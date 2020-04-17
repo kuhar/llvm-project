@@ -104,6 +104,7 @@ class MangleNumberingContext;
 class MaterializeTemporaryExpr;
 class MemberSpecializationInfo;
 class Module;
+struct MSGuidDeclParts;
 class ObjCCategoryDecl;
 class ObjCCategoryImplDecl;
 class ObjCContainerDecl;
@@ -268,6 +269,9 @@ class ASTContext : public RefCountedBase<ASTContext> {
 
   /// Mapping from __block VarDecls to BlockVarCopyInit.
   llvm::DenseMap<const VarDecl *, BlockVarCopyInit> BlockVarCopyInits;
+
+  /// Mapping from GUIDs to the corresponding MSGuidDecl.
+  mutable llvm::FoldingSet<MSGuidDecl> MSGuidDecls;
 
   /// Used to cleanups APValues stored in the AST.
   mutable llvm::SmallVector<APValue *, 0> APValueCleanups;
@@ -970,7 +974,7 @@ public:
 #include "clang/Basic/OpenCLImageTypes.def"
   CanQualType OCLSamplerTy, OCLEventTy, OCLClkEventTy;
   CanQualType OCLQueueTy, OCLReserveIDTy;
-  CanQualType OMPArraySectionTy, OMPArrayShapingTy;
+  CanQualType OMPArraySectionTy, OMPArrayShapingTy, OMPIteratorTy;
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   CanQualType Id##Ty;
 #include "clang/Basic/OpenCLExtensionTypes.def"
@@ -984,7 +988,10 @@ public:
 
   // Decl used to help define __builtin_va_list for some targets.
   // The decl is built when constructing 'BuiltinVaListDecl'.
-  mutable Decl *VaListTagDecl;
+  mutable Decl *VaListTagDecl = nullptr;
+
+  // Implicitly-declared type 'struct _GUID'.
+  mutable TagDecl *MSGuidTagDecl = nullptr;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins);
@@ -1854,6 +1861,15 @@ public:
     return getTypeDeclType(getBuiltinMSVaListDecl());
   }
 
+  /// Retrieve the implicitly-predeclared 'struct _GUID' declaration.
+  TagDecl *getMSGuidTagDecl() const { return MSGuidTagDecl; }
+
+  /// Retrieve the implicitly-predeclared 'struct _GUID' type.
+  QualType getMSGuidType() const {
+    assert(MSGuidTagDecl && "asked for GUID type but MS extensions disabled");
+    return getTagDeclType(MSGuidTagDecl);
+  }
+
   /// Return whether a declaration to a builtin is allowed to be
   /// overloaded/redeclared.
   bool canBuiltinBeRedeclared(const FunctionDecl *) const;
@@ -2535,7 +2551,7 @@ public:
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,
                       bool Unqualified = false, bool BlockReturnType = false);
   QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer=false,
-                              bool Unqualified = false);
+                              bool Unqualified = false, bool AllowCXX = false);
   QualType mergeFunctionParameterTypes(QualType, QualType,
                                        bool OfBlockPointer = false,
                                        bool Unqualified = false);
@@ -2755,6 +2771,10 @@ public:
   /// function declaration or file name. Used by SourceLocExpr and
   /// PredefinedExpr to cache evaluated results.
   StringLiteral *getPredefinedStringLiteralFromCache(StringRef Key) const;
+
+  /// Return a declaration for the global GUID object representing the given
+  /// GUID value.
+  MSGuidDecl *getMSGuidDecl(MSGuidDeclParts Parts) const;
 
   /// Parses the target attributes passed in, and returns only the ones that are
   /// valid feature names.

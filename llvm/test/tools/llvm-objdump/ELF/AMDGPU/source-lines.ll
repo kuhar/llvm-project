@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: sed -e "s,SRC_COMPDIR,%/p/Inputs,g" %s > %t.ll
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx802 -filetype=obj -O0 -o %t.o %t.ll
 ; RUN: llvm-objdump --triple=amdgcn-amd-amdhsa --mcpu=gfx802 -d -l %t.o | FileCheck --check-prefix=LINE %t.ll

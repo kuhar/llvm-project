@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=tahiti -mattr=-fp32-denormals,+fast-fmaf -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-FLUSH,GCN-FLUSH-STRICT,GCN-FLUSH-MAD,GCN-FLUSH-FASTFMA,GCN-FLUSH-FASTFMA-STRICT,SI %s
 ; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=tahiti -mattr=+fp32-denormals,+fast-fmaf -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-DENORM-STRICT,GCN-DENORM,SI-DENORM,GCN-DENORM-FASTFMA,GCN-DENORM-FASTFMA-STRICT,SI %s
 ; RUN: llc -amdgpu-scalarize-global-loads=false -verify-machineinstrs -mcpu=verde -mattr=-fp32-denormals,-fast-fmaf -fp-contract=on < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-FLUSH,GCN-FLUSH-STRICT,GCN-FLUSH-MAD,SI-FLUSH,GCN-FLUSH-SLOWFMA,GCN-FLUSH-SLOWFMA-STRICT,SI %s
@@ -81,7 +83,7 @@ define amdgpu_kernel void @fmul_fadd_f32(float addrspace(1)* %out, float addrspa
 ; GCN-DENORM-SLOWFMA: v_add_f32_e32 [[TMP:v[0-9]+]], [[R1]], [[R1]]
 ; GCN-DENORM-SLOWFMA: v_add_f32_e32 [[RESULT:v[0-9]+]], [[TMP]], [[R2]]
 
-; SI-DENORM buffer_store_dword [[RESULT]]
+; SI-DENORM: buffer_store_dword [[RESULT]]
 ; VI-DENORM: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
 define amdgpu_kernel void @fmuladd_2.0_a_b_f32(float addrspace(1)* %out, float addrspace(1)* %in) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()

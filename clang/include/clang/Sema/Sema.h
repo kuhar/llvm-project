@@ -25,6 +25,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/MangleNumberingContext.h"
@@ -57,6 +58,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TinyPtrVector.h"
@@ -390,7 +392,7 @@ public:
   typedef OpaquePtr<QualType> TypeTy;
 
   OpenCLOptions OpenCLFeatures;
-  FPOptions FPFeatures;
+  FPOptions CurFPFeatures;
 
   const LangOptions &LangOpts;
   Preprocessor &PP;
@@ -1352,8 +1354,8 @@ public:
   /// statements.
   class FPFeaturesStateRAII {
   public:
-    FPFeaturesStateRAII(Sema &S) : S(S), OldFPFeaturesState(S.FPFeatures) {}
-    ~FPFeaturesStateRAII() { S.FPFeatures = OldFPFeaturesState; }
+    FPFeaturesStateRAII(Sema &S) : S(S), OldFPFeaturesState(S.CurFPFeatures) {}
+    ~FPFeaturesStateRAII() { S.CurFPFeatures = OldFPFeaturesState; }
 
   private:
     Sema& S;
@@ -1376,7 +1378,7 @@ public:
 
   const LangOptions &getLangOpts() const { return LangOpts; }
   OpenCLOptions &getOpenCLOptions() { return OpenCLFeatures; }
-  FPOptions     &getFPOptions() { return FPFeatures; }
+  FPOptions     &getCurFPFeatures() { return CurFPFeatures; }
 
   DiagnosticsEngine &getDiagnostics() const { return Diags; }
   SourceManager &getSourceManager() const { return SourceMgr; }
@@ -1500,9 +1502,6 @@ public:
   public:
   // Emit all deferred diagnostics.
   void emitDeferredDiags();
-  // Emit any deferred diagnostics for FD and erase them from the map in which
-  // they're stored.
-  void emitDeferredDiags(FunctionDecl *FD, bool ShowCallStack);
 
   enum TUFragmentKind {
     /// The global module fragment, between 'module;' and a module-declaration.
@@ -2962,7 +2961,7 @@ public:
   VisibilityAttr *mergeVisibilityAttr(Decl *D, const AttributeCommonInfo &CI,
                                       VisibilityAttr::VisibilityType Vis);
   UuidAttr *mergeUuidAttr(Decl *D, const AttributeCommonInfo &CI,
-                          StringRef Uuid);
+                          StringRef UuidAsWritten, MSGuidDecl *GuidDecl);
   DLLImportAttr *mergeDLLImportAttr(Decl *D, const AttributeCommonInfo &CI);
   DLLExportAttr *mergeDLLExportAttr(Decl *D, const AttributeCommonInfo &CI);
   MSInheritanceAttr *mergeMSInheritanceAttr(Decl *D,
@@ -4904,6 +4903,21 @@ public:
                                       ArrayRef<Expr *> Dims,
                                       ArrayRef<SourceRange> Brackets);
 
+  /// Data structure for iterator expression.
+  struct OMPIteratorData {
+    IdentifierInfo *DeclIdent = nullptr;
+    SourceLocation DeclIdentLoc;
+    ParsedType Type;
+    OMPIteratorExpr::IteratorRange Range;
+    SourceLocation AssignLoc;
+    SourceLocation ColonLoc;
+    SourceLocation SecColonLoc;
+  };
+
+  ExprResult ActOnOMPIteratorExpr(Scope *S, SourceLocation IteratorKwLoc,
+                                  SourceLocation LLoc, SourceLocation RLoc,
+                                  ArrayRef<OMPIteratorData> Data);
+
   // This struct is for use by ActOnMemberAccess to allow
   // BuildMemberReferenceExpr to be able to reinvoke ActOnMemberAccess after
   // changing the access operator from a '.' to a '->' (to see if that is the
@@ -6652,6 +6666,22 @@ public:
   /// referenced.
   void MarkBaseAndMemberDestructorsReferenced(SourceLocation Loc,
                                               CXXRecordDecl *Record);
+
+  /// Mark destructors of virtual bases of this class referenced. In the Itanium
+  /// C++ ABI, this is done when emitting a destructor for any non-abstract
+  /// class. In the Microsoft C++ ABI, this is done any time a class's
+  /// destructor is referenced.
+  void MarkVirtualBaseDestructorsReferenced(
+      SourceLocation Location, CXXRecordDecl *ClassDecl,
+      llvm::SmallPtrSetImpl<const RecordType *> *DirectVirtualBases = nullptr);
+
+  /// Do semantic checks to allow the complete destructor variant to be emitted
+  /// when the destructor is defined in another translation unit. In the Itanium
+  /// C++ ABI, destructor variants are emitted together. In the MS C++ ABI, they
+  /// can be emitted in separate TUs. To emit the complete variant, run a subset
+  /// of the checks performed when emitting a regular destructor.
+  void CheckCompleteDestructorVariant(SourceLocation CurrentLocation,
+                                      CXXDestructorDecl *Dtor);
 
   /// The list of classes whose vtables have been used within
   /// this translation unit, and the source locations at which the
@@ -9578,7 +9608,7 @@ public:
   void ActOnPragmaFEnvAccess(LangOptions::FEnvAccessModeKind FPC);
 
   /// Called to set rounding mode for floating point operations.
-  void setRoundingMode(LangOptions::FPRoundingModeKind);
+  void setRoundingMode(llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
   void setExceptionMode(LangOptions::FPExceptionModeKind);
@@ -9845,8 +9875,7 @@ private:
     /// The associated OpenMP context selector mangling.
     std::string NameSuffix;
 
-    OMPDeclareVariantScope(OMPTraitInfo &TI)
-        : TI(&TI), NameSuffix(TI.getMangledName()) {}
+    OMPDeclareVariantScope(OMPTraitInfo &TI);
   };
 
   /// The current `omp begin/end declare variant` scopes.
@@ -9876,7 +9905,7 @@ public:
   /// specialization via the OpenMP declare variant mechanism available. If
   /// there is, return the specialized call expression, otherwise return the
   /// original \p Call.
-  ExprResult ActOnOpenMPCall(Sema &S, ExprResult Call, Scope *Scope,
+  ExprResult ActOnOpenMPCall(ExprResult Call, Scope *Scope,
                              SourceLocation LParenLoc, MultiExprArg ArgExprs,
                              SourceLocation RParenLoc, Expr *ExecConfig);
 
@@ -10572,7 +10601,7 @@ public:
       SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc);
 
   OMPClause *ActOnOpenMPVarListClause(
-      OpenMPClauseKind Kind, ArrayRef<Expr *> Vars, Expr *TailExpr,
+      OpenMPClauseKind Kind, ArrayRef<Expr *> Vars, Expr *DepModOrTailExpr,
       const OMPVarListLocTy &Locs, SourceLocation ColonLoc,
       CXXScopeSpec &ReductionOrMapperIdScopeSpec,
       DeclarationNameInfo &ReductionOrMapperId, int ExtraModifier,
@@ -10670,10 +10699,10 @@ public:
                                      SourceLocation EndLoc);
   /// Called on well-formed 'depend' clause.
   OMPClause *
-  ActOnOpenMPDependClause(OpenMPDependClauseKind DepKind, SourceLocation DepLoc,
-                          SourceLocation ColonLoc, ArrayRef<Expr *> VarList,
-                          SourceLocation StartLoc, SourceLocation LParenLoc,
-                          SourceLocation EndLoc);
+  ActOnOpenMPDependClause(Expr *DepModifier, OpenMPDependClauseKind DepKind,
+                          SourceLocation DepLoc, SourceLocation ColonLoc,
+                          ArrayRef<Expr *> VarList, SourceLocation StartLoc,
+                          SourceLocation LParenLoc, SourceLocation EndLoc);
   /// Called on well-formed 'device' clause.
   OMPClause *ActOnOpenMPDeviceClause(OpenMPDeviceClauseModifier Modifier,
                                      Expr *Device, SourceLocation StartLoc,
@@ -11945,6 +11974,7 @@ private:
                                     unsigned MaxWidth);
   bool CheckNeonBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckMVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
+  bool CheckSVEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckCDEBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);
   bool CheckARMCoprocessorImmediate(const Expr *CoprocArg, bool WantCDE);
   bool CheckARMBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall);

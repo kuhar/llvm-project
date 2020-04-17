@@ -1,4 +1,6 @@
-; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck %s
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
+; RUN: llc -march=amdgcn -mattr=-fp32-denormals -verify-machineinstrs < %s | FileCheck %s
 
 ; CHECK-LABEL: {{^}}fold_sgpr:
 ; CHECK: v_add_i32_e32 v{{[0-9]+}}, vcc, s
