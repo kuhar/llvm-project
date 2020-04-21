@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -135,7 +133,7 @@ public:
       TLI(ST->getTargetLowering()),
       CommonTTI(TM, F),
       IsGraphicsShader(AMDGPU::isShader(F.getCallingConv())),
-      HasFP32Denormals(ST->hasFP32Denormals(F)) { }
+      HasFP32Denormals(AMDGPU::SIModeRegisterDefaults(F).allFP32Denormals()) {}
 
   bool hasBranchDivergence() { return true; }
   bool useGPUDivergenceAnalysis() const;

@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -808,4 +806,9 @@ def fminnum_like_oneuse : PatFrags<(ops node:$src0, node:$src1),
 def fmaxnum_like_oneuse : PatFrags<(ops node:$src0, node:$src1),
   [(fmaxnum_ieee_oneuse node:$src0, node:$src1),
    (fmaxnum_oneuse node:$src0, node:$src1)]
+>;
+
+def any_fmad : PatFrags<(ops node:$src0, node:$src1, node:$src2),
+  [(fmad node:$src0, node:$src1, node:$src2),
+   (AMDGPUfmad_ftz node:$src0, node:$src1, node:$src2)]
 >;

@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-mesa-mesa3d -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; GCN-LABEL: {{^}}kernel_ieee_mode_default:
@@ -152,7 +150,6 @@ define amdgpu_ps void @ps_ieee_mode_default() #0 {
   ret void
 }
 
-; FIXME: Should have denormals off by default.
 ; GCN-LABEL: {{^}}ps_ieee_mode_on:
 ; GCN: {{buffer|global|flat}}_load_dword [[VAL0:v[0-9]+]]
 ; GCN-NEXT: {{buffer|global|flat}}_load_dword [[VAL1:v[0-9]+]]

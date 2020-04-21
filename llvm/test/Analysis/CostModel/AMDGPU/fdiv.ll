@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: opt -cost-model -analyze -mtriple=amdgcn-unknown-amdhsa -mcpu=hawaii < %s | FileCheck -check-prefixes=ALL,CIFASTF64,NOFP16,NOFP16-NOFP32DENORM,SLOWFP32DENORMS %s
 ; RUN: opt -cost-model -analyze -mtriple=amdgcn-unknown-amdhsa -mcpu=kaveri < %s | FileCheck -check-prefixes=ALL,CISLOWF64,NOFP16,NOFP16-NOFP32DENORM,SLOWFP32DENORMS  %s
 ; RUN: opt -cost-model -analyze -mtriple=amdgcn-mesa-mesa3d -mcpu=tahiti < %s | FileCheck -check-prefixes=ALL,SIFASTF64,NOFP32DENORM,NOFP16,NOFP16-NOFP32DENORM,SLOWFP32DENORMS  %s
@@ -280,5 +278,5 @@ define amdgpu_kernel void @rcp_v2f16_f32_ftzdaz(<2 x half> addrspace(1)* %out, <
   ret void
 }
 
-attributes #0 = { nounwind "target-features"="+fp32-denormals" }
-attributes #1 = { nounwind "target-features"="-fp32-denormals" }
+attributes #0 = { nounwind "denormal-fp-math-f32"="ieee,ieee" }
+attributes #1 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }

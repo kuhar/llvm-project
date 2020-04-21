@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs -show-mc-encoding < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX900,GFX9 %s
 ; RUN: llc -march=amdgcn -mcpu=gfx906 -verify-machineinstrs -show-mc-encoding < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX906,GFX9 %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,CIVI,VI %s
@@ -559,6 +557,6 @@ declare float @llvm.maxnum.f32(float, float) #2
 declare float @llvm.fmuladd.f32(float, float, float) #2
 declare <2 x float> @llvm.fmuladd.v2f32(<2 x float>, <2 x float>, <2 x float>) #2
 
-attributes #0 = { nounwind "target-features"="-fp32-denormals" }
-attributes #1 = { nounwind "target-features"="+fp32-denormals" }
+attributes #0 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
+attributes #1 = { nounwind "denormal-fp-math-f32"="ieee,ieee" }
 attributes #2 = { nounwind readnone speculatable }

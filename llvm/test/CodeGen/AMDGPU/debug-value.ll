@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs < %s | FileCheck %s
 
 %struct.wombat = type { [4 x i32], [4 x i32], [4 x i32] }
@@ -91,7 +89,7 @@ declare float @barney() #2
 declare void @eggs(float) #2
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { convergent nounwind "target-cpu"="gfx900" "target-features"="+fp32-denormals" }
+attributes #0 = { convergent nounwind "target-cpu"="gfx900" }
 attributes #1 = { nounwind readnone speculatable }
 attributes #2 = { nounwind }
 

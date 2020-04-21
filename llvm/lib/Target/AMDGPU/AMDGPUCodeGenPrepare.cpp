@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -17,6 +15,7 @@
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
 #include "AMDGPUTargetMachine.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -1389,7 +1388,9 @@ bool AMDGPUCodeGenPrepare::runOnFunction(Function &F) {
   DT = DTWP ? &DTWP->getDomTree() : nullptr;
 
   HasUnsafeFPMath = hasUnsafeFPMath(F);
-  HasFP32Denormals = ST->hasFP32Denormals(F);
+
+  AMDGPU::SIModeRegisterDefaults Mode(F);
+  HasFP32Denormals = Mode.allFP32Denormals();
 
   bool MadeChange = false;
 

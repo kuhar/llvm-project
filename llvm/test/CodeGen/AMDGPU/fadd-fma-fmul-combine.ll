@@ -1,10 +1,8 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
-; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=+fast-fmaf,-fp32-denormals -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FLUSH %s
-; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=-fast-fmaf,-fp32-denormals -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mattr=+fast-fmaf -denormal-fp-math-f32=preserve-sign -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FLUSH %s
+; RUN: llc -march=amdgcn -mattr=-fast-fmaf -denormal-fp-math-f32=preserve-sign -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FLUSH %s
 
-; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=+fast-fmaf,+fp32-denormals -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FASTFMA %s
-; RUN: llc -march=amdgcn -mcpu=tahiti -mattr=-fast-fmaf,+fp32-denormals -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SLOWFMA %s
+; RUN: llc -march=amdgcn -mattr=+fast-fmaf -denormal-fp-math-f32=ieee  -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-FASTFMA %s
+; RUN: llc -march=amdgcn -mattr=-fast-fmaf -denormal-fp-math-f32=ieee -enable-unsafe-fp-math -verify-machineinstrs < %s | FileCheck -check-prefix=GCN -check-prefix=GCN-SLOWFMA %s
 
 ; FIXME: This should also fold when fma is actually fast if an FMA
 ; exists in the original program.

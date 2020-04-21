@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=gfx908 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX908 %s
 ; RUN: not llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s 2>&1 | FileCheck -check-prefixes=GCN,GFX900 %s
 
@@ -246,7 +248,7 @@ define amdgpu_kernel void @max_256_vgprs_spill_9x32(<32 x float> addrspace(1)* %
 ; GFX908-DAG: v_accvgpr_read_b32
 
 ; GCN:    NumVgprs: 256
-; GFX900: ScratchSize: 708
+; GFX900: ScratchSize: 644
 ; GFX908-FIXME: ScratchSize: 0
 ; GCN:    VGPRBlocks: 63
 ; GCN:    NumVGPRsForWavesPerEU: 256

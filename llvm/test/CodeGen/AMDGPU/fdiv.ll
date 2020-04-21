@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,PREGFX10,FUNC %s
 ; RUN: llc -march=amdgcn -mcpu=hawaii -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,PREGFX10,FUNC %s
 ; RUN: llc -march=amdgcn -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,PREGFX10,FUNC %s
@@ -347,9 +345,8 @@ entry:
   ret void
 }
 
-
-attributes #0 = { nounwind "enable-unsafe-fp-math"="false" "target-features"="-fp32-denormals,+fp64-fp16-denormals,-flat-for-global" }
-attributes #1 = { nounwind "enable-unsafe-fp-math"="true" "target-features"="-fp32-denormals,-flat-for-global" }
-attributes #2 = { nounwind "enable-unsafe-fp-math"="false" "target-features"="+fp32-denormals,-flat-for-global" }
+attributes #0 = { nounwind "enable-unsafe-fp-math"="false" "denormal-fp-math-f32"="preserve-sign,preserve-sign" "target-features"="-flat-for-global" }
+attributes #1 = { nounwind "enable-unsafe-fp-math"="true" "denormal-fp-math-f32"="preserve-sign,preserve-sign" "target-features"="-flat-for-global" }
+attributes #2 = { nounwind "enable-unsafe-fp-math"="false" "denormal-fp-math-f32"="ieee,ieee" "target-features"="-flat-for-global" }
 
 !0 = !{float 2.500000e+00}

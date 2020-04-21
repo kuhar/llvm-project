@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1008,7 +1006,7 @@ class MULADD_Common <bits<5> inst> : R600_3OP <
 
 class MULADD_IEEE_Common <bits<5> inst> : R600_3OP <
   inst, "MULADD_IEEE",
-  [(set f32:$dst, (fmad f32:$src0, f32:$src1, f32:$src2))]
+  [(set f32:$dst, (any_fmad f32:$src0, f32:$src1, f32:$src2))]
 >;
 
 class FMA_Common <bits<5> inst> : R600_3OP <

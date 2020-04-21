@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 
 declare float @llvm.amdgcn.rcp.f32(float) #0
@@ -141,9 +139,9 @@ define amdgpu_kernel void @unsafe_rsq_rcp_pat_f64(double addrspace(1)* %out, dou
 }
 
 attributes #0 = { nounwind readnone }
-attributes #1 = { nounwind "unsafe-fp-math"="false" "target-features"="-fp32-denormals" }
-attributes #2 = { nounwind "unsafe-fp-math"="true" "target-features"="-fp32-denormals" }
-attributes #3 = { nounwind "unsafe-fp-math"="false" "target-features"="+fp32-denormals" }
-attributes #4 = { nounwind "unsafe-fp-math"="true" "target-features"="+fp32-denormals" }
+attributes #1 = { nounwind "unsafe-fp-math"="false" "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
+attributes #2 = { nounwind "unsafe-fp-math"="true" "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
+attributes #3 = { nounwind "unsafe-fp-math"="false" "denormal-fp-math-f32"="ieee,ieee" }
+attributes #4 = { nounwind "unsafe-fp-math"="true" "denormal-fp-math-f32"="ieee,ieee" }
 
 !0 = !{float 2.500000e+00}
