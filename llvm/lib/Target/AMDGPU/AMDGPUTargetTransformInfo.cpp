@@ -622,8 +622,8 @@ unsigned GCNTTIImpl::getCFInstrCost(unsigned Opcode) {
   }
 }
 
-int GCNTTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *Ty,
-                                              bool IsPairwise) {
+int GCNTTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
+                                           bool IsPairwise) {
   EVT OrigTy = TLI->getValueType(DL, Ty);
 
   // Computes cost on targets that have packed math instructions(which support
@@ -637,7 +637,7 @@ int GCNTTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *Ty,
   return LT.first * getFullRateInstrCost();
 }
 
-int GCNTTIImpl::getMinMaxReductionCost(Type *Ty, Type *CondTy,
+int GCNTTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
                                           bool IsPairwise,
                                           bool IsUnsigned) {
   EVT OrigTy = TLI->getValueType(DL, Ty);
@@ -905,10 +905,9 @@ bool GCNTTIImpl::rewriteIntrinsicWithAddressSpace(
   }
 }
 
-unsigned GCNTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
-                                       Type *SubTp) {
+unsigned GCNTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *VT,
+                                    int Index, VectorType *SubTp) {
   if (ST->hasVOP3PInsts()) {
-    VectorType *VT = cast<VectorType>(Tp);
     if (VT->getNumElements() == 2 &&
         DL.getTypeSizeInBits(VT->getElementType()) == 16) {
       // With op_sel VOP3P instructions freely can access the low half or high
@@ -925,7 +924,7 @@ unsigned GCNTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
     }
   }
 
-  return BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
+  return BaseT::getShuffleCost(Kind, VT, Index, SubTp);
 }
 
 bool GCNTTIImpl::areInlineCompatible(const Function *Caller,
@@ -992,8 +991,8 @@ unsigned GCNTTIImpl::getUserCost(const User *U,
   }
   case Instruction::ShuffleVector: {
     const ShuffleVectorInst *Shuffle = cast<ShuffleVectorInst>(I);
-    Type *Ty = Shuffle->getType();
-    Type *SrcTy = Shuffle->getOperand(0)->getType();
+    auto *Ty = cast<VectorType>(Shuffle->getType());
+    auto *SrcTy = cast<VectorType>(Shuffle->getOperand(0)->getType());
 
     // TODO: Identify and add costs for insert subvector, etc.
     int SubIndex;
