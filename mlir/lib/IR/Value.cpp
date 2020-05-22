@@ -87,6 +87,13 @@ Region *Value::getParentRegion() {
   return cast<BlockArgument>().getOwner()->getParent();
 }
 
+/// Return the Block in which this Value is defined.
+Block *Value::getParentBlock() {
+  if (Operation *op = getDefiningOp())
+    return op->getBlock();
+  return cast<BlockArgument>().getOwner();
+}
+
 //===----------------------------------------------------------------------===//
 // Value::UseLists
 //===----------------------------------------------------------------------===//
@@ -123,6 +130,22 @@ void Value::replaceAllUsesExcept(
     if (exceptions.count(use.getOwner()) == 0)
       use.set(newValue);
   }
+}
+
+/// Replace all uses of 'this' value with 'newValue' if the given callback
+/// returns true.
+void Value::replaceUsesWithIf(Value newValue,
+                              function_ref<bool(OpOperand &)> shouldReplace) {
+  for (OpOperand &use : llvm::make_early_inc_range(getUses()))
+    if (shouldReplace(use))
+      use.set(newValue);
+}
+
+/// Returns true if the value is used outside of the given block.
+bool Value::isUsedOutsideOfBlock(Block *block) {
+  return llvm::any_of(getUsers(), [block](Operation *user) {
+    return user->getBlock() != block;
+  });
 }
 
 //===--------------------------------------------------------------------===//

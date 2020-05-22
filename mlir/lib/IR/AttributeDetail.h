@@ -374,6 +374,9 @@ struct TypeAttributeStorage : public AttributeStorage {
 
 /// Return the bit width which DenseElementsAttr should use for this type.
 inline size_t getDenseElementBitWidth(Type eltType) {
+  // Align the width for complex to 8 to make storage and interpretation easier.
+  if (ComplexType comp = eltType.dyn_cast<ComplexType>())
+    return llvm::alignTo<8>(getDenseElementBitWidth(comp.getElementType())) * 2;
   // FIXME(b/121118307): using 64 bits for BF16 because it is currently stored
   // with double semantics.
   if (eltType.isBF16())
@@ -594,7 +597,7 @@ struct DenseStringElementsAttributeStorage
     // If the data is already known to be a splat, the key hash value is
     // directly the data buffer.
     if (isKnownSplat)
-      return KeyTy(ty, data, llvm::hash_value(data), isKnownSplat);
+      return KeyTy(ty, data, llvm::hash_value(data.front()), isKnownSplat);
 
     // Handle the simple case of only one element.
     assert(ty.getNumElements() != 1 &&
@@ -611,7 +614,7 @@ struct DenseStringElementsAttributeStorage
         return KeyTy(ty, data, llvm::hash_combine(hashVal, data.drop_front(i)));
 
     // Otherwise, this is a splat so just return the hash of the first element.
-    return KeyTy(ty, {firstElt}, hashVal, /*isSplat=*/true);
+    return KeyTy(ty, data.take_front(), hashVal, /*isSplat=*/true);
   }
 
   /// Hash the key for the storage.

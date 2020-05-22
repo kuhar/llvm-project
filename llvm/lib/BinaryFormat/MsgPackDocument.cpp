@@ -42,34 +42,79 @@ DocNode &MapDocNode::operator[](StringRef S) {
 /// Member access for MapDocNode.
 DocNode &MapDocNode::operator[](DocNode Key) {
   assert(!Key.isEmpty());
-  MapTy::value_type Entry(Key, DocNode());
-  auto ItAndInserted = Map->insert(Entry);
-  if (ItAndInserted.second) {
+  DocNode &N = (*Map)[Key];
+  if (N.isEmpty()) {
     // Ensure a new element has its KindAndDoc initialized.
-    ItAndInserted.first->second = getDocument()->getNode();
+    N = getDocument()->getEmptyNode();
   }
-  return ItAndInserted.first->second;
+  return N;
+}
+
+/// Member access for MapDocNode for integer key.
+DocNode &MapDocNode::operator[](int Key) {
+  return (*this)[getDocument()->getNode(Key)];
+}
+DocNode &MapDocNode::operator[](unsigned Key) {
+  return (*this)[getDocument()->getNode(Key)];
+}
+DocNode &MapDocNode::operator[](int64_t Key) {
+  return (*this)[getDocument()->getNode(Key)];
+}
+DocNode &MapDocNode::operator[](uint64_t Key) {
+  return (*this)[getDocument()->getNode(Key)];
 }
 
 /// Array element access. This extends the array if necessary.
 DocNode &ArrayDocNode::operator[](size_t Index) {
   if (size() <= Index) {
     // Ensure new elements have their KindAndDoc initialized.
-    Array->resize(Index + 1, getDocument()->getNode());
+    Array->resize(Index + 1, getDocument()->getEmptyNode());
   }
   return (*Array)[Index];
 }
 
+// Convenience assignment operators. This only works if the destination
+// DocNode has an associated Document, i.e. it was not constructed using the
+// default constructor. The string one does not copy, so the string must
+// remain valid for the lifetime of the Document. Use fromString to avoid
+// that restriction.
+DocNode &DocNode::operator=(StringRef Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+DocNode &DocNode::operator=(bool Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+DocNode &DocNode::operator=(int Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+DocNode &DocNode::operator=(unsigned Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+DocNode &DocNode::operator=(int64_t Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+DocNode &DocNode::operator=(uint64_t Val) {
+  *this = getDocument()->getNode(Val);
+  return *this;
+}
+
 // A level in the document reading stack.
 struct StackLevel {
-  StackLevel(DocNode Node, size_t Length, DocNode *MapEntry = nullptr)
-      : Node(Node), Length(Length), MapEntry(MapEntry), Count(0) {}
+  StackLevel(DocNode Node, size_t StartIndex, size_t Length,
+             DocNode *MapEntry = nullptr)
+      : Node(Node), Index(StartIndex), End(StartIndex + Length),
+        MapEntry(MapEntry) {}
   DocNode Node;
-  size_t Length;
+  size_t Index;
+  size_t End;
   // Points to map entry when we have just processed a map key.
   DocNode *MapEntry;
   DocNode MapKey;
-  size_t Count;
 };
 
 // Read a document from a binary msgpack blob, merging into anything already in
@@ -83,14 +128,14 @@ struct StackLevel {
 
 bool Document::readFromBlob(
     StringRef Blob, bool Multi,
-    function_ref<bool(DocNode *DestNode, DocNode SrcNode, DocNode MapKey)>
+    function_ref<int(DocNode *DestNode, DocNode SrcNode, DocNode MapKey)>
         Merger) {
   msgpack::Reader MPReader(Blob);
   SmallVector<StackLevel, 4> Stack;
   if (Multi) {
     // Create the array for multiple top-level objects.
     Root = getArrayNode();
-    Stack.push_back(StackLevel(Root, (size_t)-1));
+    Stack.push_back(StackLevel(Root, 0, (size_t)-1));
   }
   do {
     // On to next element (or key if doing a map key next).
@@ -141,7 +186,7 @@ bool Document::readFromBlob(
     else if (Stack.back().Node.getKind() == Type::Array) {
       // Reading an array entry.
       auto &Array = Stack.back().Node.getArray();
-      DestNode = &Array[Stack.back().Count++];
+      DestNode = &Array[Stack.back().Index++];
     } else {
       auto &Map = Stack.back().Node.getMap();
       if (!Stack.back().MapEntry) {
@@ -153,18 +198,18 @@ bool Document::readFromBlob(
       // Reading the value for the map key read in the last iteration.
       DestNode = Stack.back().MapEntry;
       Stack.back().MapEntry = nullptr;
-      if (DestNode->isEmpty())
-        *DestNode = getNode();
-      ++Stack.back().Count;
+      ++Stack.back().Index;
     }
-    if (!DestNode->isNil()) {
+    int MergeResult = 0;
+    if (!DestNode->isEmpty()) {
       // In a merge, there is already a value at this position. Call the
       // callback to attempt to resolve the conflict. The resolution must result
       // in an array or map if Node is an array or map respectively.
       DocNode MapKey = !Stack.empty() && !Stack.back().MapKey.isEmpty()
                            ? Stack.back().MapKey
                            : getNode();
-      if (!Merger(DestNode, Node, MapKey))
+      MergeResult = Merger(DestNode, Node, MapKey);
+      if (MergeResult < 0)
         return false; // Merge conflict resolution failed
       assert(!((Node.isMap() && !DestNode->isMap()) ||
                (Node.isArray() && !DestNode->isArray())));
@@ -175,7 +220,7 @@ bool Document::readFromBlob(
     switch (DestNode->getKind()) {
     case msgpack::Type::Array:
     case msgpack::Type::Map:
-      Stack.push_back(StackLevel(*DestNode, Obj.Length, nullptr));
+      Stack.push_back(StackLevel(*DestNode, MergeResult, Obj.Length, nullptr));
       break;
     default:
       break;
@@ -185,7 +230,7 @@ bool Document::readFromBlob(
     while (!Stack.empty()) {
       if (Stack.back().MapEntry)
         break;
-      if (Stack.back().Count != Stack.back().Length)
+      if (Stack.back().Index != Stack.back().End)
         break;
       Stack.pop_back();
     }

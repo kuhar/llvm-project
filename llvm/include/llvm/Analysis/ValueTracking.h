@@ -562,8 +562,12 @@ class Value;
   bool isGuaranteedToExecuteForEveryIteration(const Instruction *I,
                                               const Loop *L);
 
-  /// Return true if this function can prove that I is guaranteed to yield
-  /// poison if at least one of its operands is poison.
+  /// Return true if I yields poison or raises UB if any of its operands is
+  /// poison.
+  /// Formally, given I = `r = op v1 v2 .. vN`, propagatesPoison returns true
+  /// if, for all i, r is evaluated to poison or op raises UB if vi = poison.
+  /// To filter out operands that raise UB on poison, you can use
+  /// getGuaranteedNonPoisonOp.
   bool propagatesPoison(const Instruction *I);
 
   /// Return either nullptr or an operand of I such that I will trigger
@@ -601,7 +605,8 @@ class Value;
   /// immediately before the CtxI.
   bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
                                         const Instruction *CtxI = nullptr,
-                                        const DominatorTree *DT = nullptr);
+                                        const DominatorTree *DT = nullptr,
+                                        unsigned Depth = 0);
 
   /// Specific patterns of select instructions we can match.
   enum SelectPatternFlavor {

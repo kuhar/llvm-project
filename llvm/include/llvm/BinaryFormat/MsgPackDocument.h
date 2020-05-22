@@ -64,17 +64,20 @@ protected:
   };
 
 public:
+  // Default constructor gives an empty node with no associated Document. All
+  // you can do with it is "isEmpty()".
   DocNode() : KindAndDoc(nullptr) {}
 
   // Type methods
-  bool isNil() const { return getKind() == Type::Nil; }
   bool isMap() const { return getKind() == Type::Map; }
   bool isArray() const { return getKind() == Type::Array; }
   bool isScalar() const { return !isMap() && !isArray(); }
   bool isString() const { return getKind() == Type::String; }
 
-  // Accessors
-  bool isEmpty() const { return !KindAndDoc; }
+  // Accessors. isEmpty() returns true for both a default-constructed DocNode
+  // that has no associated Document, and the result of getEmptyNode(), which
+  // does have an associated document.
+  bool isEmpty() const { return !KindAndDoc || getKind() == Type::Empty; }
   Type getKind() const { return KindAndDoc->Kind; }
   Document *getDocument() const { return KindAndDoc->Doc; }
 
@@ -149,10 +152,10 @@ public:
   friend bool operator<(const DocNode &Lhs, const DocNode &Rhs) {
     // This has to cope with one or both of the nodes being default-constructed,
     // such that KindAndDoc is not set.
+    if (Rhs.isEmpty())
+      return false;
     if (Lhs.KindAndDoc != Rhs.KindAndDoc) {
-      if (!Rhs.KindAndDoc)
-        return false;
-      if (!Lhs.KindAndDoc)
+      if (Lhs.isEmpty())
         return true;
       return (unsigned)Lhs.getKind() < (unsigned)Rhs.getKind();
     }
@@ -188,6 +191,19 @@ public:
   /// not rely on S having a lifetime beyond this call. Tag is "" or a YAML tag.
   StringRef fromString(StringRef S, StringRef Tag = "");
 
+  /// Convenience assignment operators. This only works if the destination
+  /// DocNode has an associated Document, i.e. it was not constructed using the
+  /// default constructor. The string one does not copy, so the string must
+  /// remain valid for the lifetime of the Document. Use fromString to avoid
+  /// that restriction.
+  DocNode &operator=(const char *Val) { return *this = StringRef(Val); }
+  DocNode &operator=(StringRef Val);
+  DocNode &operator=(bool Val);
+  DocNode &operator=(int Val);
+  DocNode &operator=(unsigned Val);
+  DocNode &operator=(int64_t Val);
+  DocNode &operator=(uint64_t Val);
+
 private:
   // Private constructor setting KindAndDoc, used by methods in Document.
   DocNode(const KindAndDocument *KindAndDoc) : KindAndDoc(KindAndDoc) {}
@@ -209,11 +225,21 @@ public:
   MapTy::iterator end() { return Map->end(); }
   MapTy::iterator find(DocNode Key) { return Map->find(Key); }
   MapTy::iterator find(StringRef Key);
+  MapTy::iterator erase(MapTy::const_iterator I) { return Map->erase(I); }
+  size_t erase(DocNode Key) { return Map->erase(Key); }
+  MapTy::iterator erase(MapTy::const_iterator First,
+                        MapTy::const_iterator Second) {
+    return Map->erase(First, Second);
+  }
   /// Member access. The string data must remain valid for the lifetime of the
   /// Document.
   DocNode &operator[](StringRef S);
-  /// Member access.
+  /// Member access, with convenience versions for an integer key.
   DocNode &operator[](DocNode Key);
+  DocNode &operator[](int Key);
+  DocNode &operator[](unsigned Key);
+  DocNode &operator[](int64_t Key);
+  DocNode &operator[](uint64_t Key);
 };
 
 /// A DocNode that is an array.
@@ -225,14 +251,15 @@ public:
   // Array access methods.
   size_t size() const { return Array->size(); }
   bool empty() const { return !size(); }
+  DocNode &back() const { return Array->back(); }
   ArrayTy::iterator begin() { return Array->begin(); }
   ArrayTy::iterator end() { return Array->end(); }
   void push_back(DocNode N) {
-    assert(N.getDocument() == getDocument());
+    assert(N.isEmpty() || N.getDocument() == getDocument());
     Array->push_back(N);
   }
 
-  /// Element access. This extends the array if necessary.
+  /// Element access. This extends the array if necessary, with empty nodes.
   DocNode &operator[](size_t Index);
 };
 
@@ -250,7 +277,7 @@ class Document {
   DocNode Root;
 
   // The KindAndDocument structs pointed to by nodes in the document.
-  KindAndDocument KindAndDocs[size_t(Type::Extension) + 1];
+  KindAndDocument KindAndDocs[size_t(Type::Empty) + 1];
 
   // Whether YAML output uses hex for UInt.
   bool HexMode = false;
@@ -258,7 +285,7 @@ class Document {
 public:
   Document() {
     clear();
-    for (unsigned T = 0; T != size_t(Type::Extension) + 1; ++T)
+    for (unsigned T = 0; T != unsigned(Type::Empty) + 1; ++T)
       KindAndDocs[T] = {this, Type(T)};
   }
 
@@ -266,7 +293,13 @@ public:
   DocNode &getRoot() { return Root; }
 
   /// Restore the Document to an empty state.
-  void clear() { getRoot() = getNode(); }
+  void clear() { getRoot() = getEmptyNode(); }
+
+  /// Create an empty node associated with this Document.
+  DocNode getEmptyNode() {
+    auto N = DocNode(&KindAndDocs[size_t(Type::Empty)]);
+    return N;
+  }
 
   /// Create a nil node associated with this Document.
   DocNode getNode() {
@@ -358,19 +391,24 @@ public:
   ///
   /// The Merger arg is a callback function that is called when the merge has a
   /// conflict, that is, it is trying to set an item that is already set. If the
-  /// conflict can be resolved, the callback function must set *DestNode to the
-  /// resolved node and return true, otherwise it returns false. If SrcNode is
-  /// an array or map, the resolution must be that *DestNode is an array or map
-  /// respectively, although it could be the array or map (respectively) that
-  /// was already there. MapKey is the key if *DestNode is a map entry, a nil
-  /// node otherwise. The default for Merger is to allow array and map merging,
-  /// and disallow any other conflict.
+  /// conflict cannot be resolved, the callback function returns -1. If the
+  /// conflict can be resolved, the callback returns a non-negative number and
+  /// sets *DestNode to the resolved node. The returned non-negative number is
+  /// significant only for an array node; it is then the array index to start
+  /// populating at. That allows Merger to choose whether to merge array
+  /// elements (returns 0) or append new elements (returns existing size).
+  ///
+  /// If SrcNode is an array or map, the resolution must be that *DestNode is an
+  /// array or map respectively, although it could be the array or map
+  /// (respectively) that was already there. MapKey is the key if *DestNode is a
+  /// map entry, a nil node otherwise.
+  ///
+  /// The default for Merger is to disallow any conflict.
   bool readFromBlob(
       StringRef Blob, bool Multi,
-      function_ref<bool(DocNode *DestNode, DocNode SrcNode, DocNode MapKey)>
+      function_ref<int(DocNode *DestNode, DocNode SrcNode, DocNode MapKey)>
           Merger = [](DocNode *DestNode, DocNode SrcNode, DocNode MapKey) {
-            return (DestNode->isMap() && SrcNode.isMap()) ||
-                   (DestNode->isArray() && SrcNode.isArray());
+            return -1;
           });
 
   /// Write a MsgPack document to a binary MsgPack blob.

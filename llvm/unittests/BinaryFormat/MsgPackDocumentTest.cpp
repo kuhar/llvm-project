@@ -23,7 +23,7 @@ TEST(MsgPackDocument, TestReadInt) {
   ASSERT_EQ(Doc.getRoot().getInt(), 0);
 }
 
-TEST(MsgPackDocument, TestReadArray) {
+TEST(MsgPackDocument, TestReadMergeArray) {
   Document Doc;
   bool Ok = Doc.readFromBlob(StringRef("\x92\xd0\x01\xc0"), /*Multi=*/false);
   ASSERT_TRUE(Ok);
@@ -35,6 +35,61 @@ TEST(MsgPackDocument, TestReadArray) {
   ASSERT_EQ(SI.getInt(), 1);
   auto SN = A[1];
   ASSERT_EQ(SN.getKind(), Type::Nil);
+
+  Ok = Doc.readFromBlob(StringRef("\x91\xd0\x2a"), /*Multi=*/false,
+                        [](DocNode *DestNode, DocNode SrcNode, DocNode MapKey) {
+                          // Allow array, merging into existing elements, ORing
+                          // ints.
+                          if (DestNode->getKind() == Type::Int &&
+                              SrcNode.getKind() == Type::Int) {
+                            *DestNode = DestNode->getDocument()->getNode(
+                                DestNode->getInt() | SrcNode.getInt());
+                            return 0;
+                          }
+                          return DestNode->isArray() && SrcNode.isArray() ? 0
+                                                                          : -1;
+                        });
+  ASSERT_TRUE(Ok);
+  A = Doc.getRoot().getArray();
+  ASSERT_EQ(A.size(), 2u);
+  SI = A[0];
+  ASSERT_EQ(SI.getKind(), Type::Int);
+  ASSERT_EQ(SI.getInt(), 43);
+  SN = A[1];
+  ASSERT_EQ(SN.getKind(), Type::Nil);
+}
+
+TEST(MsgPackDocument, TestReadAppendArray) {
+  Document Doc;
+  bool Ok = Doc.readFromBlob(StringRef("\x92\xd0\x01\xc0"), /*Multi=*/false);
+  ASSERT_TRUE(Ok);
+  ASSERT_EQ(Doc.getRoot().getKind(), Type::Array);
+  auto A = Doc.getRoot().getArray();
+  ASSERT_EQ(A.size(), 2u);
+  auto SI = A[0];
+  ASSERT_EQ(SI.getKind(), Type::Int);
+  ASSERT_EQ(SI.getInt(), 1);
+  auto SN = A[1];
+  ASSERT_EQ(SN.getKind(), Type::Nil);
+
+  Ok = Doc.readFromBlob(StringRef("\x91\xd0\x2a"), /*Multi=*/false,
+                        [](DocNode *DestNode, DocNode SrcNode, DocNode MapKey) {
+                          // Allow array, appending after existing elements
+                          return DestNode->isArray() && SrcNode.isArray()
+                                     ? DestNode->getArray().size()
+                                     : -1;
+                        });
+  ASSERT_TRUE(Ok);
+  A = Doc.getRoot().getArray();
+  ASSERT_EQ(A.size(), 3u);
+  SI = A[0];
+  ASSERT_EQ(SI.getKind(), Type::Int);
+  ASSERT_EQ(SI.getInt(), 1);
+  SN = A[1];
+  ASSERT_EQ(SN.getKind(), Type::Nil);
+  SI = A[2];
+  ASSERT_EQ(SI.getKind(), Type::Int);
+  ASSERT_EQ(SI.getInt(), 42);
 }
 
 TEST(MsgPackDocument, TestReadMergeMap) {
@@ -61,7 +116,10 @@ TEST(MsgPackDocument, TestReadMergeMap) {
                                   "\xd0\x03\xa3"
                                   "baz"
                                   "\xd0\x04"),
-                        /*Multi=*/false);
+                        /*Multi=*/false,
+                        [](DocNode *DestNode, DocNode SrcNode, DocNode MapKey) {
+                          return DestNode->isMap() && SrcNode.isMap() ? 0 : -1;
+                        });
   ASSERT_TRUE(Ok);
   ASSERT_EQ(M.size(), 4u);
   FooS = M["foo"];
@@ -118,7 +176,7 @@ TEST(MsgPackDocument, TestReadMergeMap) {
 
 TEST(MsgPackDocument, TestWriteInt) {
   Document Doc;
-  Doc.getRoot() = Doc.getNode(int64_t(1));
+  Doc.getRoot() = 1;
   std::string Buffer;
   Doc.writeToBlob(Buffer);
   ASSERT_EQ(Buffer, "\x01");
@@ -137,8 +195,8 @@ TEST(MsgPackDocument, TestWriteArray) {
 TEST(MsgPackDocument, TestWriteMap) {
   Document Doc;
   auto M = Doc.getRoot().getMap(/*Convert=*/true);
-  M["foo"] = Doc.getNode(int64_t(1));
-  M["bar"] = Doc.getNode(int64_t(2));
+  M["foo"] = 1;
+  M["bar"] = 2;
   std::string Buffer;
   Doc.writeToBlob(Buffer);
   ASSERT_EQ(Buffer, "\x82\xa3"
@@ -177,11 +235,11 @@ TEST(MsgPackDocument, TestInputYAMLArray) {
 TEST(MsgPackDocument, TestOutputYAMLMap) {
   Document Doc;
   auto M = Doc.getRoot().getMap(/*Convert=*/true);
-  M["foo"] = Doc.getNode(int64_t(1));
-  M["bar"] = Doc.getNode(uint64_t(2));
+  M["foo"] = 1;
+  M["bar"] = 2U;
   auto N = Doc.getMapNode();
   M["qux"] = N;
-  N["baz"] = Doc.getNode(true);
+  N["baz"] = true;
   std::string Buffer;
   raw_string_ostream OStream(Buffer);
   Doc.toYAML(OStream);
@@ -193,15 +251,34 @@ TEST(MsgPackDocument, TestOutputYAMLMap) {
                            "...\n");
 }
 
+TEST(MsgPackDocument, TestOutputYAMLMapWithErase) {
+  Document Doc;
+  auto M = Doc.getRoot().getMap(/*Convert=*/true);
+  M["foo"] = 1;
+  M["bar"] = 2U;
+  auto N = Doc.getMapNode();
+  M["qux"] = N;
+  N["baz"] = true;
+  M.erase(Doc.getNode("bar"));
+  std::string Buffer;
+  raw_string_ostream OStream(Buffer);
+  Doc.toYAML(OStream);
+  ASSERT_EQ(OStream.str(), "---\n"
+                           "foo:             1\n"
+                           "qux:\n"
+                           "  baz:             true\n"
+                           "...\n");
+}
+
 TEST(MsgPackDocument, TestOutputYAMLMapHex) {
   Document Doc;
   Doc.setHexMode();
   auto M = Doc.getRoot().getMap(/*Convert=*/true);
-  M["foo"] = Doc.getNode(int64_t(1));
-  M["bar"] = Doc.getNode(uint64_t(2));
+  M["foo"] = 1;
+  M["bar"] = 2U;
   auto N = Doc.getMapNode();
   M["qux"] = N;
-  N["baz"] = Doc.getNode(true);
+  N["baz"] = true;
   std::string Buffer;
   raw_string_ostream OStream(Buffer);
   Doc.toYAML(OStream);

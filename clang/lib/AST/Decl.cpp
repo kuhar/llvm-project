@@ -1571,13 +1571,16 @@ void NamedDecl::printNestedNameSpecifier(raw_ostream &OS,
 
   // For ObjC methods and properties, look through categories and use the
   // interface as context.
-  if (auto *MD = dyn_cast<ObjCMethodDecl>(this))
+  if (auto *MD = dyn_cast<ObjCMethodDecl>(this)) {
     if (auto *ID = MD->getClassInterface())
       Ctx = ID;
-  if (auto *PD = dyn_cast<ObjCPropertyDecl>(this)) {
+  } else if (auto *PD = dyn_cast<ObjCPropertyDecl>(this)) {
     if (auto *MD = PD->getGetterMethodDecl())
       if (auto *ID = MD->getClassInterface())
         Ctx = ID;
+  } else if (auto *ID = dyn_cast<ObjCIvarDecl>(this)) {
+    if (auto *CI = ID->getContainingInterface())
+      Ctx = CI;
   }
 
   if (Ctx->isFunctionOrMethod())
@@ -4408,6 +4411,21 @@ bool RecordDecl::isCapturedRecord() const {
 
 void RecordDecl::setCapturedRecord() {
   addAttr(CapturedRecordAttr::CreateImplicit(getASTContext()));
+}
+
+bool RecordDecl::isOrContainsUnion() const {
+  if (isUnion())
+    return true;
+
+  if (const RecordDecl *Def = getDefinition()) {
+    for (const FieldDecl *FD : Def->fields()) {
+      const RecordType *RT = FD->getType()->getAs<RecordType>();
+      if (RT && RT->getDecl()->isOrContainsUnion())
+        return true;
+    }
+  }
+
+  return false;
 }
 
 RecordDecl::field_iterator RecordDecl::field_begin() const {

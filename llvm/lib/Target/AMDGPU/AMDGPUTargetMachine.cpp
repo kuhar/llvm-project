@@ -18,6 +18,7 @@
 #include "AMDGPU.h"
 #include "AMDGPUAliasAnalysis.h"
 #include "AMDGPUCallLowering.h"
+#include "AMDGPUExportClustering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPUMacroFusion.h"
@@ -244,6 +245,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPURewriteOutArgumentsPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowPass(*PR);
+  initializeSIInsertHardClausesPass(*PR);
   initializeSIInsertWaitcntsPass(*PR);
   initializeSIModeRegisterPass(*PR);
   initializeSIWholeQuadModePass(*PR);
@@ -290,6 +292,7 @@ createGCNMaxOccupancyMachineScheduler(MachineSchedContext *C) {
   DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createStoreClusterDAGMutation(DAG->TII, DAG->TRI));
   DAG->addMutation(createAMDGPUMacroFusionDAGMutation());
+  DAG->addMutation(createAMDGPUExportClusteringDAGMutation());
   return DAG;
 }
 
@@ -937,6 +940,12 @@ bool GCNPassConfig::addInstSelector() {
   AMDGPUPassConfig::addInstSelector();
   addPass(&SIFixSGPRCopiesID);
   addPass(createSILowerI1CopiesPass());
+  // TODO: We have to add FinalizeISel
+  // to expand V_ADD/SUB_U64_PSEUDO before SIFixupVectorISel
+  // that expects V_ADD/SUB -> A_ADDC/SUBB pairs expanded.
+  // Will be removed as soon as SIFixupVectorISel is changed
+  // to work with V_ADD/SUB_U64_PSEUDO instead.
+  addPass(&FinalizeISelID);
   addPass(createSIFixupVectorISelPass());
   addPass(createSIAddIMGInitPass());
   return false;
@@ -1060,6 +1069,8 @@ void GCNPassConfig::addPreEmitPass() {
   // FIXME: This stand-alone pass will emit indiv. S_NOP 0, as needed. It would
   // be better for it to emit S_NOP <N> when possible.
   addPass(&PostRAHazardRecognizerID);
+  if (getOptLevel() > CodeGenOpt::None)
+    addPass(&SIInsertHardClausesID);
 
   addPass(&SIRemoveShortExecBranchesID);
   addPass(&SIPreEmitPeepholeID);
@@ -1116,7 +1127,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   };
 
   if (parseRegister(YamlMFI.ScratchRSrcReg, MFI->ScratchRSrcReg) ||
-      parseRegister(YamlMFI.ScratchWaveOffsetReg, MFI->ScratchWaveOffsetReg) ||
       parseRegister(YamlMFI.FrameOffsetReg, MFI->FrameOffsetReg) ||
       parseRegister(YamlMFI.StackPtrOffsetReg, MFI->StackPtrOffsetReg))
     return true;
@@ -1124,11 +1134,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   if (MFI->ScratchRSrcReg != AMDGPU::PRIVATE_RSRC_REG &&
       !AMDGPU::SGPR_128RegClass.contains(MFI->ScratchRSrcReg)) {
     return diagnoseRegisterClass(YamlMFI.ScratchRSrcReg);
-  }
-
-  if (MFI->ScratchWaveOffsetReg != AMDGPU::SCRATCH_WAVE_OFFSET_REG &&
-      !AMDGPU::SGPR_32RegClass.contains(MFI->ScratchWaveOffsetReg)) {
-    return diagnoseRegisterClass(YamlMFI.ScratchWaveOffsetReg);
   }
 
   if (MFI->FrameOffsetReg != AMDGPU::FP_REG &&

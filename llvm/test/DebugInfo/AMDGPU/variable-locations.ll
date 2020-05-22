@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -O0 -mtriple=amdgcn-amd-amdhsa -mcpu=fiji -verify-machineinstrs -filetype=obj < %s | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; LLVM IR generated with the following command and OpenCL source:
@@ -34,7 +32,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata)
 @GlobB = common addrspace(1) global i32 0, align 4, !dbg !6
 
 ; CHECK: {{.*}}DW_TAG_subprogram
-; CHECK: DW_AT_frame_base [DW_FORM_block1]	(DW_OP_reg{{.*}} SGPR9
+; CHECK-NOT: DW_AT_frame_base
 
 define amdgpu_kernel void @kernel1(
 ; CHECK: {{.*}}DW_TAG_formal_parameter

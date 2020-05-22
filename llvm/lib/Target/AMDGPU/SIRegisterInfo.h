@@ -26,7 +26,6 @@ namespace llvm {
 
 class GCNSubtarget;
 class LiveIntervals;
-class MachineRegisterInfo;
 class SIMachineFunctionInfo;
 
 class SIRegisterInfo final : public AMDGPUGenRegisterInfo {
@@ -53,11 +52,6 @@ public:
   /// spilling is needed.
   MCRegister reservedPrivateSegmentBufferReg(const MachineFunction &MF) const;
 
-  /// Return the end register initially reserved for the scratch wave offset in
-  /// case spilling is needed.
-  unsigned reservedPrivateSegmentWaveByteOffsetReg(
-    const MachineFunction &MF) const;
-
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
@@ -72,6 +66,9 @@ public:
   }
 
   Register getFrameRegister(const MachineFunction &MF) const override;
+
+  bool hasBasePointer(const MachineFunction &MF) const;
+  Register getBaseRegister() const;
 
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
@@ -141,9 +138,9 @@ public:
     return isSGPRClass(getRegClass(RCID));
   }
 
-  bool isSGPRReg(const MachineRegisterInfo &MRI, unsigned Reg) const {
+  bool isSGPRReg(const MachineRegisterInfo &MRI, Register Reg) const {
     const TargetRegisterClass *RC;
-    if (Register::isVirtualRegister(Reg))
+    if (Reg.isVirtual())
       RC = MRI.getRegClass(Reg);
     else
       RC = getPhysRegClass(Reg);
@@ -204,7 +201,8 @@ public:
 
   MCRegister findUnusedRegister(const MachineRegisterInfo &MRI,
                                 const TargetRegisterClass *RC,
-                                const MachineFunction &MF) const;
+                                const MachineFunction &MF,
+                                bool ReserveHighestVGPR = false) const;
 
   const TargetRegisterClass *getRegClassForReg(const MachineRegisterInfo &MRI,
                                                Register Reg) const;
@@ -293,13 +291,17 @@ public:
 
   // \returns a DWORD offset of a \p SubReg
   unsigned getChannelFromSubReg(unsigned SubReg) const {
-    return SubReg ? divideCeil(getSubRegIdxOffset(SubReg), 32) : 0;
+    return SubReg ? (getSubRegIdxOffset(SubReg) + 31) / 32 : 0;
   }
 
   // \returns a DWORD size of a \p SubReg
   unsigned getNumChannelsFromSubReg(unsigned SubReg) const {
     return getNumCoveredRegs(getSubRegIndexLaneMask(SubReg));
   }
+
+  // For a given 16 bit \p Reg \returns a 32 bit register holding it.
+  // \returns \p Reg otherwise.
+  MCPhysReg get32BitRegister(MCPhysReg Reg) const;
 
 private:
   void buildSpillLoadStore(MachineBasicBlock::iterator MI,

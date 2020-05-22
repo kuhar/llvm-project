@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: not llvm-as < %s -o /dev/null 2>&1 | FileCheck %s
 
 declare i8* @llvm.returnaddress(i32)
@@ -26,6 +24,23 @@ define void @memcpy(i8* %dest, i8* %src, i1 %is.volatile) {
   ; CHECK-NEXT: i1 %is.volatile
   ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 8, i1 %is.volatile)
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 8, i1 %is.volatile)
+  ret void
+}
+
+declare void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* nocapture, i8* nocapture, i32, i1)
+define void @memcpy_inline_is_volatile(i8* %dest, i8* %src, i1 %is.volatile) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %is.volatile
+  ; CHECK-NEXT: call void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 8, i1 %is.volatile)
+  call void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 8, i1 %is.volatile)
+  ret void
+}
+
+define void @memcpy_inline_variable_size(i8* %dest, i8* %src, i32 %size) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %size
+  ; CHECK-NEXT: call void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 %size, i1 true)
+  call void @llvm.memcpy.inline.p0i8.p0i8.i32(i8* %dest, i8* %src, i32 %size, i1 true)
   ret void
 }
 

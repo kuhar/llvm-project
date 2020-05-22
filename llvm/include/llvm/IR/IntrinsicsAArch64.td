@@ -173,6 +173,11 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
     : Intrinsic<[llvm_anyvector_ty],
                 [LLVMMatchType<0>, llvm_anyvector_ty, LLVMMatchType<1>],
                 [IntrNoMem]>;
+
+  class AdvSIMD_MatMul_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMMatchType<0>, llvm_anyvector_ty, LLVMMatchType<1>],
+                [IntrNoMem]>;
 }
 
 // Arithmetic ops
@@ -448,6 +453,12 @@ let TargetPrefix = "aarch64", IntrProperties = [IntrNoMem] in {
   // v8.2-A Dot Product
   def int_aarch64_neon_udot : AdvSIMD_Dot_Intrinsic;
   def int_aarch64_neon_sdot : AdvSIMD_Dot_Intrinsic;
+
+// v8.6-A Matrix Multiply Intrinsics
+  def int_aarch64_neon_ummla : AdvSIMD_MatMul_Intrinsic;
+  def int_aarch64_neon_smmla : AdvSIMD_MatMul_Intrinsic;
+  def int_aarch64_neon_usmmla : AdvSIMD_MatMul_Intrinsic;
+  def int_aarch64_neon_usdot : AdvSIMD_Dot_Intrinsic;
 
   // v8.2-A FP16 Fused Multiply-Add Long
   def int_aarch64_neon_fmlal : AdvSIMD_FP16FML_Intrinsic;
@@ -902,23 +913,10 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
                  llvm_anyvector_ty],
                 [IntrNoMem]>;
 
-  class AdvSIMD_SVE_FP_Reduce_Intrinsic
-    : Intrinsic<[llvm_anyfloat_ty],
-                [LLVMScalarOrSameVectorWidth<1, llvm_i1_ty>,
-                 llvm_anyvector_ty],
-                [IntrNoMem]>;
-
   class AdvSIMD_SVE_ReduceWithInit_Intrinsic
     : Intrinsic<[LLVMVectorElementType<0>],
                 [LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
                  LLVMVectorElementType<0>,
-                 llvm_anyvector_ty],
-                [IntrNoMem]>;
-
-  class AdvSIMD_SVE_FP_ReduceWithInit_Intrinsic
-    : Intrinsic<[llvm_anyfloat_ty],
-                [LLVMScalarOrSameVectorWidth<1, llvm_i1_ty>,
-                 LLVMMatchType<0>,
                  llvm_anyvector_ty],
                 [IntrNoMem]>;
 
@@ -1295,6 +1293,11 @@ class SVE_gather_prf_VS
                   llvm_i32_ty // Prfop
                 ],
                 [IntrInaccessibleMemOrArgMemOnly, ImmArg<3>]>;
+
+class SVE_MatMul_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMMatchType<0>, LLVMSubdivide4VectorType<0>, LLVMSubdivide4VectorType<0>],
+                [IntrNoMem]>;
 
 //
 // Loads
@@ -1688,12 +1691,12 @@ def int_aarch64_sve_ftssel_x   : AdvSIMD_SVE_TSMUL_Intrinsic;
 // Floating-point reductions
 //
 
-def int_aarch64_sve_fadda   : AdvSIMD_SVE_FP_ReduceWithInit_Intrinsic;
-def int_aarch64_sve_faddv   : AdvSIMD_SVE_FP_Reduce_Intrinsic;
-def int_aarch64_sve_fmaxv   : AdvSIMD_SVE_FP_Reduce_Intrinsic;
-def int_aarch64_sve_fmaxnmv : AdvSIMD_SVE_FP_Reduce_Intrinsic;
-def int_aarch64_sve_fminv   : AdvSIMD_SVE_FP_Reduce_Intrinsic;
-def int_aarch64_sve_fminnmv : AdvSIMD_SVE_FP_Reduce_Intrinsic;
+def int_aarch64_sve_fadda   : AdvSIMD_SVE_ReduceWithInit_Intrinsic;
+def int_aarch64_sve_faddv   : AdvSIMD_SVE_Reduce_Intrinsic;
+def int_aarch64_sve_fmaxv   : AdvSIMD_SVE_Reduce_Intrinsic;
+def int_aarch64_sve_fmaxnmv : AdvSIMD_SVE_Reduce_Intrinsic;
+def int_aarch64_sve_fminv   : AdvSIMD_SVE_Reduce_Intrinsic;
+def int_aarch64_sve_fminnmv : AdvSIMD_SVE_Reduce_Intrinsic;
 
 //
 // Floating-point conversions
@@ -2255,6 +2258,23 @@ def int_aarch64_sve_tbx  : AdvSIMD_SVE2_TBX_Intrinsic;
 def int_aarch64_sve_bdep_x : AdvSIMD_2VectorArg_Intrinsic;
 def int_aarch64_sve_bext_x : AdvSIMD_2VectorArg_Intrinsic;
 def int_aarch64_sve_bgrp_x : AdvSIMD_2VectorArg_Intrinsic;
+
+
+//
+// SVE ACLE: 7.3. INT8 matrix multiply extensions
+//
+def int_aarch64_sve_ummla : SVE_MatMul_Intrinsic;
+def int_aarch64_sve_smmla : SVE_MatMul_Intrinsic;
+def int_aarch64_sve_usmmla : SVE_MatMul_Intrinsic;
+
+def int_aarch64_sve_usdot : AdvSIMD_SVE_DOT_Intrinsic;
+def int_aarch64_sve_usdot_lane : AdvSIMD_SVE_DOT_Indexed_Intrinsic;
+def int_aarch64_sve_sudot_lane : AdvSIMD_SVE_DOT_Indexed_Intrinsic;
+
+//
+// SVE ACLE: 7.4/5. FP64/FP32 matrix multiply extensions
+//
+def int_aarch64_sve_fmmla : AdvSIMD_3VectorArg_Intrinsic;
 
 }
 

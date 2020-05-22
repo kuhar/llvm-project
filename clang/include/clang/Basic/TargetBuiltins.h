@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_BASIC_TARGETBUILTINS_H
 #define LLVM_CLANG_BASIC_TARGETBUILTINS_H
 
+#include <algorithm>
 #include <stdint.h>
 #include "clang/Basic/Builtins.h"
 #include "llvm/Support/MathExtras.h"
@@ -239,6 +240,11 @@ namespace clang {
     bool isOverloadWhileRW() const { return Flags & IsOverloadWhileRW; }
     bool isOverloadCvt() const { return Flags & IsOverloadCvt; }
     bool isPrefetch() const { return Flags & IsPrefetch; }
+    bool isReverseCompare() const { return Flags & ReverseCompare; }
+    bool isAppendSVALL() const { return Flags & IsAppendSVALL; }
+    bool isInsertOp1SVALL() const { return Flags & IsInsertOp1SVALL; }
+    bool isGatherPrefetch() const { return Flags & IsGatherPrefetch; }
+    bool isReverseUSDOT() const { return Flags & ReverseUSDOT; }
 
     uint64_t getBits() const { return Flags; }
     bool isFlagSet(uint64_t Flag) const { return Flags & Flag; }
@@ -303,6 +309,14 @@ namespace clang {
       LastTSBuiltin
     };
   }
+
+  static constexpr uint64_t LargestBuiltinID = std::max<uint64_t>(
+      {NEON::FirstTSBuiltin, ARM::LastTSBuiltin, SVE::FirstTSBuiltin,
+       AArch64::LastTSBuiltin, BPF::LastTSBuiltin, PPC::LastTSBuiltin,
+       NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin, X86::LastTSBuiltin,
+       Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
+       Le64::LastTSBuiltin, SystemZ::LastTSBuiltin,
+       WebAssembly::LastTSBuiltin});
 
 } // end namespace clang.
 
