@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn--amdpal -mcpu=gfx802 <%s | FileCheck %s
 
 ; Test that the mnemonic names for PAL metadata user data registers work in a

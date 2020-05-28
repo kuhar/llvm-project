@@ -2085,6 +2085,13 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
          "gc.statepoint number of transition arguments must be positive", Call);
   const int EndTransitionArgsInx = EndCallArgsInx + 1 + NumTransitionArgs;
 
+  // We're migrating away from inline operands to operand bundles, enforce
+  // the either/or property during transition.
+  if (Call.getOperandBundle(LLVMContext::OB_gc_transition)) {
+    Assert(NumTransitionArgs == 0,
+           "can't use both deopt operands and deopt bundle on a statepoint");
+  }
+
   const Value *NumDeoptArgsV = Call.getArgOperand(EndTransitionArgsInx + 1);
   Assert(isa<ConstantInt>(NumDeoptArgsV),
          "gc.statepoint number of deoptimization arguments "
@@ -2095,6 +2102,13 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
          "gc.statepoint number of deoptimization arguments "
          "must be positive",
          Call);
+
+  // We're migrating away from inline operands to operand bundles, enforce
+  // the either/or property during transition.
+  if (Call.getOperandBundle(LLVMContext::OB_deopt)) {
+    Assert(NumDeoptArgs == 0,
+           "can't use both deopt operands and deopt bundle on a statepoint");
+  }
 
   const int ExpectedNumArgs =
       7 + NumCallArgs + NumTransitionArgs + NumDeoptArgs;
@@ -2988,9 +3002,13 @@ void Verifier::visitCallBase(CallBase &Call) {
 
     if (Call.paramHasAttr(i, Attribute::Preallocated)) {
       Value *ArgVal = Call.getArgOperand(i);
-      Assert(Call.countOperandBundlesOfType(LLVMContext::OB_preallocated) != 0,
-             "preallocated operand requires a preallocated bundle", ArgVal,
-             Call);
+      bool hasOB =
+          Call.countOperandBundlesOfType(LLVMContext::OB_preallocated) != 0;
+      bool isMustTail = Call.isMustTailCall();
+      Assert(hasOB != isMustTail,
+             "preallocated operand either requires a preallocated bundle or "
+             "the call to be musttail (but not both)",
+             ArgVal, Call);
     }
   }
 
@@ -3150,9 +3168,6 @@ static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
 
 void Verifier::verifyMustTailCall(CallInst &CI) {
   Assert(!CI.isInlineAsm(), "cannot use musttail call with inline asm", &CI);
-  // FIXME: support musttail + preallocated
-  Assert(!CI.countOperandBundlesOfType(LLVMContext::OB_preallocated),
-         "musttail and preallocated not yet supported", &CI);
 
   // - The caller and callee prototypes must match.  Pointer types of
   //   parameters or return types may differ in pointee type, but not
@@ -4533,6 +4548,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
             ++NumPreallocatedArgs;
           }
         }
+        Assert(NumPreallocatedArgs != 0,
+               "cannot use preallocated intrinsics on a call without "
+               "preallocated arguments");
         Assert(NumArgs->equalsInt(NumPreallocatedArgs),
                "llvm.call.preallocated.setup arg size must be equal to number "
                "of preallocated arguments "
