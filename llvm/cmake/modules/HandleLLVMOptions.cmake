@@ -1,5 +1,5 @@
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
+# Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+# Notified per clause 4(b) of the license.
 # This CMake module is responsible for interpreting the user defined LLVM_
 # options and executing the appropriate CMake commands to realize the users'
 # selections.
