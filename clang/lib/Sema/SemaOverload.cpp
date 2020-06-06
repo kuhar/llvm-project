@@ -6511,6 +6511,8 @@ static bool convertArgsForAvailabilityChecks(
   if (!Function->isVariadic() && Args.size() < Function->getNumParams()) {
     for (unsigned i = Args.size(), e = Function->getNumParams(); i != e; ++i) {
       ParmVarDecl *P = Function->getParamDecl(i);
+      if (!P->hasDefaultArg())
+        return false;
       ExprResult R = S.BuildCXXDefaultArgExpr(CallLoc, Function, P);
       if (R.isInvalid())
         return false;
@@ -7747,8 +7749,6 @@ public:
   iterator vector_end() { return VectorTypes.end(); }
 
   llvm::iterator_range<iterator> matrix_types() { return MatrixTypes; }
-  iterator matrix_begin() { return MatrixTypes.begin(); }
-  iterator matrix_end() { return MatrixTypes.end(); }
 
   bool containsMatrixType(QualType Ty) const { return MatrixTypes.count(Ty); }
   bool hasNonRecordTypes() { return HasNonRecordTypes; }

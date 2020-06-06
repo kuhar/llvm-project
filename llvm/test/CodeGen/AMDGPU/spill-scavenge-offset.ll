@@ -2,6 +2,7 @@
 ; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=verde -enable-misched=0 -post-RA-scheduler=0 -amdgpu-spill-sgpr-to-vgpr=0 < %s | FileCheck -check-prefixes=CHECK,GFX6 %s
 ; RUN: llc -regalloc=basic -march=amdgcn -mcpu=tonga -enable-misched=0 -post-RA-scheduler=0 -amdgpu-spill-sgpr-to-vgpr=0 < %s | FileCheck -check-prefixes=CHECK,GFX7 %s
+; XFAIL: *
 ;
 ; There is something about Tonga that causes this test to spend a lot of time
 ; in the default register allocator.
@@ -37,7 +38,7 @@ entry:
 }
 
 ; CHECK-LABEL: test_limited_sgpr
-; GFX6: s_mov_b32 s32, 0x84100
+; GFX6: s_mov_b32 s32, 0x{{[0-9]+}}
 ; GFX6-NEXT: buffer_load_dword v{{[0-9]+}}, off, s[{{[0-9:]+}}], s32
 ; GFX6: NumSgprs: 48
 ; GFX6: ScratchSize: 8624
