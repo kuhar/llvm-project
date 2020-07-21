@@ -36,13 +36,13 @@ static SmallVector<Value, 8> makeCanonicalAffineApplies(OpBuilder &b,
                                                         ArrayRef<Value> vals) {
   if (map.isEmpty())
     return {};
-  assert(map.getNumSymbols() == 0);
+
   assert(map.getNumInputs() == vals.size());
   SmallVector<Value, 8> res;
   res.reserve(map.getNumResults());
   auto dims = map.getNumDims();
   for (auto e : map.getResults()) {
-    auto exprMap = AffineMap::get(dims, 0, e);
+    auto exprMap = AffineMap::get(dims, map.getNumSymbols(), e);
     SmallVector<Value, 4> operands(vals.begin(), vals.end());
     canonicalizeMapAndOperands(&exprMap, &operands);
     res.push_back(affine_apply(exprMap, operands));
@@ -165,32 +165,42 @@ void emitScalarImplementation(ArrayRef<Value> allIvs,
   SmallVector<Value, 4> indexedValues;
   indexedValues.reserve(nInputs + nOutputs);
 
-  // TODO(mravishankar): Avoid the loads if the corresponding argument of the
+  auto attr = linalgOp.template getAttrOfType<IntegerAttr>("symbol_source");
+  auto allIvsPlusDims = SmallVector<Value, 4>(allIvs.begin(), allIvs.end());
+  if (attr) {
+    auto operand = linalgOp.getOperand(attr.getInt());
+    auto shapedType = operand.getType().template cast<ShapedType>();
+    allIvsPlusDims.reserve(allIvs.size() + shapedType.getRank());
+    for (unsigned idx = 0, e = shapedType.getRank(); idx < e; ++idx)
+      allIvsPlusDims.push_back(b.create<DimOp>(loc, operand, idx));
+  }
+
+  // TODO: Avoid the loads if the corresponding argument of the
   // region has no uses.
   // 1.a. Emit load from input views.
   for (unsigned i = 0; i < nInputs; ++i) {
     auto indexing = makeCanonicalAffineApplies(
-        b, loc, linalgOp.getInputIndexingMap(i), allIvs);
+        b, loc, linalgOp.getInputIndexingMap(i), allIvsPlusDims);
     // Passing through IndexedValueType emits the proper load operation.
     indexedValues.push_back(IndexedValueType(linalgOp.getInput(i))(indexing));
   }
   // 1.b. Emit load from output views.
   for (unsigned i = 0; i < nOutputs; ++i) {
     auto indexing = makeCanonicalAffineApplies(
-        b, loc, linalgOp.getOutputIndexingMap(i), allIvs);
+        b, loc, linalgOp.getOutputIndexingMap(i), allIvsPlusDims);
     // Passing through IndexedValueType emits the proper load operation.
     indexedValues.push_back(
         IndexedValueType(linalgOp.getOutputBuffer(i))(indexing));
   }
 
-  // TODO(ntv): When a region inliner exists, use it.
+  // TODO: When a region inliner exists, use it.
   // 2. Inline region, currently only works for a single basic block.
   // 3. Emit store.
   SmallVector<SmallVector<Value, 8>, 8> indexing;
   SmallVector<Value, 8> outputBuffers;
   for (unsigned i = 0; i < nOutputs; ++i) {
     indexing.push_back(makeCanonicalAffineApplies(
-        b, loc, linalgOp.getOutputIndexingMap(i), allIvs));
+        b, loc, linalgOp.getOutputIndexingMap(i), allIvsPlusDims));
     outputBuffers.push_back(linalgOp.getOutputBuffer(i));
   }
   inlineRegionAndEmitStore<IndexedValueType>(linalgOp, indexedValues, indexing,
@@ -246,7 +256,7 @@ void emitScalarImplementation(ArrayRef<Value> allIvs, DotOp dotOp) {
 template <typename IndexedValueType>
 Value getConvOpInput(ConvOp convOp, StdIndexedValue im,
                      MutableArrayRef<Value> imIdx) {
-  // TODO(ntv): add a level of indirection to linalg.generic.
+  // TODO: add a level of indirection to linalg.generic.
   if (!convOp.padding())
     return im(imIdx);
 
@@ -263,16 +273,16 @@ Value getConvOpInput(ConvOp convOp, StdIndexedValue im,
       continue;
     }
 
-    using edsc::op::operator<;
-    using edsc::op::operator>=;
+    using edsc::op::sge;
+    using edsc::op::slt;
     using edsc::op::operator||;
-    Value leftOutOfBound = dim < zeroIndex;
+    Value leftOutOfBound = slt(dim, zeroIndex);
     if (conds.empty())
       conds.push_back(leftOutOfBound);
     else
       conds.push_back(conds.back() || leftOutOfBound);
     Value rightBound = std_dim(convOp.input(), idx);
-    conds.push_back(conds.back() || (dim >= rightBound));
+    conds.push_back(conds.back() || (sge(dim, rightBound)));
 
     // When padding is involved, the indices will only be shifted to negative,
     // so having a max op is enough.
@@ -333,23 +343,28 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs, ConvOp convOp) {
 
 template <typename IndexedValueType>
 void emitScalarImplementation(ArrayRef<Value> allIvs, PoolingMaxOp op) {
-  auto indices = getInputAndOutputIndices(allIvs, op);
+  InputAndOutputIndices indices = getInputAndOutputIndices(allIvs, op);
   // Emit scalar form.
-  Value lhs = std_load(op.output(), indices.outputs);
-  Value rhs = std_load(op.input(), indices.inputs);
-  using edsc::op::operator>;
-  Value maxValue = std_select(lhs > rhs, lhs, rhs);
-  std_store(maxValue, op.output(), indices.outputs);
+  IndexedValueType output(op.output());
+  IndexedValueType input(op.input());
+  Value lhs = output(indices.outputs);
+  Value rhs = input(indices.inputs);
+  using edsc::op::sgt;
+  Value maxValue = std_select(sgt(lhs, rhs), lhs, rhs);
+  output(indices.outputs) = maxValue;
 }
+
 template <typename IndexedValueType>
 void emitScalarImplementation(ArrayRef<Value> allIvs, PoolingMinOp op) {
-  auto indices = getInputAndOutputIndices(allIvs, op);
+  InputAndOutputIndices indices = getInputAndOutputIndices(allIvs, op);
   // Emit scalar form.
-  Value lhs = std_load(op.output(), indices.outputs);
-  Value rhs = std_load(op.input(), indices.inputs);
-  using edsc::op::operator<;
-  Value minValue = std_select(lhs < rhs, lhs, rhs);
-  std_store(minValue, op.output(), indices.outputs);
+  IndexedValueType output(op.output());
+  IndexedValueType input(op.input());
+  Value lhs = output(indices.outputs);
+  Value rhs = input(indices.inputs);
+  using edsc::op::slt;
+  Value minValue = std_select(slt(lhs, rhs), lhs, rhs);
+  output(indices.outputs) = minValue;
 }
 template <typename IndexedValueType>
 void emitScalarImplementation(ArrayRef<Value> allIvs, PoolingSumOp op) {
@@ -404,7 +419,7 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs,
   for (unsigned i = 0; i < nLoops; ++i)
     indexedValues.push_back(allIvs[i]);
 
-  // TODO(mravishankar): Avoid the loads if the corresponding argument of the
+  // TODO: Avoid the loads if the corresponding argument of the
   // region has no uses.
   // 1.a. Emit load from input views.
   for (unsigned i = 0; i < nInputs; ++i) {
@@ -423,7 +438,7 @@ static void emitScalarImplementation(ArrayRef<Value> allIvs,
         IndexedValueType(indexedGenericOp.getOutputBuffer(i))(indexing));
   }
 
-  // TODO(ntv): When a region inliner exists, use it.
+  // TODO: When a region inliner exists, use it.
   // 2. Inline region, currently only works for a single basic block.
   // 3. Emit store.
   SmallVector<SmallVector<Value, 8>, 8> indexing;
@@ -452,7 +467,24 @@ Optional<LinalgLoops> linalgOpToLoopsImpl(Operation *op, OpBuilder &builder) {
       linalgOp.indexing_maps().template getAsRange<AffineMapAttr>();
   auto maps = llvm::to_vector<8>(
       llvm::map_range(mapsRange, [](AffineMapAttr a) { return a.getValue(); }));
-  AffineMap invertedMap = inversePermutation(concatAffineMaps(maps));
+  SmallVector<Value, 8> sizes = getViewSizes(builder, linalgOp);
+  AffineMap map = concatAffineMaps(maps);
+  if (map.getNumSymbols()) {
+    // Ignore symbols for now as they are not supported by inversePermutation.
+    unsigned dims = map.getNumDims();
+    SmallVector<AffineExpr, 8> zeros(
+        map.getNumSymbols(), getAffineConstantExpr(0, map.getContext()));
+    SmallVector<AffineExpr, 8> res;
+    for (auto result : map.getResults())
+      res.push_back(result.replaceDimsAndSymbols({}, zeros));
+
+    map = AffineMap::get(dims, 0, res, map.getContext());
+
+    // Cut off values that would have been applied to symbols
+    sizes.resize(res.size());
+  }
+
+  AffineMap invertedMap = inversePermutation(map);
   if (!invertedMap)
     return {};
   if (invertedMap.isEmpty()) {
@@ -461,9 +493,8 @@ Optional<LinalgLoops> linalgOpToLoopsImpl(Operation *op, OpBuilder &builder) {
   }
 
   SmallVector<Value, 4> allIvs;
-  auto loopRanges =
-      emitLoopRanges(scope.getBuilderRef(), scope.getLocation(), invertedMap,
-                     getViewSizes(builder, linalgOp));
+  auto loopRanges = emitLoopRanges(scope.getBuilderRef(), scope.getLocation(),
+                                   invertedMap, sizes);
   GenerateLoopNest<LoopTy>::doit(
       loopRanges, linalgOp.iterator_types().getValue(), [&](ValueRange ivs) {
         allIvs.append(ivs.begin(), ivs.end());
@@ -555,7 +586,7 @@ static void lowerLinalgToLoopsImpl(FuncOp funcOp, MLIRContext *context) {
   OwningRewritePatternList patterns;
   // Canonicalization and folding patterns applied greedily allow cleaning up
   // the emitted IR on the fly.
-  // TODO(ntv) fold view and subview ops?
+  // TODO: fold view and subview ops?
   insertPatterns<LoopType,
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.cpp.inc"
@@ -604,8 +635,8 @@ mlir::createConvertLinalgToAffineLoopsPass() {
 
 // TODO: gradually remove this layer as more ops become "named".
 template <typename LoopTy>
-Optional<LinalgLoops> linalgOpToLoopsImplSwitch(Operation *op,
-                                                OpBuilder &builder) {
+static Optional<LinalgLoops> linalgOpToLoopsImplSwitch(Operation *op,
+                                                       OpBuilder &builder) {
   assert(isa<LinalgOp>(op) && "LinalgOp expected");
   if (isa<CopyOp>(op))
     return linalgOpToLoopsImpl<LoopTy, CopyOp>(op, builder);

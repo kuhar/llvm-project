@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,6 +16,7 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_H
 #define LLVM_TRANSFORMS_SCALAR_H
 
+#include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include <functional>
 
 namespace llvm {
@@ -256,7 +259,11 @@ FunctionPass *createJumpThreadingPass(int Threshold = -1);
 // simplify terminator instructions, convert switches to lookup tables, etc.
 //
 FunctionPass *createCFGSimplificationPass(
-    unsigned Threshold = 1, bool ForwardSwitchCond = false,
+    SimplifyCFGOptions Options = SimplifyCFGOptions(),
+    std::function<bool(const Function &)> Ftor = nullptr);
+
+FunctionPass *createCFGSimplificationPass(
+    unsigned Threshold, bool ForwardSwitchCond = false,
     bool ConvertSwitch = false, bool KeepLoops = true, bool SinkCommon = false,
     std::function<bool(const Function &)> Ftor = nullptr);
 
@@ -367,6 +374,13 @@ Pass *createLowerGuardIntrinsicPass();
 // LowerMatrixIntrinsics - Lower matrix intrinsics to vector operations.
 //
 Pass *createLowerMatrixIntrinsicsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// LowerMatrixIntrinsicsMinimal - Lower matrix intrinsics to vector operations
+//                               (lightweight, does not require extra analysis)
+//
+Pass *createLowerMatrixIntrinsicsMinimalPass();
 
 //===----------------------------------------------------------------------===//
 //

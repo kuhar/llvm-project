@@ -98,11 +98,7 @@ struct PubSection {
   uint16_t Version;
   uint32_t UnitOffset;
   uint32_t UnitSize;
-  bool IsGNUStyle = false;
   std::vector<PubEntry> Entries;
-
-  PubSection() = default;
-  PubSection(bool IsGNUStyle) : IsGNUStyle(IsGNUStyle) {}
 };
 
 struct FormValue {
@@ -116,11 +112,18 @@ struct Entry {
   std::vector<FormValue> Values;
 };
 
+/// Class that contains helpful context information when mapping YAML into DWARF
+/// data structures.
+struct DWARFContext {
+  bool IsGNUPubSec = false;
+};
+
 struct Unit {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  uint64_t Length;
   uint16_t Version;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
-  uint32_t AbbrOffset;
+  yaml::Hex64 AbbrOffset;
   uint8_t AddrSize;
   std::vector<Entry> Entries;
 };
@@ -174,11 +177,40 @@ struct AddrTableEntry {
   std::vector<SegAddrPair> SegAddrPairs;
 };
 
+struct StringOffsetsTable {
+  dwarf::DwarfFormat Format;
+  Optional<yaml::Hex64> Length;
+  yaml::Hex16 Version;
+  yaml::Hex16 Padding;
+  std::vector<yaml::Hex64> Offsets;
+};
+
+struct RnglistEntry {
+  dwarf::RnglistEntries Operator;
+  std::vector<yaml::Hex64> Values;
+};
+
+struct Rnglist {
+  std::vector<RnglistEntry> Entries;
+};
+
+struct RnglistTable {
+  dwarf::DwarfFormat Format;
+  Optional<yaml::Hex64> Length;
+  yaml::Hex16 Version;
+  Optional<yaml::Hex8> AddrSize;
+  yaml::Hex8 SegSelectorSize;
+  Optional<uint32_t> OffsetEntryCount;
+  Optional<std::vector<yaml::Hex64>> Offsets;
+  std::vector<Rnglist> Lists;
+};
+
 struct Data {
   bool IsLittleEndian;
-  bool Is64bit;
+  bool Is64BitAddrSize;
   std::vector<Abbrev> AbbrevDecls;
   std::vector<StringRef> DebugStrings;
+  Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
   std::vector<ARange> ARanges;
   std::vector<Ranges> DebugRanges;
   std::vector<AddrTableEntry> DebugAddr;
@@ -191,6 +223,7 @@ struct Data {
   std::vector<Unit> CompileUnits;
 
   std::vector<LineTable> DebugLines;
+  Optional<std::vector<RnglistTable>> DebugRnglists;
 
   bool isEmpty() const;
 
@@ -215,6 +248,10 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::LineTable)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::LineTableOpcode)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::SegAddrPair)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AddrTableEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::StringOffsetsTable)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RnglistTable)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Rnglist)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RnglistEntry)
 
 namespace llvm {
 namespace yaml {
@@ -283,8 +320,24 @@ template <> struct MappingTraits<DWARFYAML::SegAddrPair> {
   static void mapping(IO &IO, DWARFYAML::SegAddrPair &SegAddrPair);
 };
 
+template <> struct MappingTraits<DWARFYAML::RnglistTable> {
+  static void mapping(IO &IO, DWARFYAML::RnglistTable &RnglistTable);
+};
+
+template <> struct MappingTraits<DWARFYAML::Rnglist> {
+  static void mapping(IO &IO, DWARFYAML::Rnglist &Rnglist);
+};
+
+template <> struct MappingTraits<DWARFYAML::RnglistEntry> {
+  static void mapping(IO &IO, DWARFYAML::RnglistEntry &RnglistEntry);
+};
+
 template <> struct MappingTraits<DWARFYAML::AddrTableEntry> {
   static void mapping(IO &IO, DWARFYAML::AddrTableEntry &AddrTable);
+};
+
+template <> struct MappingTraits<DWARFYAML::StringOffsetsTable> {
+  static void mapping(IO &IO, DWARFYAML::StringOffsetsTable &StrOffsetsTable);
 };
 
 template <> struct MappingTraits<DWARFYAML::InitialLength> {
@@ -363,6 +416,15 @@ template <> struct ScalarEnumerationTraits<dwarf::Constants> {
     io.enumCase(value, "DW_CHILDREN_no", dwarf::DW_CHILDREN_no);
     io.enumCase(value, "DW_CHILDREN_yes", dwarf::DW_CHILDREN_yes);
     io.enumFallback<Hex16>(value);
+  }
+};
+
+#define HANDLE_DW_RLE(unused, name)                                            \
+  io.enumCase(value, "DW_RLE_" #name, dwarf::DW_RLE_##name);
+
+template <> struct ScalarEnumerationTraits<dwarf::RnglistEntries> {
+  static void enumeration(IO &io, dwarf::RnglistEntries &value) {
+#include "llvm/BinaryFormat/Dwarf.def"
   }
 };
 

@@ -125,7 +125,7 @@ public:
     m_integer.clearAllBits();
   }
 
-  const char *GetTypeAsCString() const;
+  const char *GetTypeAsCString() const { return GetValueTypeAsCString(m_type); }
 
   void GetValue(Stream *s, bool show_type) const;
 
@@ -188,7 +188,7 @@ public:
 
   unsigned char UChar(unsigned char fail_value = 0) const;
 
-  signed char SChar(char fail_value = 0) const;
+  signed char SChar(signed char fail_value = 0) const;
 
   unsigned short UShort(unsigned short fail_value = 0) const;
 
@@ -204,7 +204,7 @@ public:
 
   unsigned long long ULongLong(unsigned long long fail_value = 0) const;
 
-  llvm::APInt SInt128(llvm::APInt &fail_value) const;
+  llvm::APInt SInt128(const llvm::APInt &fail_value) const;
 
   llvm::APInt UInt128(const llvm::APInt &fail_value) const;
 
@@ -217,7 +217,7 @@ public:
   Status SetValueFromCString(const char *s, lldb::Encoding encoding,
                              size_t byte_size);
 
-  Status SetValueFromData(DataExtractor &data, lldb::Encoding encoding,
+  Status SetValueFromData(const DataExtractor &data, lldb::Encoding encoding,
                           size_t byte_size);
 
   static bool UIntValueIsValidForSize(uint64_t uval64, size_t total_byte_size) {
@@ -266,6 +266,8 @@ protected:
   Scalar::Type m_type;
   llvm::APInt m_integer;
   llvm::APFloat m_float;
+
+  template <typename T> T GetAs(T fail_value) const;
 
 private:
   friend const Scalar operator+(const Scalar &lhs, const Scalar &rhs);
