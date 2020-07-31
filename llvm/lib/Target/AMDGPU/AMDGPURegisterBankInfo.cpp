@@ -3549,6 +3549,10 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       return getDefaultMappingSOP(MI);
     LLVM_FALLTHROUGH;
 
+  case AMDGPU::G_SADDSAT: // FIXME: Could lower sat ops for SALU
+  case AMDGPU::G_SSUBSAT:
+  case AMDGPU::G_UADDSAT:
+  case AMDGPU::G_USUBSAT:
   case AMDGPU::G_FADD:
   case AMDGPU::G_FSUB:
   case AMDGPU::G_FPTOSI:
@@ -4017,6 +4021,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_wwm:
     case Intrinsic::amdgcn_wqm:
     case Intrinsic::amdgcn_softwqm:
+    case Intrinsic::amdgcn_set_inactive:
       return getDefaultMappingAllVGPR(MI);
     case Intrinsic::amdgcn_kernarg_segment_ptr:
     case Intrinsic::amdgcn_s_getpc:
@@ -4323,6 +4328,40 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       unsigned Bank = getRegBankID(MI.getOperand(1).getReg(), MRI,
                                    AMDGPU::SGPRRegBankID);
       OpdsMapping[1] = AMDGPU::getValueMapping(Bank, 32);
+      break;
+    }
+    case Intrinsic::amdgcn_waterfall_begin: {
+      unsigned SizeDst = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
+      unsigned SizeSrc = getSizeInBits(MI.getOperand(2).getReg(), MRI, *TRI);
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeDst);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, SizeSrc);
+      break;
+    }
+    case Intrinsic::amdgcn_waterfall_readfirstlane: {
+      unsigned SizeDst = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
+      unsigned SizeSrc1 = getSizeInBits(MI.getOperand(2).getReg(), MRI, *TRI);
+      unsigned SizeSrc2 = getSizeInBits(MI.getOperand(3).getReg(), MRI, *TRI);
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeDst);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeSrc1);
+      OpdsMapping[3] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, SizeSrc2);
+      break;
+    }
+    case Intrinsic::amdgcn_waterfall_end: {
+      unsigned SizeDst = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
+      unsigned SizeSrc1 = getSizeInBits(MI.getOperand(2).getReg(), MRI, *TRI);
+      unsigned SizeSrc2 = getSizeInBits(MI.getOperand(3).getReg(), MRI, *TRI);
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, SizeDst);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeSrc1);
+      OpdsMapping[3] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, SizeSrc2);
+      break;
+    }
+    case Intrinsic::amdgcn_waterfall_last_use: {
+      unsigned SizeDst = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
+      unsigned SizeSrc1 = getSizeInBits(MI.getOperand(2).getReg(), MRI, *TRI);
+      unsigned SizeSrc2 = getSizeInBits(MI.getOperand(3).getReg(), MRI, *TRI);
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeDst);
+      OpdsMapping[2] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeSrc1);
+      OpdsMapping[3] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, SizeSrc2);
       break;
     }
     default:

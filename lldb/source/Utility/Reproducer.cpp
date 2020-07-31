@@ -157,7 +157,7 @@ FileSpec Reproducer::GetReproducerPath() const {
   return {};
 }
 
-static FileSpec MakeAbsolute(FileSpec file_spec) {
+static FileSpec MakeAbsolute(const FileSpec &file_spec) {
   SmallString<128> path;
   file_spec.GetPath(path, false);
   llvm::sys::fs::make_absolute(path);
@@ -300,6 +300,11 @@ void WorkingDirectoryProvider::Keep() {
 }
 
 void FileProvider::RecordInterestingDirectory(const llvm::Twine &dir) {
+  if (m_collector)
+    m_collector->addFile(dir);
+}
+
+void FileProvider::RecordInterestingDirectoryRecursive(const llvm::Twine &dir) {
   if (m_collector)
     m_collector->addDirectory(dir);
 }

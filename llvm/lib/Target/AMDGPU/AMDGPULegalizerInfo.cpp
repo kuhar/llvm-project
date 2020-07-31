@@ -417,11 +417,12 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .legalFor(AllS64Vectors)
     .legalFor(AddrSpaces64)
     .legalFor(AddrSpaces32)
+    .legalIf(isPointer(0))
     .clampScalar(0, S32, S256)
     .widenScalarToNextPow2(0, 32)
     .clampMaxNumElements(0, S32, 16)
     .moreElementsIf(isSmallOddVector(0), oneMoreElement(0))
-    .legalIf(isPointer(0));
+    .scalarize(0);
 
   if (ST.hasVOP3PInsts()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
@@ -430,17 +431,60 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .clampMaxNumElements(0, S16, 2)
       .scalarize(0)
       .widenScalarToNextPow2(0, 32);
+
+    getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT, G_SADDSAT, G_SSUBSAT})
+      .lowerFor({S32, S16, V2S16}) // FIXME: legal and merge with add/sub/mul
+      .minScalar(0, S16)
+      .clampMaxNumElements(0, S16, 2)
+      .scalarize(0)
+      .widenScalarToNextPow2(0, 32)
+      .lower();
   } else if (ST.has16BitInsts()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32, S16})
       .clampScalar(0, S16, S32)
       .scalarize(0)
-      .widenScalarToNextPow2(0, 32);
+      .widenScalarToNextPow2(0, 32); // FIXME: min should be 16
+
+    // Technically the saturating operations require clamp bit support, but this
+    // was introduced at the same time as 16-bit operations.
+    getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+      .lowerFor({S32, S16}) // FIXME: legal with clamp modifier
+      .minScalar(0, S16)
+      .scalarize(0)
+      .widenScalarToNextPow2(0, 16)
+      .lower();
+
+    // We're just lowering this, but it helps get a better result to try to
+    // coerce to the desired type first.
+    getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT})
+      .minScalar(0, S16)
+      .scalarize(0)
+      .lower();
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32})
       .clampScalar(0, S32, S32)
       .scalarize(0);
+
+    if (ST.hasIntClamp()) {
+      getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+        .lowerFor({S32}) // FIXME: legal with clamp modifier.
+        .scalarize(0)
+        .minScalarOrElt(0, S32)
+        .lower();
+    } else {
+      // Clamp bit support was added in VI, along with 16-bit operations.
+      getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT})
+        .minScalar(0, S32)
+        .scalarize(0)
+        .lower();
+    }
+
+    getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT})
+      .minScalar(0, S32)
+      .scalarize(0)
+      .lower();
   }
 
   getActionDefinitionsBuilder({G_SDIV, G_UDIV, G_SREM, G_UREM})
@@ -480,9 +524,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_CONSTANT)
     .legalFor({S1, S32, S64, S16, GlobalPtr,
                LocalPtr, ConstantPtr, PrivatePtr, FlatPtr })
+    .legalIf(isPointer(0))
     .clampScalar(0, S32, S64)
-    .widenScalarToNextPow2(0)
-    .legalIf(isPointer(0));
+    .widenScalarToNextPow2(0);
 
   getActionDefinitionsBuilder(G_FCONSTANT)
     .legalFor({S32, S64, S16})
@@ -688,16 +732,14 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       .scalarize(0);
   }
 
-  // FIXME: Clamp offset operand.
   getActionDefinitionsBuilder(G_PTR_ADD)
-    .legalIf(isPointer(0))
-    .scalarize(0);
+    .legalIf(all(isPointer(0), sameSize(0, 1)))
+    .scalarize(0)
+    .scalarSameSizeAs(1, 0);
 
   getActionDefinitionsBuilder(G_PTRMASK)
-    .legalIf(typeInSet(1, {S64, S32}))
-    .minScalar(1, S32)
-    .maxScalarIf(sizeIs(0, 32), 1, S32)
-    .maxScalarIf(sizeIs(0, 64), 1, S64)
+    .legalIf(all(sameSize(0, 1), typeInSet(1, {S64, S32})))
+    .scalarSameSizeAs(1, 0)
     .scalarize(0);
 
   auto &CmpBuilder =
@@ -748,6 +790,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     ExpOps.customFor({S32});
   ExpOps.clampScalar(0, MinScalarFPTy, S32)
         .scalarize(0);
+
+  getActionDefinitionsBuilder(G_FPOWI)
+    .clampScalar(0, MinScalarFPTy, S32)
+    .lower();
 
   // The 64-bit versions produce 32-bit results, but only on the SALU.
   getActionDefinitionsBuilder(G_CTPOP)
@@ -1150,14 +1196,15 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
      G_ATOMICRMW_MAX, G_ATOMICRMW_MIN, G_ATOMICRMW_UMAX,
      G_ATOMICRMW_UMIN})
     .legalFor({{S32, GlobalPtr}, {S32, LocalPtr},
-               {S64, GlobalPtr}, {S64, LocalPtr}});
+               {S64, GlobalPtr}, {S64, LocalPtr},
+               {S32, RegionPtr}, {S64, RegionPtr}});
   if (ST.hasFlatAddressSpace()) {
     Atomics.legalFor({{S32, FlatPtr}, {S64, FlatPtr}});
   }
 
   if (ST.hasLDSFPAtomics()) {
     getActionDefinitionsBuilder(G_ATOMICRMW_FADD)
-      .legalFor({{S32, LocalPtr}});
+      .legalFor({{S32, LocalPtr}, {S32, RegionPtr}});
   }
 
   // BUFFER/FLAT_ATOMIC_CMP_SWAP on GCN GPUs needs input marshalling, and output
@@ -1430,12 +1477,6 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     SextInReg.lowerFor({{S32}, {S64}});
   }
 
-  // FIXME: Placeholder rule. Really depends on whether the clamp modifier is
-  // available, and is selectively legal for s16, s32, v2s16.
-  getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT, G_UADDSAT, G_USUBSAT})
-    .scalarize(0)
-    .clampScalar(0, S16, S32);
-
   SextInReg
     .scalarize(0)
     .clampScalar(0, S32, S64)
@@ -1454,6 +1495,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       G_FCOPYSIGN,
 
       G_ATOMIC_CMPXCHG_WITH_SUCCESS,
+      G_ATOMICRMW_NAND,
+      G_ATOMICRMW_FSUB,
       G_READ_REGISTER,
       G_WRITE_REGISTER,
 
@@ -1724,6 +1767,7 @@ bool AMDGPULegalizerInfo::legalizeFrint(
 
   auto Cond = B.buildFCmp(CmpInst::FCMP_OGT, LLT::scalar(1), Fabs, C2);
   B.buildSelect(MI.getOperand(0).getReg(), Cond, Src, Tmp2);
+  MI.eraseFromParent();
   return true;
 }
 

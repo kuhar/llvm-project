@@ -36,6 +36,10 @@ tablegen(LLVM R600GenSubtargetInfo.inc -gen-subtarget)
 
 add_public_tablegen_target(AMDGPUCommonTableGen)
 
+set(LLVM_TARGET_DEFINITIONS InstCombineTables.td)
+tablegen(LLVM InstCombineTables.inc -gen-searchable-tables)
+add_public_tablegen_target(InstCombineTableGen)
+
 add_llvm_target(AMDGPUCodeGen
   AMDGPUAliasAnalysis.cpp
   AMDGPUAlwaysInlinePass.cpp
@@ -51,6 +55,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUFixFunctionBitcasts.cpp
   AMDGPUFrameLowering.cpp
   AMDGPUHSAMetadataStreamer.cpp
+  AMDGPUInstCombineIntrinsic.cpp
   AMDGPUInstrInfo.cpp
   AMDGPUInstructionSelector.cpp
   AMDGPUISelDAGToDAG.cpp

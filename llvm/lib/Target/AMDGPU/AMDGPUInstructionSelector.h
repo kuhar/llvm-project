@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -114,6 +116,12 @@ private:
   bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
+
+  bool selectWaterfallBegin(MachineInstr &MI) const;
+  bool selectWaterfallEnd(MachineInstr &MI) const;
+  bool selectWaterfallReadFirstLane(MachineInstr &MI) const;
+  bool selectWaterfallLastUse(MachineInstr &MI) const;
+  bool selectWaterfallIntrinsic(MachineInstr &MI, unsigned Opcode) const;
 
   bool selectImageIntrinsic(MachineInstr &MI,
                             const AMDGPU::ImageDimIntrinsicInfo *Intr) const;

@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -616,11 +618,6 @@ bool AMDGPUInstructionSelector::selectG_UNMERGE_VALUES(MachineInstr &MI) const {
   return true;
 }
 
-static bool isZero(Register Reg, const MachineRegisterInfo &MRI) {
-  int64_t Val;
-  return mi_match(Reg, MRI, m_ICst(Val)) && Val == 0;
-}
-
 bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
   MachineInstr &MI) const {
   if (selectImpl(MI, *CoverageInfo))
@@ -644,6 +641,20 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
 
   const DebugLoc &DL = MI.getDebugLoc();
   MachineBasicBlock *BB = MI.getParent();
+
+  auto ConstSrc1 = getConstantVRegValWithLookThrough(Src1, *MRI, true, true);
+  if (ConstSrc1) {
+    auto ConstSrc0 = getConstantVRegValWithLookThrough(Src0, *MRI, true, true);
+    if (ConstSrc0) {
+      uint32_t Lo16 = static_cast<uint32_t>(ConstSrc0->Value) & 0xffff;
+      uint32_t Hi16 = static_cast<uint32_t>(ConstSrc1->Value) & 0xffff;
+
+      BuildMI(*BB, &MI, DL, TII.get(AMDGPU::S_MOV_B32), Dst)
+        .addImm(Lo16 | (Hi16 << 16));
+      MI.eraseFromParent();
+      return RBI.constrainGenericRegister(Dst, AMDGPU::SReg_32RegClass, *MRI);
+    }
+  }
 
   // TODO: This should probably be a combine somewhere
   // (build_vector_trunc $src0, undef -> copy $src0
@@ -686,7 +697,7 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
   } else if (Shift1) {
     Opc = AMDGPU::S_PACK_LH_B32_B16;
     MI.getOperand(2).setReg(ShiftSrc1);
-  } else if (Shift0 && isZero(Src1, *MRI)) {
+  } else if (Shift0 && ConstSrc1 && ConstSrc1->Value == 0) {
     // build_vector_trunc (lshr $src0, 16), 0 -> s_lshr_b32 $src0, 16
     auto MIB = BuildMI(*BB, &MI, DL, TII.get(AMDGPU::S_LSHR_B32), Dst)
       .addReg(ShiftSrc0)
@@ -734,6 +745,10 @@ bool AMDGPUInstructionSelector::selectG_INSERT(MachineInstr &I) const {
 
   // FIXME: These cases should have been illegal and unnecessary to check here.
   if (Offset % 32 != 0 || InsSize % 32 != 0)
+    return false;
+
+  // Currently not handled by getSubRegFromChannel.
+  if (InsSize > 128)
     return false;
 
   unsigned SubReg = TRI.getSubRegFromChannel(Offset / 32, InsSize / 32);
@@ -1300,10 +1315,161 @@ bool AMDGPUInstructionSelector::selectDSAppendConsume(MachineInstr &MI,
 
   BuildMI(*MBB, &MI, DL, TII.get(AMDGPU::COPY), AMDGPU::M0)
     .addReg(PtrBase);
-  BuildMI(*MBB, &MI, DL, TII.get(Opc), MI.getOperand(0).getReg())
+  if (!RBI.constrainGenericRegister(PtrBase, AMDGPU::SReg_32RegClass, *MRI))
+    return false;
+
+  auto MIB = BuildMI(*MBB, &MI, DL, TII.get(Opc), MI.getOperand(0).getReg())
     .addImm(Offset)
     .addImm(IsGDS ? -1 : 0)
     .cloneMemRefs(MI);
+  MI.eraseFromParent();
+  return constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
+}
+
+bool AMDGPUInstructionSelector::selectWaterfallBegin(MachineInstr &MI) const {
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(2).getReg();
+  unsigned DstSize = MRI->getType(DstReg).getSizeInBits();
+  unsigned SrcSize = MRI->getType(SrcReg).getSizeInBits();
+
+  const RegisterBank *DstRB = RBI.getRegBank(DstReg, *MRI, TRI);
+  const TargetRegisterClass *DstRC =
+      TRI.getRegClassForSizeOnBank(DstSize, *DstRB, *MRI);
+  if (!DstRC)
+    return false;
+
+  if (!RBI.constrainGenericRegister(DstReg, *DstRC, *MRI)) {
+    LLVM_DEBUG(dbgs() << "Failed to constrain amdgcn_waterfall_begin\n");
+    return false;
+  }
+
+  unsigned Opcode;
+  switch (SrcSize) {
+  case 32:
+    Opcode = AMDGPU::SI_WATERFALL_BEGIN_V1;
+    break;
+  case 64:
+    Opcode = AMDGPU::SI_WATERFALL_BEGIN_V2;
+    break;
+  case 128:
+    Opcode = AMDGPU::SI_WATERFALL_BEGIN_V4;
+    break;
+  case 256:
+    Opcode = AMDGPU::SI_WATERFALL_BEGIN_V8;
+    break;
+  default:
+    llvm_unreachable("size not supported");
+  }
+
+  MachineBasicBlock *MBB = MI.getParent();
+  const DebugLoc &DL = MI.getDebugLoc();
+  BuildMI(*MBB, &MI, DL, TII.get(Opcode), DstReg).addReg(SrcReg);
+
+  MI.eraseFromParent();
+  return true;
+}
+
+bool AMDGPUInstructionSelector::selectWaterfallEnd(MachineInstr &MI) const {
+  Register Reg = MI.getOperand(3).getReg();
+  unsigned Size = MRI->getType(Reg).getSizeInBits();
+
+  unsigned Opcode;
+  switch (Size) {
+  case 32:
+    Opcode = AMDGPU::SI_WATERFALL_END_V1;
+    break;
+  case 64:
+    Opcode = AMDGPU::SI_WATERFALL_END_V2;
+    break;
+  case 128:
+    Opcode = AMDGPU::SI_WATERFALL_END_V4;
+    break;
+  case 256:
+    Opcode = AMDGPU::SI_WATERFALL_END_V8;
+    break;
+  default:
+    llvm_unreachable("size not supported");
+  }
+
+  return selectWaterfallIntrinsic(MI, Opcode);
+}
+
+bool AMDGPUInstructionSelector::selectWaterfallReadFirstLane(
+    MachineInstr &MI) const {
+  Register Reg = MI.getOperand(3).getReg();
+  unsigned Size = MRI->getType(Reg).getSizeInBits();
+
+  unsigned Opcode;
+  switch (Size) {
+  case 32:
+    Opcode = AMDGPU::SI_WATERFALL_READFIRSTLANE_V1;
+    break;
+  case 64:
+    Opcode = AMDGPU::SI_WATERFALL_READFIRSTLANE_V2;
+    break;
+  case 128:
+    Opcode = AMDGPU::SI_WATERFALL_READFIRSTLANE_V4;
+    break;
+  case 256:
+    Opcode = AMDGPU::SI_WATERFALL_READFIRSTLANE_V8;
+    break;
+  default:
+    llvm_unreachable("size not supported");
+  }
+
+  return selectWaterfallIntrinsic(MI, Opcode);
+}
+
+bool AMDGPUInstructionSelector::selectWaterfallLastUse(MachineInstr &MI) const {
+  Register Reg = MI.getOperand(3).getReg();
+  unsigned Size = MRI->getType(Reg).getSizeInBits();
+
+  unsigned Opcode;
+  switch (Size) {
+  case 32:
+    Opcode = AMDGPU::SI_WATERFALL_LAST_USE_V1;
+    break;
+  case 64:
+    Opcode = AMDGPU::SI_WATERFALL_LAST_USE_V2;
+    break;
+  case 128:
+    Opcode = AMDGPU::SI_WATERFALL_LAST_USE_V4;
+    break;
+  case 256:
+    Opcode = AMDGPU::SI_WATERFALL_LAST_USE_V8;
+    break;
+  default:
+    llvm_unreachable("size not supported");
+  }
+
+  return selectWaterfallIntrinsic(MI, Opcode);
+}
+
+bool AMDGPUInstructionSelector::selectWaterfallIntrinsic(
+    MachineInstr &MI, unsigned Opcode) const {
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg1 = MI.getOperand(2).getReg();
+  Register SrcReg2 = MI.getOperand(3).getReg();
+
+  const RegisterBank *DstRB = RBI.getRegBank(DstReg, *MRI, TRI);
+  unsigned DstSize = MRI->getType(DstReg).getSizeInBits();
+
+  const TargetRegisterClass *DstRC =
+      TRI.getRegClassForSizeOnBank(DstSize, *DstRB, *MRI);
+  if (!DstRC)
+    return false;
+
+  if (!RBI.constrainGenericRegister(DstReg, *DstRC, *MRI)) {
+    LLVM_DEBUG(dbgs() << "Failed to constrain amdgcn_waterfall_* intrinsic\n");
+    return false;
+  }
+
+  MachineBasicBlock *MBB = MI.getParent();
+  const DebugLoc &DL = MI.getDebugLoc();
+  BuildMI(*MBB, &MI, DL, TII.get(Opcode), DstReg)
+      .addReg(SrcReg1)
+      .addReg(SrcReg2);
+
   MI.eraseFromParent();
   return true;
 }
@@ -1612,6 +1778,14 @@ bool AMDGPUInstructionSelector::selectG_INTRINSIC_W_SIDE_EFFECTS(
     return selectDSAppendConsume(I, true);
   case Intrinsic::amdgcn_ds_consume:
     return selectDSAppendConsume(I, false);
+  case Intrinsic::amdgcn_waterfall_begin:
+    return selectWaterfallBegin(I);
+  case Intrinsic::amdgcn_waterfall_end:
+    return selectWaterfallEnd(I);
+  case Intrinsic::amdgcn_waterfall_readfirstlane:
+    return selectWaterfallReadFirstLane(I);
+  case Intrinsic::amdgcn_waterfall_last_use:
+    return selectWaterfallLastUse(I);
   default: {
     return selectImpl(I, *CoverageInfo);
   }
@@ -1948,7 +2122,7 @@ bool AMDGPUInstructionSelector::selectG_CONSTANT(MachineInstr &I) const {
     const APInt &Imm = ImmOp.getFPImm()->getValueAPF().bitcastToAPInt();
     ImmOp.ChangeToImmediate(Imm.getZExtValue());
   } else if (ImmOp.isCImm()) {
-    ImmOp.ChangeToImmediate(ImmOp.getCImm()->getZExtValue());
+    ImmOp.ChangeToImmediate(ImmOp.getCImm()->getSExtValue());
   }
 
   Register DstReg = I.getOperand(0).getReg();
