@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -65,8 +63,8 @@ static cl::opt<bool> UserForwardSwitchCond(
     cl::desc("Forward switch condition to phi ops (default = false)"));
 
 static cl::opt<bool> UserHoistCommonInsts(
-    "hoist-common-insts", cl::Hidden, cl::init(true),
-    cl::desc("hoist common instructions (default = true)"));
+    "hoist-common-insts", cl::Hidden, cl::init(false),
+    cl::desc("hoist common instructions (default = false)"));
 
 static cl::opt<bool> UserSinkCommonInsts(
     "sink-common-insts", cl::Hidden, cl::init(false),
@@ -303,19 +301,4 @@ FunctionPass *
 llvm::createCFGSimplificationPass(SimplifyCFGOptions Options,
                                   std::function<bool(const Function &)> Ftor) {
   return new CFGSimplifyPass(Options, std::move(Ftor));
-}
-
-// Public interface to the CFGSimplification pass
-FunctionPass *
-llvm::createCFGSimplificationPass(unsigned Threshold, bool ForwardSwitchCond,
-                                  bool ConvertSwitch, bool KeepLoops,
-                                  bool SinkCommon,
-                                  std::function<bool(const Function &)> Ftor) {
-  return new CFGSimplifyPass(SimplifyCFGOptions()
-                                 .bonusInstThreshold(Threshold)
-                                 .forwardSwitchCondToPhi(ForwardSwitchCond)
-                                 .convertSwitchToLookupTable(ConvertSwitch)
-                                 .needCanonicalLoops(KeepLoops)
-                                 .sinkCommonInsts(SinkCommon),
-                             std::move(Ftor));
 }

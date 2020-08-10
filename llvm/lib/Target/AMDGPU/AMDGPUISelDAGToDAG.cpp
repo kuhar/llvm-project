@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //==-----------------------------------------------------------------------===//
 //
@@ -716,8 +718,7 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
       (Opc == AMDGPUISD::ATOMIC_INC || Opc == AMDGPUISD::ATOMIC_DEC ||
        Opc == ISD::ATOMIC_LOAD_FADD ||
        Opc == AMDGPUISD::ATOMIC_LOAD_FMIN ||
-       Opc == AMDGPUISD::ATOMIC_LOAD_FMAX ||
-       Opc == AMDGPUISD::ATOMIC_LOAD_CSUB)) {
+       Opc == AMDGPUISD::ATOMIC_LOAD_FMAX)) {
     N = glueCopyToM0LDSInit(N);
     SelectCode(N);
     return;
@@ -1041,18 +1042,12 @@ void AMDGPUDAGToDAGISel::SelectAddcSubb(SDNode *N) {
   SDValue RHS = N->getOperand(1);
   SDValue CI = N->getOperand(2);
 
-  if (N->isDivergent()) {
-    unsigned Opc = N->getOpcode() == ISD::ADDCARRY ? AMDGPU::V_ADDC_U32_e64
-                                                   : AMDGPU::V_SUBB_U32_e64;
-    CurDAG->SelectNodeTo(
-        N, Opc, N->getVTList(),
-        {LHS, RHS, CI,
-         CurDAG->getTargetConstant(0, {}, MVT::i1) /*clamp bit*/});
-  } else {
-    unsigned Opc = N->getOpcode() == ISD::ADDCARRY ? AMDGPU::S_ADD_CO_PSEUDO
-                                                   : AMDGPU::S_SUB_CO_PSEUDO;
-    CurDAG->SelectNodeTo(N, Opc, N->getVTList(), {LHS, RHS, CI});
-  }
+  unsigned Opc = N->getOpcode() == ISD::ADDCARRY ? AMDGPU::V_ADDC_U32_e64
+                                                 : AMDGPU::V_SUBB_U32_e64;
+  CurDAG->SelectNodeTo(
+      N, Opc, N->getVTList(),
+      {LHS, RHS, CI,
+       CurDAG->getTargetConstant(0, {}, MVT::i1) /*clamp bit*/});
 }
 
 void AMDGPUDAGToDAGISel::SelectUADDO_USUBO(SDNode *N) {

@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -260,11 +258,6 @@ FunctionPass *createJumpThreadingPass(int Threshold = -1);
 //
 FunctionPass *createCFGSimplificationPass(
     SimplifyCFGOptions Options = SimplifyCFGOptions(),
-    std::function<bool(const Function &)> Ftor = nullptr);
-
-FunctionPass *createCFGSimplificationPass(
-    unsigned Threshold, bool ForwardSwitchCond = false,
-    bool ConvertSwitch = false, bool KeepLoops = true, bool SinkCommon = false,
     std::function<bool(const Function &)> Ftor = nullptr);
 
 //===----------------------------------------------------------------------===//
@@ -537,6 +530,13 @@ Pass *createLoopSimplifyCFGPass();
 // transformations.
 //
 Pass *createWarnMissedTransformationsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// This pass does instruction simplification on each
+// instruction in a function.
+//
+FunctionPass *createInstSimplifyLegacyPass();
 } // End llvm namespace
 
 #endif
