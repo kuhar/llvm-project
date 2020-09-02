@@ -875,7 +875,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   //   extractelement <8 x i32> (bitcast <4 x i64> %X to <8 x i32>), i32 0
   Value *VecOp;
   if (match(Src, m_OneUse(m_ExtractElt(m_Value(VecOp), m_ConstantInt(Cst))))) {
-    auto *VecOpTy = cast<FixedVectorType>(VecOp->getType());
+    auto *VecOpTy = cast<VectorType>(VecOp->getType());
     unsigned VecNumElts = VecOpTy->getNumElements();
 
     // A badly fit destination size would result in an invalid cast.
@@ -1538,7 +1538,7 @@ static Type *shrinkFPConstantVector(Value *V) {
 
   Type *MinType = nullptr;
 
-  unsigned NumElts = cast<FixedVectorType>(CVVTy)->getNumElements();
+  unsigned NumElts = CVVTy->getNumElements();
   for (unsigned i = 0; i != NumElts; ++i) {
     auto *CFP = dyn_cast_or_null<ConstantFP>(CV->getAggregateElement(i));
     if (!CFP)
@@ -1942,8 +1942,7 @@ Instruction *InstCombinerImpl::visitPtrToInt(PtrToIntInst &CI) {
     if (auto *VecTy = dyn_cast<VectorType>(Ty)) {
       // Handle vectors of pointers.
       // FIXME: what should happen for scalable vectors?
-      IntPtrTy = FixedVectorType::get(
-          IntPtrTy, cast<FixedVectorType>(VecTy)->getNumElements());
+      IntPtrTy = FixedVectorType::get(IntPtrTy, VecTy->getNumElements());
     }
 
     Value *P = Builder.CreatePtrToInt(SrcOp, IntPtrTy);
@@ -1998,14 +1997,13 @@ optimizeVectorResizeWithIntegerBitCasts(Value *InVal, VectorType *DestTy,
       return nullptr;
 
     SrcTy =
-        FixedVectorType::get(DestTy->getElementType(),
-                             cast<FixedVectorType>(SrcTy)->getNumElements());
+        FixedVectorType::get(DestTy->getElementType(), SrcTy->getNumElements());
     InVal = IC.Builder.CreateBitCast(InVal, SrcTy);
   }
 
   bool IsBigEndian = IC.getDataLayout().isBigEndian();
-  unsigned SrcElts = cast<FixedVectorType>(SrcTy)->getNumElements();
-  unsigned DestElts = cast<FixedVectorType>(DestTy)->getNumElements();
+  unsigned SrcElts = SrcTy->getNumElements();
+  unsigned DestElts = DestTy->getNumElements();
 
   assert(SrcElts != DestElts && "Element counts should be different.");
 
@@ -2184,7 +2182,7 @@ static bool collectInsertionElements(Value *V, unsigned Shift,
 /// Into two insertelements that do "buildvector{%inc, %inc5}".
 static Value *optimizeIntegerToVectorInsertions(BitCastInst &CI,
                                                 InstCombinerImpl &IC) {
-  auto *DestVecTy = cast<FixedVectorType>(CI.getType());
+  VectorType *DestVecTy = cast<VectorType>(CI.getType());
   Value *IntInput = CI.getOperand(0);
 
   SmallVector<Value*, 8> Elements(DestVecTy->getNumElements());
@@ -2224,8 +2222,7 @@ static Instruction *canonicalizeBitCastExtElt(BitCastInst &BitCast,
   if (!VectorType::isValidElementType(DestType))
     return nullptr;
 
-  unsigned NumElts =
-      cast<FixedVectorType>(ExtElt->getVectorOperandType())->getNumElements();
+  unsigned NumElts = ExtElt->getVectorOperandType()->getNumElements();
   auto *NewVecType = FixedVectorType::get(DestType, NumElts);
   auto *NewBC = IC.Builder.CreateBitCast(ExtElt->getVectorOperand(),
                                          NewVecType, "bc");
@@ -2292,8 +2289,7 @@ static Instruction *foldBitCastSelect(BitCastInst &BitCast,
   if (auto *CondVTy = dyn_cast<VectorType>(CondTy)) {
     if (!DestTy->isVectorTy())
       return nullptr;
-    if (cast<FixedVectorType>(DestTy)->getNumElements() !=
-        cast<FixedVectorType>(CondVTy)->getNumElements())
+    if (cast<VectorType>(DestTy)->getNumElements() != CondVTy->getNumElements())
       return nullptr;
   }
 
@@ -2629,12 +2625,11 @@ Instruction *InstCombinerImpl::visitBitCast(BitCastInst &CI) {
     // a bitcast to a vector with the same # elts.
     Value *ShufOp0 = Shuf->getOperand(0);
     Value *ShufOp1 = Shuf->getOperand(1);
-    unsigned NumShufElts =
-        cast<FixedVectorType>(Shuf->getType())->getNumElements();
+    unsigned NumShufElts = Shuf->getType()->getNumElements();
     unsigned NumSrcVecElts =
-        cast<FixedVectorType>(ShufOp0->getType())->getNumElements();
+        cast<VectorType>(ShufOp0->getType())->getNumElements();
     if (Shuf->hasOneUse() && DestTy->isVectorTy() &&
-        cast<FixedVectorType>(DestTy)->getNumElements() == NumShufElts &&
+        cast<VectorType>(DestTy)->getNumElements() == NumShufElts &&
         NumShufElts == NumSrcVecElts) {
       BitCastInst *Tmp;
       // If either of the operands is a cast from CI.getType(), then
@@ -2702,8 +2697,7 @@ Instruction *InstCombinerImpl::visitAddrSpaceCast(AddrSpaceCastInst &CI) {
     if (VectorType *VT = dyn_cast<VectorType>(CI.getType())) {
       // Handle vectors of pointers.
       // FIXME: what should happen for scalable vectors?
-      MidTy = FixedVectorType::get(MidTy,
-                                   cast<FixedVectorType>(VT)->getNumElements());
+      MidTy = FixedVectorType::get(MidTy, VT->getNumElements());
     }
 
     Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);

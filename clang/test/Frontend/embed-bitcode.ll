@@ -43,9 +43,9 @@
 ; RUN:    | FileCheck %s -check-prefix=CHECK-WARNING
 
 ; CHECK-ELF: @llvm.embedded.module
-; CHECK-ELF-SAME: section ".llvmbc", align 1
+; CHECK-ELF: section ".llvmbc"
 ; CHECK-ELF: @llvm.cmdline
-; CHECK-ELF-SAME: section ".llvmcmd", align 1
+; CHECK-ELF: section ".llvmcmd"
 
 ; CHECK-ONLY-BITCODE: @llvm.embedded.module = private constant
 ; CHECK-ONLY-BITCODE: c"\DE\C0\17\0B

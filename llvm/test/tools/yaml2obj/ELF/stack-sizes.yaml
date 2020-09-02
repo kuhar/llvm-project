@@ -44,9 +44,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
 ## Valid.
   - Name:    '.stack_sizes (1)'
@@ -92,9 +93,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2[[ENCODE]]
-  Type:  ET_EXEC
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2[[ENCODE]]
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -116,9 +118,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -134,9 +137,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -151,9 +155,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -170,9 +175,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .stack_sizes
     Type: SHT_PROGBITS
@@ -185,9 +191,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .stack_sizes
     Type: SHT_PROGBITS
@@ -211,9 +218,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .stack_sizes
     Type: SHT_PROGBITS
@@ -233,9 +241,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .stack_sizes
     Type: SHT_PROGBITS
@@ -248,9 +257,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .stack_sizes
     Type: SHT_PROGBITS
@@ -272,9 +282,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    '.stack_sizes (1)'
     Type:    SHT_PROGBITS

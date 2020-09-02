@@ -71,8 +71,9 @@ public:
     }
 
     // OnResolve -- De-intern the symbols and pass the result to the linker.
-    auto OnResolve = [LookupContinuation =
-                          std::move(LC)](Expected<SymbolMap> Result) mutable {
+    auto OnResolve = [this, LookupContinuation = std::move(LC)](
+                         Expected<SymbolMap> Result) mutable {
+      auto Main = Layer.getExecutionSession().intern("_main");
       if (!Result)
         LookupContinuation->run(Result.takeError());
       else {
@@ -535,8 +536,8 @@ Error ObjectLinkingLayer::removeAllModules() {
 }
 
 EHFrameRegistrationPlugin::EHFrameRegistrationPlugin(
-    std::unique_ptr<EHFrameRegistrar> Registrar)
-    : Registrar(std::move(Registrar)) {}
+    EHFrameRegistrar &Registrar)
+    : Registrar(Registrar) {}
 
 void EHFrameRegistrationPlugin::modifyPassConfig(
     MaterializationResponsibility &MR, const Triple &TT,
@@ -571,7 +572,7 @@ Error EHFrameRegistrationPlugin::notifyEmitted(
   else
     UntrackedEHFrameRanges.push_back(EHFrameRange);
 
-  return Registrar->registerEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
+  return Registrar.registerEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
 }
 
 Error EHFrameRegistrationPlugin::notifyRemovingModule(VModuleKey K) {
@@ -586,7 +587,7 @@ Error EHFrameRegistrationPlugin::notifyRemovingModule(VModuleKey K) {
 
   TrackedEHFrameRanges.erase(EHFrameRangeItr);
 
-  return Registrar->deregisterEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
+  return Registrar.deregisterEHFrames(EHFrameRange.Addr, EHFrameRange.Size);
 }
 
 Error EHFrameRegistrationPlugin::notifyRemovingAllModules() {
@@ -607,8 +608,9 @@ Error EHFrameRegistrationPlugin::notifyRemovingAllModules() {
     auto EHFrameRange = EHFrameRanges.back();
     assert(EHFrameRange.Addr && "Untracked eh-frame range must not be null");
     EHFrameRanges.pop_back();
-    Err = joinErrors(std::move(Err), Registrar->deregisterEHFrames(
-                                         EHFrameRange.Addr, EHFrameRange.Size));
+    Err = joinErrors(std::move(Err),
+                     Registrar.deregisterEHFrames(EHFrameRange.Addr,
+                                                  EHFrameRange.Size));
   }
 
   return Err;

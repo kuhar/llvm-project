@@ -67,8 +67,7 @@ void f() { }
 // expected-note@-1 {{candidate function [with T = long long, U = int]}}
 
 static_assert(sizeof(f<long long, int>()));
-// expected-error@-1 {{call to 'f' is ambiguous}} \
-   expected-error@-1 {{invalid application of 'sizeof' to an incomplete type 'void'}}
+// expected-error@-1 {{call to 'f' is ambiguous}}
 
 template<typename T>
 concept C3 = true;

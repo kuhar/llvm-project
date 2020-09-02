@@ -9,15 +9,14 @@
 #include "gtest/gtest.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/InitAllDialects.h"
 #include "flang/Parser/parse-tree.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 
 class OpenMPLoweringTest : public testing::Test {
 protected:
   void SetUp() override {
-    ctx.loadDialect<mlir::omp::OpenMPDialect>();
-    mlir::registerAllDialects(ctx.getDialectRegistry());
+    mlir::registerDialect<mlir::omp::OpenMPDialect>();
+    mlir::registerAllDialects(&ctx);
     mlirOpBuilder.reset(new mlir::OpBuilder(&ctx));
   }
 

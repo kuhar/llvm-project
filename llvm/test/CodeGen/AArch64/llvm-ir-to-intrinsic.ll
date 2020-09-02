@@ -131,7 +131,8 @@ define <vscale x 16 x i8> @srem_i8(<vscale x 16 x i8> %a, <vscale x 16 x i8> %b)
 ; CHECK-NEXT:    uzp1 z3.h, z4.h, z3.h
 ; CHECK-NEXT:    uzp1 z2.b, z3.b, z2.b
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    mls z0.b, p0/m, z2.b, z1.b
+; CHECK-NEXT:    mul z1.b, p0/m, z1.b, z2.b
+; CHECK-NEXT:    sub z0.b, z0.b, z1.b
 ; CHECK-NEXT:    ret
   %div = srem <vscale x 16 x i8> %a, %b
   ret <vscale x 16 x i8> %div
@@ -150,7 +151,8 @@ define <vscale x 8 x i16> @srem_i16(<vscale x 8 x i16> %a, <vscale x 8 x i16> %b
 ; CHECK-NEXT:    sdiv z3.s, p0/m, z3.s, z4.s
 ; CHECK-NEXT:    uzp1 z2.h, z3.h, z2.h
 ; CHECK-NEXT:    ptrue p0.h
-; CHECK-NEXT:    mls z0.h, p0/m, z2.h, z1.h
+; CHECK-NEXT:    mul z1.h, p0/m, z1.h, z2.h
+; CHECK-NEXT:    sub z0.h, z0.h, z1.h
 ; CHECK-NEXT:    ret
   %div = srem <vscale x 8 x i16> %a, %b
   ret <vscale x 8 x i16> %div
@@ -162,7 +164,8 @@ define <vscale x 4 x i32> @srem_i32(<vscale x 4 x i32> %a, <vscale x 4 x i32> %b
 ; CHECK-NEXT:    ptrue p0.s
 ; CHECK-NEXT:    movprfx z2, z0
 ; CHECK-NEXT:    sdiv z2.s, p0/m, z2.s, z1.s
-; CHECK-NEXT:    mls z0.s, p0/m, z2.s, z1.s
+; CHECK-NEXT:    mul z1.s, p0/m, z1.s, z2.s
+; CHECK-NEXT:    sub z0.s, z0.s, z1.s
 ; CHECK-NEXT:    ret
   %div = srem <vscale x 4 x i32> %a, %b
   ret <vscale x 4 x i32> %div
@@ -174,7 +177,8 @@ define <vscale x 2 x i64> @srem_i64(<vscale x 2 x i64> %a, <vscale x 2 x i64> %b
 ; CHECK-NEXT:    ptrue p0.d
 ; CHECK-NEXT:    movprfx z2, z0
 ; CHECK-NEXT:    sdiv z2.d, p0/m, z2.d, z1.d
-; CHECK-NEXT:    mls z0.d, p0/m, z2.d, z1.d
+; CHECK-NEXT:    mul z1.d, p0/m, z1.d, z2.d
+; CHECK-NEXT:    sub z0.d, z0.d, z1.d
 ; CHECK-NEXT:    ret
   %div = srem <vscale x 2 x i64> %a, %b
   ret <vscale x 2 x i64> %div
@@ -311,7 +315,8 @@ define <vscale x 16 x i8> @urem_i8(<vscale x 16 x i8> %a, <vscale x 16 x i8> %b)
 ; CHECK-NEXT:    uzp1 z3.h, z4.h, z3.h
 ; CHECK-NEXT:    uzp1 z2.b, z3.b, z2.b
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    mls z0.b, p0/m, z2.b, z1.b
+; CHECK-NEXT:    mul z1.b, p0/m, z1.b, z2.b
+; CHECK-NEXT:    sub z0.b, z0.b, z1.b
 ; CHECK-NEXT:    ret
   %div = urem <vscale x 16 x i8> %a, %b
   ret <vscale x 16 x i8> %div
@@ -330,7 +335,8 @@ define <vscale x 8 x i16> @urem_i16(<vscale x 8 x i16> %a, <vscale x 8 x i16> %b
 ; CHECK-NEXT:    udiv z3.s, p0/m, z3.s, z4.s
 ; CHECK-NEXT:    uzp1 z2.h, z3.h, z2.h
 ; CHECK-NEXT:    ptrue p0.h
-; CHECK-NEXT:    mls z0.h, p0/m, z2.h, z1.h
+; CHECK-NEXT:    mul z1.h, p0/m, z1.h, z2.h
+; CHECK-NEXT:    sub z0.h, z0.h, z1.h
 ; CHECK-NEXT:    ret
   %div = urem <vscale x 8 x i16> %a, %b
   ret <vscale x 8 x i16> %div
@@ -342,7 +348,8 @@ define <vscale x 4 x i32> @urem_i32(<vscale x 4 x i32> %a, <vscale x 4 x i32> %b
 ; CHECK-NEXT:    ptrue p0.s
 ; CHECK-NEXT:    movprfx z2, z0
 ; CHECK-NEXT:    udiv z2.s, p0/m, z2.s, z1.s
-; CHECK-NEXT:    mls z0.s, p0/m, z2.s, z1.s
+; CHECK-NEXT:    mul z1.s, p0/m, z1.s, z2.s
+; CHECK-NEXT:    sub z0.s, z0.s, z1.s
 ; CHECK-NEXT:    ret
   %div = urem <vscale x 4 x i32> %a, %b
   ret <vscale x 4 x i32> %div
@@ -354,7 +361,8 @@ define <vscale x 2 x i64> @urem_i64(<vscale x 2 x i64> %a, <vscale x 2 x i64> %b
 ; CHECK-NEXT:    ptrue p0.d
 ; CHECK-NEXT:    movprfx z2, z0
 ; CHECK-NEXT:    udiv z2.d, p0/m, z2.d, z1.d
-; CHECK-NEXT:    mls z0.d, p0/m, z2.d, z1.d
+; CHECK-NEXT:    mul z1.d, p0/m, z1.d, z2.d
+; CHECK-NEXT:    sub z0.d, z0.d, z1.d
 ; CHECK-NEXT:    ret
   %div = urem <vscale x 2 x i64> %a, %b
   ret <vscale x 2 x i64> %div

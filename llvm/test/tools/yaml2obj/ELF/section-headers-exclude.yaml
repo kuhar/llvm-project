@@ -24,9 +24,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -63,9 +64,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 SectionHeaderTable:
   Sections:
     - Name: .strtab
@@ -88,9 +90,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 SectionHeaderTable:
   Sections: []
   Excluded:
@@ -103,9 +106,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 SectionHeaderTable:
   Excluded:
     - Name: .strtab
@@ -125,9 +129,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -151,9 +156,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:  [[NAME]]
     Type:  [[TYPE]]
@@ -177,9 +183,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:  .dynsym
     Type:  SHT_DYNSYM
@@ -202,9 +209,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:  .symtab
     Type:  SHT_SYMTAB
@@ -224,9 +232,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:  .debug_unknown
     Type:  SHT_PROGBITS
@@ -245,9 +254,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .rela
     Type: SHT_RELA
@@ -267,9 +277,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .rela
     Type: SHT_RELA
@@ -293,9 +304,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -318,9 +330,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .group
     Type: SHT_GROUP
@@ -340,9 +353,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .group
     Type: SHT_GROUP
@@ -371,9 +385,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:    .cgp
     Type:    SHT_LLVM_CALL_GRAPH_PROFILE
@@ -411,9 +426,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:    .hash
     Type:    SHT_HASH
@@ -444,9 +460,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .foo
     Type: SHT_PROGBITS
@@ -472,9 +489,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 SectionHeaderTable:
   Sections:
     - Name: .strtab
@@ -488,9 +506,10 @@ SectionHeaderTable:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 SectionHeaderTable:
   NoHeaders: [[NOHEADERS]]
   Excluded:  []

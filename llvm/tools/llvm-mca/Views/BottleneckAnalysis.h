@@ -87,7 +87,6 @@
 #include "llvm/MC/MCSchedule.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/FormattedStream.h"
 
 namespace llvm {
 namespace mca {
@@ -283,10 +282,13 @@ public:
 };
 
 /// A view that collects and prints a few performance numbers.
-class BottleneckAnalysis : public InstructionView {
+class BottleneckAnalysis : public View {
+  const MCSubtargetInfo &STI;
+  MCInstPrinter &MCIP;
   PressureTracker Tracker;
   DependencyGraph DG;
 
+  ArrayRef<MCInst> Source;
   unsigned Iterations;
   unsigned TotalCycles;
 
@@ -314,9 +316,6 @@ class BottleneckAnalysis : public InstructionView {
   void addRegisterDep(unsigned From, unsigned To, unsigned RegID, unsigned Cy);
   void addMemoryDep(unsigned From, unsigned To, unsigned Cy);
   void addResourceDep(unsigned From, unsigned To, uint64_t Mask, unsigned Cy);
-
-  void printInstruction(formatted_raw_ostream &FOS, const MCInst &MCI,
-                        bool UseDifferentColor = false) const;
 
   // Prints a bottleneck message to OS.
   void printBottleneckHints(raw_ostream &OS) const;

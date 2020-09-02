@@ -17,9 +17,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .llvm_addrsig
     Type: SHT_LLVM_ADDRSIG
@@ -49,9 +50,10 @@ Symbols:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .llvm_addrsig
     Type: SHT_LLVM_ADDRSIG
@@ -68,9 +70,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .llvm_addrsig
     Type: SHT_LLVM_ADDRSIG

@@ -94,8 +94,8 @@ const TargetRegisterClass * R600RegisterInfo::getCFGStructurizerRegClass(
   }
 }
 
-bool R600RegisterInfo::isPhysRegLiveAcrossClauses(Register Reg) const {
-  assert(!Reg.isVirtual());
+bool R600RegisterInfo::isPhysRegLiveAcrossClauses(unsigned Reg) const {
+  assert(!Register::isVirtualRegister(Reg));
 
   switch (Reg) {
   case R600::OQAP:

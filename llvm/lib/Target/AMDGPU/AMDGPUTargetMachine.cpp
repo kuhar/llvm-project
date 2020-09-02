@@ -408,14 +408,16 @@ AMDGPUTargetMachine::~AMDGPUTargetMachine() = default;
 
 StringRef AMDGPUTargetMachine::getGPUName(const Function &F) const {
   Attribute GPUAttr = F.getFnAttribute("target-cpu");
-  return GPUAttr.isValid() ? GPUAttr.getValueAsString() : getTargetCPU();
+  return GPUAttr.hasAttribute(Attribute::None) ?
+    getTargetCPU() : GPUAttr.getValueAsString();
 }
 
 StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  return FSAttr.isValid() ? FSAttr.getValueAsString()
-                          : getTargetFeatureString();
+  return FSAttr.hasAttribute(Attribute::None) ?
+    getTargetFeatureString() :
+    FSAttr.getValueAsString();
 }
 
 /// Predicate for Internalize pass.

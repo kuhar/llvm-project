@@ -780,21 +780,20 @@ static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
 // of zero or more type-length-value fields. We want to find a field of a
 // certain type. It seems a bit too much to just store a 32-bit value, perhaps
 // the ABI is unnecessarily complicated.
-template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
+template <class ELFT>
+static uint32_t readAndFeatures(ObjFile<ELFT> *obj, ArrayRef<uint8_t> data) {
   using Elf_Nhdr = typename ELFT::Nhdr;
   using Elf_Note = typename ELFT::Note;
 
   uint32_t featuresSet = 0;
-  ArrayRef<uint8_t> data = sec.data();
-  auto reportFatal = [&](const uint8_t *place, const char *msg) {
-    fatal(toString(sec.file) + ":(" + sec.name + "+0x" +
-          Twine::utohexstr(place - sec.data().data()) + "): " + msg);
-  };
   while (!data.empty()) {
     // Read one NOTE record.
+    if (data.size() < sizeof(Elf_Nhdr))
+      fatal(toString(obj) + ": .note.gnu.property: section too short");
+
     auto *nhdr = reinterpret_cast<const Elf_Nhdr *>(data.data());
-    if (data.size() < sizeof(Elf_Nhdr) || data.size() < nhdr->getSize())
-      reportFatal(data.data(), "data is too short");
+    if (data.size() < nhdr->getSize())
+      fatal(toString(obj) + ": .note.gnu.property: section too short");
 
     Elf_Note note(*nhdr);
     if (nhdr->n_type != NT_GNU_PROPERTY_TYPE_0 || note.getName() != "GNU") {
@@ -809,26 +808,25 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
     // Read a body of a NOTE record, which consists of type-length-value fields.
     ArrayRef<uint8_t> desc = note.getDesc();
     while (!desc.empty()) {
-      const uint8_t *place = desc.data();
       if (desc.size() < 8)
-        reportFatal(place, "program property is too short");
-      uint32_t type = read32<ELFT::TargetEndianness>(desc.data());
-      uint32_t size = read32<ELFT::TargetEndianness>(desc.data() + 4);
-      desc = desc.slice(8);
-      if (desc.size() < size)
-        reportFatal(place, "program property is too short");
+        fatal(toString(obj) + ": .note.gnu.property: section too short");
+
+      uint32_t type = read32le(desc.data());
+      uint32_t size = read32le(desc.data() + 4);
 
       if (type == featureAndType) {
         // We found a FEATURE_1_AND field. There may be more than one of these
         // in a .note.gnu.property section, for a relocatable object we
         // accumulate the bits set.
-        if (size < 4)
-          reportFatal(place, "FEATURE_1_AND entry is too short");
-        featuresSet |= read32<ELFT::TargetEndianness>(desc.data());
+        featuresSet |= read32le(desc.data() + 8);
       }
 
-      // Padding is present in the note descriptor, if necessary.
-      desc = desc.slice(alignTo<(ELFT::Is64Bits ? 8 : 4)>(size));
+      // On 64-bit, a payload may be followed by a 4-byte padding to make its
+      // size a multiple of 8.
+      if (ELFT::Is64Bits)
+        size = alignTo(size, 8);
+
+      desc = desc.slice(size + 8); // +8 for Type and Size
     }
 
     // Go to next NOTE record to look for more FEATURE_1_AND descriptions.
@@ -987,7 +985,8 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(const Elf_Shdr &sec) {
   // .note.gnu.property containing a single AND'ed bitmap, we discard an input
   // file's .note.gnu.property section.
   if (name == ".note.gnu.property") {
-    this->andFeatures = readAndFeatures<ELFT>(InputSection(*this, sec, name));
+    ArrayRef<uint8_t> contents = check(this->getObj().getSectionContents(&sec));
+    this->andFeatures = readAndFeatures(this, contents);
     return &InputSection::discarded;
   }
 

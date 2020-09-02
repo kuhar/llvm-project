@@ -49,7 +49,8 @@ EVT EVT::getExtendedVectorVT(LLVMContext &Context, EVT VT, unsigned NumElements,
 
 EVT EVT::getExtendedVectorVT(LLVMContext &Context, EVT VT, ElementCount EC) {
   EVT ResultVT;
-  ResultVT.LLVMTy = VectorType::get(VT.getTypeForEVT(Context), EC);
+  ResultVT.LLVMTy =
+      VectorType::get(VT.getTypeForEVT(Context), {EC.Min, EC.Scalable});
   assert(ResultVT.isExtended() && "Type is not extended!");
   return ResultVT;
 }
@@ -122,13 +123,13 @@ EVT EVT::getExtendedVectorElementType() const {
 unsigned EVT::getExtendedVectorNumElements() const {
   assert(isExtended() && "Type is not extended!");
   ElementCount EC = cast<VectorType>(LLVMTy)->getElementCount();
-  if (EC.isScalable()) {
+  if (EC.Scalable) {
     WithColor::warning()
         << "The code that requested the fixed number of elements has made the "
            "assumption that this vector is not scalable. This assumption was "
            "not correct, and this may lead to broken code\n";
   }
-  return EC.getKnownMinValue();
+  return EC.Min;
 }
 
 ElementCount EVT::getExtendedVectorElementCount() const {
@@ -150,9 +151,9 @@ std::string EVT::getEVTString() const {
   switch (V.SimpleTy) {
   default:
     if (isVector())
-      return (isScalableVector() ? "nxv" : "v") +
-             utostr(getVectorElementCount().getKnownMinValue()) +
-             getVectorElementType().getEVTString();
+      return (isScalableVector() ? "nxv" : "v")
+             + utostr(getVectorElementCount().Min)
+             + getVectorElementType().getEVTString();
     if (isInteger())
       return "i" + utostr(getSizeInBits());
     if (isFloatingPoint())

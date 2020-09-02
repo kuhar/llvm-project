@@ -10,7 +10,7 @@
 # CASE1-NEXT:   Class:   ELFCLASS64
 # CASE1-NEXT:   Data:    ELFDATA2LSB
 # CASE1-NEXT:   Type:    ET_REL
-# CASE1-NEXT:   Machine: EM_NONE
+# CASE1-NEXT:   Machine: EM_X86_64
 # CASE1-NEXT: Sections:
 # CASE1-NEXT:   - Name:    bar
 # CASE1-NEXT:     Type:    SHT_PROGBITS
@@ -30,9 +30,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: bar
     Type: SHT_PROGBITS
@@ -56,9 +57,10 @@ Symbols:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Symbols:
   - Type:  STT_SECTION
     Index: SHN_XINDEX
@@ -74,9 +76,10 @@ Symbols:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: bar
     Type: SHT_PROGBITS
@@ -99,9 +102,10 @@ Symbols:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: bar
     Type: SHT_PROGBITS
@@ -123,9 +127,10 @@ Symbols:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name:    .symtab_shndx1
     Type:    SHT_SYMTAB_SHNDX
@@ -148,9 +153,10 @@ Symbols: []
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name:    .symtab_shndx
     Type:    SHT_SYMTAB_SHNDX
@@ -169,9 +175,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name:    .symtab_shndx
     Type:    SHT_SYMTAB_SHNDX

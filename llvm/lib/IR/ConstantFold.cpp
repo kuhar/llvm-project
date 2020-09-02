@@ -919,8 +919,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1, Constant *V2,
                                                      ArrayRef<int> Mask) {
   auto *V1VTy = cast<VectorType>(V1->getType());
   unsigned MaskNumElts = Mask.size();
-  auto MaskEltCount =
-      ElementCount::get(MaskNumElts, isa<ScalableVectorType>(V1VTy));
+  ElementCount MaskEltCount = {MaskNumElts, isa<ScalableVectorType>(V1VTy)};
   Type *EltTy = V1VTy->getElementType();
 
   // Undefined shuffle mask -> undefined value.
@@ -931,7 +930,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1, Constant *V2,
   // If the mask is all zeros this is a splat, no need to go through all
   // elements.
   if (all_of(Mask, [](int Elt) { return Elt == 0; }) &&
-      !MaskEltCount.isScalable()) {
+      !MaskEltCount.Scalable) {
     Type *Ty = IntegerType::get(V1->getContext(), 32);
     Constant *Elt =
         ConstantExpr::getExtractElement(V1, ConstantInt::get(Ty, 0));
@@ -942,7 +941,7 @@ Constant *llvm::ConstantFoldShuffleVectorInstruction(Constant *V1, Constant *V2,
   if (isa<ScalableVectorType>(V1VTy))
     return nullptr;
 
-  unsigned SrcNumElts = V1VTy->getElementCount().getKnownMinValue();
+  unsigned SrcNumElts = V1VTy->getElementCount().Min;
 
   // Loop over the shuffle mask, evaluating each element.
   SmallVector<Constant*, 32> Result;
@@ -2056,12 +2055,11 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
     SmallVector<Constant*, 4> ResElts;
     Type *Ty = IntegerType::get(C1->getContext(), 32);
     // Compare the elements, producing an i1 result or constant expr.
-    for (unsigned I = 0, E = C1VTy->getElementCount().getKnownMinValue();
-         I != E; ++I) {
+    for (unsigned i = 0, e = C1VTy->getElementCount().Min; i != e; ++i) {
       Constant *C1E =
-          ConstantExpr::getExtractElement(C1, ConstantInt::get(Ty, I));
+        ConstantExpr::getExtractElement(C1, ConstantInt::get(Ty, i));
       Constant *C2E =
-          ConstantExpr::getExtractElement(C2, ConstantInt::get(Ty, I));
+        ConstantExpr::getExtractElement(C2, ConstantInt::get(Ty, i));
 
       ResElts.push_back(ConstantExpr::getCompare(pred, C1E, C2E));
     }

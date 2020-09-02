@@ -99,7 +99,7 @@ Error MachineFunctionPassManager::run(Module &M,
 
         // TODO: EmitSizeRemarks
         PreservedAnalyses PassPA = P->run(MF, MFAM);
-        PI.runAfterPass(*P, MF, PassPA);
+        PI.runAfterPass(*P, MF);
         MFAM.invalidate(MF, PassPA);
       }
     }

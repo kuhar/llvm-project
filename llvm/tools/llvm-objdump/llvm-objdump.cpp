@@ -2170,10 +2170,6 @@ static void disassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
   if (!AsmInfo)
     reportError(Obj->getFileName(),
                 "no assembly info for target " + TripleName);
-
-  if (MCPU.empty())
-    MCPU = Obj->tryGetCPUName().getValueOr("").str();
-
   std::unique_ptr<const MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(TripleName, MCPU, Features.getString()));
   if (!STI)

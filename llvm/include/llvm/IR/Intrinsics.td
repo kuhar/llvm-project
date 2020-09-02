@@ -17,9 +17,7 @@ include "llvm/CodeGen/SDNodeProperties.td"
 //  Properties we keep track of for intrinsics.
 //===----------------------------------------------------------------------===//
 
-class IntrinsicProperty<bit is_default = 0> {
-  bit IsDefault = is_default;
-}
+class IntrinsicProperty;
 
 // Intr*Mem - Memory properties.  If no property is set, the worst case
 // is assumed (it may read and write any memory it can get access to and it may
@@ -80,11 +78,6 @@ class NoCapture<AttrIndex idx> : IntrinsicProperty {
 // NoAlias - The specified argument pointer is not aliasing other "noalias" pointer
 // arguments of the intrinsic wrt. the intrinsic scope.
 class NoAlias<AttrIndex idx> : IntrinsicProperty {
-  int ArgNo = idx.Value;
-}
-
-// NoUndef - The specified argument is neither undef nor poison.
-class NoUndef<AttrIndex idx> : IntrinsicProperty {
   int ArgNo = idx.Value;
 }
 
@@ -338,18 +331,13 @@ class Intrinsic<list<LLVMType> ret_types,
                 list<LLVMType> param_types = [],
                 list<IntrinsicProperty> intr_properties = [],
                 string name = "",
-                list<SDNodeProperty> sd_properties = [],
-                bit disable_default_attributes = 0> : SDPatternOperator {
+                list<SDNodeProperty> sd_properties = []> : SDPatternOperator {
   string LLVMName = name;
   string TargetPrefix = "";   // Set to a prefix for target-specific intrinsics.
   list<LLVMType> RetTypes = ret_types;
   list<LLVMType> ParamTypes = param_types;
   list<IntrinsicProperty> IntrProperties = intr_properties;
   let Properties = sd_properties;
-
-  // Disable applying IntrinsicProperties that are marked default with
-  // IntrinsicProperty<1>
-  bit DisableDefaultAttributes = disable_default_attributes;
 
   bit isTarget = 0;
 }
@@ -520,8 +508,7 @@ def int_readcyclecounter : Intrinsic<[llvm_i64_ty]>;
 
 // The assume intrinsic is marked as arbitrarily writing so that proper
 // control dependencies will be maintained.
-def int_assume        : Intrinsic<[], [llvm_i1_ty], [IntrWillReturn,
-                                                     NoUndef<ArgIndex<0>>]>;
+def int_assume        : Intrinsic<[], [llvm_i1_ty], [IntrWillReturn]>;
 
 // Stack Protector Intrinsic - The stackprotector intrinsic writes the stack
 // guard to the correct place on the stack frame.

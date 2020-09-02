@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Semantics/type.h"
-#include "check-declarations.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Parser/characters.h"
 #include "flang/Semantics/scope.h"
@@ -98,8 +97,8 @@ void DerivedTypeSpec::CookParameters(evaluate::FoldingContext &foldingContext) {
   }
 }
 
-void DerivedTypeSpec::EvaluateParameters(SemanticsContext &context) {
-  evaluate::FoldingContext &foldingContext{context.foldingContext()};
+void DerivedTypeSpec::EvaluateParameters(
+    evaluate::FoldingContext &foldingContext) {
   CookParameters(foldingContext);
   if (evaluated_) {
     return;
@@ -124,7 +123,7 @@ void DerivedTypeSpec::EvaluateParameters(SemanticsContext &context) {
             continue;
           }
         }
-        if (!context.HasError(symbol)) {
+        if (!symbol.test(Symbol::Flag::Error)) {
           evaluate::SayWithDeclaration(messages, symbol,
               "Value of type parameter '%s' (%s) is not convertible to its"
               " type"_err_en_US,
@@ -151,7 +150,7 @@ void DerivedTypeSpec::EvaluateParameters(SemanticsContext &context) {
         auto expr{
             evaluate::Fold(foldingContext, common::Clone(details.init()))};
         AddParamValue(name, ParamValue{std::move(*expr), details.attr()});
-      } else if (!context.HasError(symbol)) {
+      } else if (!symbol.test(Symbol::Flag::Error)) {
         messages.Say(name_,
             "Type parameter '%s' lacks a value and has no default"_err_en_US,
             name);
@@ -221,7 +220,8 @@ void DerivedTypeSpec::Instantiate(
         typeSymbol_.name());
     return;
   }
-  EvaluateParameters(context);
+  CookParameters(foldingContext);
+  EvaluateParameters(foldingContext);
   const Scope &typeScope{DEREF(typeSymbol_.scope())};
   if (!MightBeParameterized()) {
     scope_ = &typeScope;
@@ -285,7 +285,6 @@ void DerivedTypeSpec::Instantiate(
   auto restorer{foldingContext.WithPDTInstance(*this)};
   newScope.AddSourceRange(typeScope.sourceRange());
   InstantiateHelper{context, newScope}.InstantiateComponents(typeScope);
-  CheckInstantiatedDerivedType(context, *this);
 }
 
 void InstantiateHelper::InstantiateComponents(const Scope &fromScope) {

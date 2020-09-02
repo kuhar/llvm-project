@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Functionality to perform analysis on FlatAffineConstraints. In particular,
-// support for performing emptiness checks and redundancy checks.
+// support for performing emptiness checks.
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,10 +34,7 @@ class GBRSimplex;
 /// inequalities and equalities, and can perform emptiness checks, i.e., it can
 /// find a solution to the set of constraints if one exists, or say that the
 /// set is empty if no solution exists. Currently, this only works for bounded
-/// sets. Furthermore, it can find a subset of these constraints that are
-/// redundant, i.e. a subset of constraints that doesn't constrain the affine
-/// set further after adding the non-redundant constraints. Simplex can also be
-/// constructed from a FlatAffineConstraints object.
+/// sets. Simplex can also be constructed from a FlatAffineConstraints object.
 ///
 /// The implementation of this Simplex class, other than the functionality
 /// for sampling, is based on the paper
@@ -115,15 +112,6 @@ class GBRSimplex;
 /// set of constraints is mutually contradictory and the tableau is marked
 /// _empty_, which means the set of constraints has no solution.
 ///
-/// The Simplex class supports redundancy checking via detectRedundant and
-/// isMarkedRedundant. A redundant constraint is one which is never violated as
-/// long as the other constrants are not violated, i.e., removing a redundant
-/// constraint does not change the set of solutions to the constraints. As a
-/// heuristic, constraints that have been marked redundant can be ignored for
-/// most operations. Therefore, these constraints are kept in rows 0 to
-/// nRedundant - 1, where nRedundant is a member variable that tracks the number
-/// of constraints that have been marked redundant.
-///
 /// This Simplex class also supports taking snapshots of the current state
 /// and rolling back to prior snapshots. This works by maintaing an undo log
 /// of operations. Snapshots are just pointers to a particular location in the
@@ -170,7 +158,7 @@ public:
   void rollback(unsigned snapshot);
 
   /// Compute the maximum or minimum value of the given row, depending on
-  /// direction. The specified row is never pivoted.
+  /// direction.
   ///
   /// Returns a (num, den) pair denoting the optimum, or None if no
   /// optimum exists, i.e., if the expression is unbounded in this direction.
@@ -183,18 +171,6 @@ public:
   /// optimum exists, i.e., if the expression is unbounded in this direction.
   Optional<Fraction> computeOptimum(Direction direction,
                                     ArrayRef<int64_t> coeffs);
-
-  /// Returns whether the specified constraint has been marked as redundant.
-  /// Constraints are numbered from 0 starting at the first added inequality.
-  /// Equalities are added as a pair of inequalities and so correspond to two
-  /// inequalities with successive indices.
-  bool isMarkedRedundant(unsigned constraintIndex) const;
-
-  /// Finds a subset of constraints that is redundant, i.e., such that
-  /// the set of solutions does not change if these constraints are removed.
-  /// Marks these constraints as redundant. Whether a specific constraint has
-  /// been marked redundant can be queried using isMarkedRedundant.
-  void detectRedundant();
 
   /// Returns a (min, max) pair denoting the minimum and maximum integer values
   /// of the given expression.
@@ -296,17 +272,7 @@ private:
   /// sample value, false otherwise.
   LogicalResult restoreRow(Unknown &u);
 
-  /// Mark the specified unknown redundant. This operation is added to the undo
-  /// log and will be undone by rollbacks. The specified unknown must be in row
-  /// orientation.
-  void markRowRedundant(Unknown &u);
-
-  /// Enum to denote operations that need to be undone during rollback.
-  enum class UndoLogEntry {
-    RemoveLastConstraint,
-    UnmarkEmpty,
-    UnmarkLastRedundant
-  };
+  enum class UndoLogEntry { RemoveLastConstraint, UnmarkEmpty };
 
   /// Undo the operation represented by the log entry.
   void undo(UndoLogEntry entry);
@@ -332,10 +298,6 @@ private:
   /// The number of columns in the tableau, including the common denominator
   /// and the constant column.
   unsigned nCol;
-
-  /// The number of redundant rows in the tableau. These are the first
-  /// nRedundant rows.
-  unsigned nRedundant;
 
   /// The matrix representing the tableau.
   Matrix tableau;

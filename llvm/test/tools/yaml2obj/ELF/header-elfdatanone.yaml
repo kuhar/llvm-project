@@ -9,6 +9,7 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATANONE
-  Type:  ET_REL
+  Class:           ELFCLASS64
+  Data:            ELFDATANONE
+  Type:            ET_REL
+  Machine:         EM_X86_64

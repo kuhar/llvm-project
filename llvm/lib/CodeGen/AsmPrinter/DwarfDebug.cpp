@@ -148,6 +148,11 @@ static cl::opt<LinkageNameOption>
                                             "Abstract subprograms")),
                       cl::init(DefaultLinkageNames));
 
+static cl::opt<unsigned> LocationAnalysisSizeLimit(
+    "singlevarlocation-input-bb-limit",
+    cl::desc("Maximum block size to analyze for single-location variables"),
+    cl::init(30000), cl::Hidden);
+
 static const char *const DWARFGroupName = "dwarf";
 static const char *const DWARFGroupDescription = "DWARF Emission";
 static const char *const DbgTimerName = "writer";
@@ -1513,8 +1518,7 @@ void DwarfDebug::collectVariableInfoFromMFTable(
 /// either open or otherwise rolls off the end of the scope.
 static bool validThroughout(LexicalScopes &LScopes,
                             const MachineInstr *DbgValue,
-                            const MachineInstr *RangeEnd,
-                            const InstructionOrdering &Ordering) {
+                            const MachineInstr *RangeEnd) {
   assert(DbgValue->getDebugLoc() && "DBG_VALUE without a debug location");
   auto MBB = DbgValue->getParent();
   auto DL = DbgValue->getDebugLoc();
@@ -1526,30 +1530,34 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (LSRange.size() == 0)
     return false;
 
-  const MachineInstr *LScopeBegin = LSRange.front().first;
-  // If the scope starts before the DBG_VALUE then we may have a negative
-  // result. Otherwise the location is live coming into the scope and we
-  // can skip the following checks.
-  if (!Ordering.isBefore(DbgValue, LScopeBegin)) {
-    // Exit if the lexical scope begins outside of the current block.
-    if (LScopeBegin->getParent() != MBB)
-      return false;
 
-    MachineBasicBlock::const_reverse_iterator Pred(DbgValue);
-    for (++Pred; Pred != MBB->rend(); ++Pred) {
-      if (Pred->getFlag(MachineInstr::FrameSetup))
-        break;
-      auto PredDL = Pred->getDebugLoc();
-      if (!PredDL || Pred->isMetaInstruction())
-        continue;
-      // Check whether the instruction preceding the DBG_VALUE is in the same
-      // (sub)scope as the DBG_VALUE.
-      if (DL->getScope() == PredDL->getScope())
-        return false;
-      auto *PredScope = LScopes.findLexicalScope(PredDL);
-      if (!PredScope || LScope->dominates(PredScope))
-        return false;
-    }
+  // Determine if the DBG_VALUE is valid at the beginning of its lexical block.
+  const MachineInstr *LScopeBegin = LSRange.front().first;
+  // Early exit if the lexical scope begins outside of the current block.
+  if (LScopeBegin->getParent() != MBB)
+    return false;
+
+  // If there are instructions belonging to our scope in another block, and
+  // we're not a constant (see DWARF2 comment below), then we can't be
+  // validThroughout.
+  const MachineInstr *LScopeEnd = LSRange.back().second;
+  if (RangeEnd && LScopeEnd->getParent() != MBB)
+    return false;
+
+  MachineBasicBlock::const_reverse_iterator Pred(DbgValue);
+  for (++Pred; Pred != MBB->rend(); ++Pred) {
+    if (Pred->getFlag(MachineInstr::FrameSetup))
+      break;
+    auto PredDL = Pred->getDebugLoc();
+    if (!PredDL || Pred->isMetaInstruction())
+      continue;
+    // Check whether the instruction preceding the DBG_VALUE is in the same
+    // (sub)scope as the DBG_VALUE.
+    if (DL->getScope() == PredDL->getScope())
+      return false;
+    auto *PredScope = LScopes.findLexicalScope(PredDL);
+    if (!PredScope || LScope->dominates(PredScope))
+      return false;
   }
 
   // If the range of the DBG_VALUE is open-ended, report success.
@@ -1563,10 +1571,24 @@ static bool validThroughout(LexicalScopes &LScopes,
   if (DbgValue->getDebugOperand(0).isImm() && MBB->pred_empty())
     return true;
 
-  // Test if the location terminates before the end of the scope.
-  const MachineInstr *LScopeEnd = LSRange.back().second;
-  if (Ordering.isBefore(RangeEnd, LScopeEnd))
-    return false;
+  // Now check for situations where an "open-ended" DBG_VALUE isn't enough to
+  // determine eligibility for a single location, e.g. nested scopes, inlined
+  // functions.
+  // FIXME: For now we just handle a simple (but common) case where the scope
+  // is contained in MBB. We could be smarter here.
+  //
+  // At this point we know that our scope ends in MBB. So, if RangeEnd exists
+  // outside of the block we can ignore it; the location is just leaking outside
+  // its scope.
+  assert(LScopeEnd->getParent() == MBB && "Scope ends outside MBB");
+  if (RangeEnd->getParent() != DbgValue->getParent())
+    return true;
+
+  // The location range and variable's enclosing scope are both contained within
+  // MBB, test if location terminates before end of scope.
+  for (auto I = RangeEnd->getIterator(); I != MBB->end(); ++I)
+    if (&*I == LScopeEnd)
+      return false;
 
   // There's a single location which starts at the scope start, and ends at or
   // after the scope end.
@@ -1606,8 +1628,10 @@ static bool validThroughout(LexicalScopes &LScopes,
 // [1-3)    [(reg0, fragment 0, 32), (reg1, fragment 32, 32)]
 // [3-4)    [(reg1, fragment 32, 32), (123, fragment 64, 32)]
 // [4-)     [(@g, fragment 0, 96)]
-bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
-                                   const DbgValueHistoryMap::Entries &Entries) {
+bool DwarfDebug::buildLocationList(
+    SmallVectorImpl<DebugLocEntry> &DebugLoc,
+    const DbgValueHistoryMap::Entries &Entries,
+    DenseSet<const MachineBasicBlock *> &VeryLargeBlocks) {
   using OpenRange =
       std::pair<DbgValueHistoryMap::EntryIndex, DbgValueLoc>;
   SmallVector<OpenRange, 4> OpenRanges;
@@ -1703,8 +1727,14 @@ bool DwarfDebug::buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
       DebugLoc.pop_back();
   }
 
-  return DebugLoc.size() == 1 && isSafeForSingleLocation &&
-         validThroughout(LScopes, StartDebugMI, EndMI, getInstOrdering());
+  // If there's a single entry, safe for a single location, and not part of
+  // an over-sized basic block, then ask validThroughout whether this
+  // location can be represented as a single variable location.
+  if (DebugLoc.size() != 1 || !isSafeForSingleLocation)
+    return false;
+  if (VeryLargeBlocks.count(StartDebugMI->getParent()))
+    return false;
+  return validThroughout(LScopes, StartDebugMI, EndMI);
 }
 
 DbgEntity *DwarfDebug::createConcreteEntity(DwarfCompileUnit &TheCU,
@@ -1735,6 +1765,13 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
                                    DenseSet<InlinedEntity> &Processed) {
   // Grab the variable info that was squirreled away in the MMI side-table.
   collectVariableInfoFromMFTable(TheCU, Processed);
+
+  // Identify blocks that are unreasonably sized, so that we can later
+  // skip lexical scope analysis over them.
+  DenseSet<const MachineBasicBlock *> VeryLargeBlocks;
+  for (const auto &MBB : *CurFn)
+    if (MBB.size() > LocationAnalysisSizeLimit)
+      VeryLargeBlocks.insert(&MBB);
 
   for (const auto &I : DbgValues) {
     InlinedEntity IV = I.first;
@@ -1772,7 +1809,8 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
     if (HistSize == 1 || SingleValueWithClobber) {
       const auto *End =
           SingleValueWithClobber ? HistoryMapEntries[1].getInstr() : nullptr;
-      if (validThroughout(LScopes, MInsn, End, getInstOrdering())) {
+      if (VeryLargeBlocks.count(MInsn->getParent()) == 0 &&
+          validThroughout(LScopes, MInsn, End)) {
         RegVar->initializeDbgValue(MInsn);
         continue;
       }
@@ -1787,7 +1825,8 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
 
     // Build the location list for this variable.
     SmallVector<DebugLocEntry, 8> Entries;
-    bool isValidSingleLocation = buildLocationList(Entries, HistoryMapEntries);
+    bool isValidSingleLocation =
+        buildLocationList(Entries, HistoryMapEntries, VeryLargeBlocks);
 
     // Check whether buildLocationList managed to merge all locations to one
     // that is valid throughout the variable's scope. If so, produce single
@@ -2462,21 +2501,8 @@ void DwarfDebug::emitDebugLocValue(const AsmPrinter &AP, const DIBasicType *BT,
       DwarfExpr.addExpression(std::move(ExprCursor));
       return;
   } else if (Value.isConstantFP()) {
-    if (AP.getDwarfVersion() >= 4 && AP.getDwarfDebug()->tuneForGDB()) {
-      DwarfExpr.addConstantFP(Value.getConstantFP()->getValueAPF(), AP);
-      return;
-    } else if (Value.getConstantFP()
-                   ->getValueAPF()
-                   .bitcastToAPInt()
-                   .getBitWidth() <= 64 /*bits*/)
-      DwarfExpr.addUnsignedConstant(
-          Value.getConstantFP()->getValueAPF().bitcastToAPInt());
-    else
-      LLVM_DEBUG(
-          dbgs()
-          << "Skipped DwarfExpression creation for ConstantFP of size"
-          << Value.getConstantFP()->getValueAPF().bitcastToAPInt().getBitWidth()
-          << " bits\n");
+    APInt RawBytes = Value.getConstantFP()->getValueAPF().bitcastToAPInt();
+    DwarfExpr.addUnsignedConstant(RawBytes);
   }
   DwarfExpr.addExpression(std::move(ExprCursor));
 }
@@ -3279,14 +3305,14 @@ void DwarfDebug::addDwarfTypeUnitType(DwarfCompileUnit &CU,
 
 DwarfDebug::NonTypeUnitContext::NonTypeUnitContext(DwarfDebug *DD)
     : DD(DD),
-      TypeUnitsUnderConstruction(std::move(DD->TypeUnitsUnderConstruction)), AddrPoolUsed(DD->AddrPool.hasBeenUsed()) {
+      TypeUnitsUnderConstruction(std::move(DD->TypeUnitsUnderConstruction)) {
   DD->TypeUnitsUnderConstruction.clear();
-  DD->AddrPool.resetUsedFlag();
+  assert(TypeUnitsUnderConstruction.empty() || !DD->AddrPool.hasBeenUsed());
 }
 
 DwarfDebug::NonTypeUnitContext::~NonTypeUnitContext() {
   DD->TypeUnitsUnderConstruction = std::move(TypeUnitsUnderConstruction);
-  DD->AddrPool.resetUsedFlag(AddrPoolUsed);
+  DD->AddrPool.resetUsedFlag();
 }
 
 DwarfDebug::NonTypeUnitContext DwarfDebug::enterNonTypeUnitContext() {

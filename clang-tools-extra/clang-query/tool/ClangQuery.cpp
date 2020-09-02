@@ -110,33 +110,31 @@ int main(int argc, const char **argv) {
   ClangTool Tool(OptionsParser->getCompilations(),
                  OptionsParser->getSourcePathList());
   std::vector<std::unique_ptr<ASTUnit>> ASTs;
+  int Status = Tool.buildASTs(ASTs);
   int ASTStatus = 0;
-  switch (Tool.buildASTs(ASTs)) {
-  case 0:
-    break;
-  case 1: // Building ASTs failed.
+  if (Status == 1) {
+    // Building ASTs failed.
     return 1;
-  case 2:
+  } else if (Status == 2) {
     ASTStatus |= 1;
     llvm::errs() << "Failed to build AST for some of the files, "
                  << "results may be incomplete."
                  << "\n";
-    break;
-  default:
-    llvm_unreachable("Unexpected status returned");
+  } else {
+    assert(Status == 0 && "Unexpected status returned");
   }
 
   QuerySession QS(ASTs);
 
   if (!Commands.empty()) {
-    for (auto &Command : Commands) {
-      QueryRef Q = QueryParser::parse(Command, QS);
+    for (auto I = Commands.begin(), E = Commands.end(); I != E; ++I) {
+      QueryRef Q = QueryParser::parse(*I, QS);
       if (!Q->run(llvm::outs(), QS))
         return 1;
     }
   } else if (!CommandFiles.empty()) {
-    for (auto &CommandFile : CommandFiles) {
-      if (runCommandsInFile(argv[0], CommandFile, QS))
+    for (auto I = CommandFiles.begin(), E = CommandFiles.end(); I != E; ++I) {
+      if (runCommandsInFile(argv[0], *I, QS))
         return 1;
     }
   } else {

@@ -124,14 +124,15 @@ struct spirv::detail::ArrayTypeStorage : public TypeStorage {
 
 ArrayType ArrayType::get(Type elementType, unsigned elementCount) {
   assert(elementCount && "ArrayType needs at least one element");
-  return Base::get(elementType.getContext(), elementType, elementCount,
-                   /*stride=*/0);
+  return Base::get(elementType.getContext(), TypeKind::Array, elementType,
+                   elementCount, /*stride=*/0);
 }
 
 ArrayType ArrayType::get(Type elementType, unsigned elementCount,
                          unsigned stride) {
   assert(elementCount && "ArrayType needs at least one element");
-  return Base::get(elementType.getContext(), elementType, elementCount, stride);
+  return Base::get(elementType.getContext(), TypeKind::Array, elementType,
+                   elementCount, stride);
 }
 
 unsigned ArrayType::getNumElements() const { return getImpl()->elementCount; }
@@ -284,7 +285,8 @@ struct spirv::detail::CooperativeMatrixTypeStorage : public TypeStorage {
 CooperativeMatrixNVType CooperativeMatrixNVType::get(Type elementType,
                                                      Scope scope, unsigned rows,
                                                      unsigned columns) {
-  return Base::get(elementType.getContext(), elementType, scope, rows, columns);
+  return Base::get(elementType.getContext(), TypeKind::CooperativeMatrix,
+                   elementType, scope, rows, columns);
 }
 
 Type CooperativeMatrixNVType::getElementType() const {
@@ -387,7 +389,7 @@ ImageType
 ImageType::get(std::tuple<Type, Dim, ImageDepthInfo, ImageArrayedInfo,
                           ImageSamplingInfo, ImageSamplerUseInfo, ImageFormat>
                    value) {
-  return Base::get(std::get<0>(value).getContext(), value);
+  return Base::get(std::get<0>(value).getContext(), TypeKind::Image, value);
 }
 
 Type ImageType::getElementType() const { return getImpl()->elementType; }
@@ -451,7 +453,8 @@ struct spirv::detail::PointerTypeStorage : public TypeStorage {
 };
 
 PointerType PointerType::get(Type pointeeType, StorageClass storageClass) {
-  return Base::get(pointeeType.getContext(), pointeeType, storageClass);
+  return Base::get(pointeeType.getContext(), TypeKind::Pointer, pointeeType,
+                   storageClass);
 }
 
 Type PointerType::getPointeeType() const { return getImpl()->pointeeType; }
@@ -508,11 +511,13 @@ struct spirv::detail::RuntimeArrayTypeStorage : public TypeStorage {
 };
 
 RuntimeArrayType RuntimeArrayType::get(Type elementType) {
-  return Base::get(elementType.getContext(), elementType, /*stride=*/0);
+  return Base::get(elementType.getContext(), TypeKind::RuntimeArray,
+                   elementType, /*stride=*/0);
 }
 
 RuntimeArrayType RuntimeArrayType::get(Type elementType, unsigned stride) {
-  return Base::get(elementType.getContext(), elementType, stride);
+  return Base::get(elementType.getContext(), TypeKind::RuntimeArray,
+                   elementType, stride);
 }
 
 Type RuntimeArrayType::getElementType() const { return getImpl()->elementType; }
@@ -841,12 +846,12 @@ StructType::get(ArrayRef<Type> memberTypes,
   SmallVector<StructType::MemberDecorationInfo, 4> sortedDecorations(
       memberDecorations.begin(), memberDecorations.end());
   llvm::array_pod_sort(sortedDecorations.begin(), sortedDecorations.end());
-  return Base::get(memberTypes.vec().front().getContext(), memberTypes,
-                   offsetInfo, sortedDecorations);
+  return Base::get(memberTypes.vec().front().getContext(), TypeKind::Struct,
+                   memberTypes, offsetInfo, sortedDecorations);
 }
 
 StructType StructType::getEmpty(MLIRContext *context) {
-  return Base::get(context, ArrayRef<Type>(),
+  return Base::get(context, TypeKind::Struct, ArrayRef<Type>(),
                    ArrayRef<StructType::OffsetInfo>(),
                    ArrayRef<StructType::MemberDecorationInfo>());
 }
@@ -941,12 +946,13 @@ struct spirv::detail::MatrixTypeStorage : public TypeStorage {
 };
 
 MatrixType MatrixType::get(Type columnType, uint32_t columnCount) {
-  return Base::get(columnType.getContext(), columnType, columnCount);
+  return Base::get(columnType.getContext(), TypeKind::Matrix, columnType,
+                   columnCount);
 }
 
 MatrixType MatrixType::getChecked(Type columnType, uint32_t columnCount,
                                   Location location) {
-  return Base::getChecked(location, columnType, columnCount);
+  return Base::getChecked(location, TypeKind::Matrix, columnType, columnCount);
 }
 
 LogicalResult MatrixType::verifyConstructionInvariants(Location loc,

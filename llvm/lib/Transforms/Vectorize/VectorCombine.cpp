@@ -437,10 +437,8 @@ bool VectorCombine::foldBitcastShuf(Instruction &I) {
       TTI.getShuffleCost(TargetTransformInfo::SK_PermuteSingleSrc, SrcTy))
     return false;
 
-  // FIXME: it should be possible to implement the computation of the widened
-  // shuffle mask in terms of ElementCount to work with scalable shuffles.
-  unsigned DestNumElts = cast<FixedVectorType>(DestTy)->getNumElements();
-  unsigned SrcNumElts = cast<FixedVectorType>(SrcTy)->getNumElements();
+  unsigned DestNumElts = DestTy->getNumElements();
+  unsigned SrcNumElts = SrcTy->getNumElements();
   SmallVector<int, 16> NewMask;
   if (SrcNumElts <= DestNumElts) {
     // The bitcast is from wide to narrow/equal elements. The shuffle mask can

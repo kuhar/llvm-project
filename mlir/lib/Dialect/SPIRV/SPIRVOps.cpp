@@ -2282,38 +2282,23 @@ static LogicalResult verify(spirv::MergeOp mergeOp) {
 // spv.module
 //===----------------------------------------------------------------------===//
 
-void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state,
-                            Optional<StringRef> name) {
+void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state) {
   ensureTerminator(*state.addRegion(), builder, state.location);
-  if (name) {
-    state.attributes.append(mlir::SymbolTable::getSymbolAttrName(),
-                            builder.getStringAttr(*name));
-  }
 }
 
 void spirv::ModuleOp::build(OpBuilder &builder, OperationState &state,
-                            spirv::AddressingModel addressingModel,
-                            spirv::MemoryModel memoryModel,
-                            Optional<StringRef> name) {
+                            spirv::AddressingModel addressing_model,
+                            spirv::MemoryModel memory_model) {
   state.addAttribute(
       "addressing_model",
-      builder.getI32IntegerAttr(static_cast<int32_t>(addressingModel)));
+      builder.getI32IntegerAttr(static_cast<int32_t>(addressing_model)));
   state.addAttribute("memory_model", builder.getI32IntegerAttr(
-                                         static_cast<int32_t>(memoryModel)));
+                                         static_cast<int32_t>(memory_model)));
   ensureTerminator(*state.addRegion(), builder, state.location);
-  if (name) {
-    state.attributes.append(mlir::SymbolTable::getSymbolAttrName(),
-                            builder.getStringAttr(*name));
-  }
 }
 
 static ParseResult parseModuleOp(OpAsmParser &parser, OperationState &state) {
   Region *body = state.addRegion();
-
-  // If the name is present, parse it.
-  StringAttr nameAttr;
-  parser.parseOptionalSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
-                                 state.attributes);
 
   // Parse attributes
   spirv::AddressingModel addrModel;
@@ -2343,19 +2328,13 @@ static ParseResult parseModuleOp(OpAsmParser &parser, OperationState &state) {
 static void print(spirv::ModuleOp moduleOp, OpAsmPrinter &printer) {
   printer << spirv::ModuleOp::getOperationName();
 
-  if (Optional<StringRef> name = moduleOp.getName()) {
-    printer << ' ';
-    printer.printSymbolName(*name);
-  }
-
   SmallVector<StringRef, 2> elidedAttrs;
 
   printer << " " << spirv::stringifyAddressingModel(moduleOp.addressing_model())
           << " " << spirv::stringifyMemoryModel(moduleOp.memory_model());
   auto addressingModelAttrName = spirv::attributeName<spirv::AddressingModel>();
   auto memoryModelAttrName = spirv::attributeName<spirv::MemoryModel>();
-  elidedAttrs.assign({addressingModelAttrName, memoryModelAttrName,
-                      SymbolTable::getSymbolAttrName()});
+  elidedAttrs.assign({addressingModelAttrName, memoryModelAttrName});
 
   if (Optional<spirv::VerCapExtAttr> triple = moduleOp.vce_triple()) {
     printer << " requires " << *triple;
@@ -2849,9 +2828,9 @@ static ParseResult parseCooperativeMatrixLoadNVOp(OpAsmParser &parser,
       parser.parseType(ptrType) || parser.parseKeywordType("as", elementType)) {
     return failure();
   }
-  if (parser.resolveOperands(operandInfo,
-                             {ptrType, strideType, columnMajorType},
-                             parser.getNameLoc(), state.operands)) {
+  SmallVector<Type, 3> OperandType = {ptrType, strideType, columnMajorType};
+  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
+                             state.operands)) {
     return failure();
   }
 
@@ -2904,9 +2883,10 @@ static ParseResult parseCooperativeMatrixStoreNVOp(OpAsmParser &parser,
       parser.parseType(elementType)) {
     return failure();
   }
-  if (parser.resolveOperands(
-          operandInfo, {ptrType, elementType, strideType, columnMajorType},
-          parser.getNameLoc(), state.operands)) {
+  SmallVector<Type, 4> OperandType = {ptrType, elementType, strideType,
+                                      columnMajorType};
+  if (parser.resolveOperands(operandInfo, OperandType, parser.getNameLoc(),
+                             state.operands)) {
     return failure();
   }
 

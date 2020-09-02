@@ -21,6 +21,7 @@ FileHeader:
   Class:     ELFCLASS64
   Data:      ELFDATA2LSB
   Type:      ET_REL
+  Machine:   EM_X86_64
   EShNum:    0
   EShStrNdx: 0xffff ## SHN_XINDEX
 Sections:
@@ -58,6 +59,7 @@ FileHeader:
   Class:     ELFCLASS64
   Data:      ELFDATA2LSB
   Type:      ET_REL
+  Machine:   EM_X86_64
   EShOff:    0
   EShNum:    0
   EShStrNdx: 0xffff ## SHN_XINDEX

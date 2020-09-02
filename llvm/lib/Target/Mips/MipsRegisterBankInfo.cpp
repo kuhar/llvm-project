@@ -719,7 +719,7 @@ combineAwayG_UNMERGE_VALUES(LegalizationArtifactCombiner &ArtCombiner,
                             MachineInstr &MI, GISelObserverWrapper &Observer) {
   SmallVector<Register, 4> UpdatedDefs;
   SmallVector<MachineInstr *, 2> DeadInstrs;
-  ArtCombiner.tryCombineUnmergeValues(MI, DeadInstrs, UpdatedDefs, Observer);
+  ArtCombiner.tryCombineMerges(MI, DeadInstrs, UpdatedDefs, Observer);
   for (MachineInstr *DeadMI : DeadInstrs)
     DeadMI->eraseFromParent();
 }

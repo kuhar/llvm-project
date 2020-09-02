@@ -89,15 +89,16 @@ private:
   void lowerCopiesFromI1();
   void lowerPhis();
   void lowerCopiesToI1();
-  bool isConstantLaneMask(Register Reg, bool &Val) const;
+  bool isConstantLaneMask(unsigned Reg, bool &Val) const;
   void buildMergeLaneMasks(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator I, const DebugLoc &DL,
                            unsigned DstReg, unsigned PrevReg, unsigned CurReg);
   MachineBasicBlock::iterator
   getSaluInsertionAtEnd(MachineBasicBlock &MBB) const;
 
-  bool isVreg1(Register Reg) const {
-    return Reg.isVirtual() && MRI->getRegClass(Reg) == &AMDGPU::VReg_1RegClass;
+  bool isVreg1(unsigned Reg) const {
+    return Register::isVirtualRegister(Reg) &&
+           MRI->getRegClass(Reg) == &AMDGPU::VReg_1RegClass;
   }
 
   bool isLaneMaskReg(unsigned Reg) const {
@@ -657,7 +658,7 @@ void SILowerI1Copies::lowerPhis() {
       }
     }
 
-    Register NewReg = SSAUpdater.GetValueInMiddleOfBlock(&MBB);
+    unsigned NewReg = SSAUpdater.GetValueInMiddleOfBlock(&MBB);
     if (NewReg != DstReg) {
       MRI->replaceRegWith(NewReg, DstReg);
       MI->eraseFromParent();
@@ -702,7 +703,8 @@ void SILowerI1Copies::lowerCopiesToI1() {
       Register SrcReg = MI.getOperand(1).getReg();
       assert(!MI.getOperand(1).getSubReg());
 
-      if (!SrcReg.isVirtual() || (!isLaneMaskReg(SrcReg) && !isVreg1(SrcReg))) {
+      if (!Register::isVirtualRegister(SrcReg) ||
+          (!isLaneMaskReg(SrcReg) && !isVreg1(SrcReg))) {
         assert(TII->getRegisterInfo().getRegSizeInBits(SrcReg, *MRI) == 32);
         unsigned TmpReg = createLaneMaskReg(*MF);
         BuildMI(MBB, MI, DL, TII->get(AMDGPU::V_CMP_NE_U32_e64), TmpReg)
@@ -738,7 +740,7 @@ void SILowerI1Copies::lowerCopiesToI1() {
   }
 }
 
-bool SILowerI1Copies::isConstantLaneMask(Register Reg, bool &Val) const {
+bool SILowerI1Copies::isConstantLaneMask(unsigned Reg, bool &Val) const {
   const MachineInstr *MI;
   for (;;) {
     MI = MRI->getUniqueVRegDef(Reg);
@@ -746,7 +748,7 @@ bool SILowerI1Copies::isConstantLaneMask(Register Reg, bool &Val) const {
       break;
 
     Reg = MI->getOperand(1).getReg();
-    if (!Reg.isVirtual())
+    if (!Register::isVirtualRegister(Reg))
       return false;
     if (!isLaneMaskReg(Reg))
       return false;

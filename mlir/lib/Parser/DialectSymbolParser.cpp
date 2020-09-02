@@ -248,7 +248,7 @@ public:
     return success();
   }
 
-  /// Returns true if the current token corresponds to a keyword.
+  /// Returns if the current token corresponds to a keyword.
   bool isCurrentTokenAKeyword() const {
     return parser.getToken().is(Token::bare_identifier) ||
            parser.getToken().isKeyword();
@@ -526,8 +526,7 @@ Attribute Parser::parseExtendedAttr(Type type) {
           return Attribute();
 
         // If we found a registered dialect, then ask it to parse the attribute.
-        if (Dialect *dialect =
-                builder.getContext()->getOrLoadDialect(dialectName)) {
+        if (auto *dialect = state.context->getRegisteredDialect(dialectName)) {
           return parseSymbol<Attribute>(
               symbolData, state.context, state.symbols, [&](Parser &parser) {
                 CustomDialectAsmParser customParser(symbolData, parser);
@@ -564,9 +563,7 @@ Type Parser::parseExtendedType() {
       [&](StringRef dialectName, StringRef symbolData,
           llvm::SMLoc loc) -> Type {
         // If we found a registered dialect, then ask it to parse the type.
-        auto *dialect = state.context->getOrLoadDialect(dialectName);
-
-        if (dialect) {
+        if (auto *dialect = state.context->getRegisteredDialect(dialectName)) {
           return parseSymbol<Type>(
               symbolData, state.context, state.symbols, [&](Parser &parser) {
                 CustomDialectAsmParser customParser(symbolData, parser);

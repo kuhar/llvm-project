@@ -235,9 +235,9 @@ const char *SBReproducer::GetPath() {
 void SBReproducer::SetWorkingDirectory(const char *path) {
   if (auto *g = lldb_private::repro::Reproducer::Instance().GetGenerator()) {
     auto &wp = g->GetOrCreate<repro::WorkingDirectoryProvider>();
-    wp.SetDirectory(path);
+    wp.Update(path);
     auto &fp = g->GetOrCreate<repro::FileProvider>();
-    fp.RecordInterestingDirectory(wp.GetDirectory());
+    fp.RecordInterestingDirectory(wp.GetWorkingDirectory());
   }
 }
 

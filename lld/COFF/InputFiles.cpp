@@ -472,23 +472,8 @@ Symbol *ObjFile::createUndefined(COFFSymbolRef sym) {
   return symtab->addUndefined(name, this, sym.isWeakExternal());
 }
 
-static const coff_aux_section_definition *findSectionDef(COFFObjectFile *obj,
-                                                         int32_t section) {
-  uint32_t numSymbols = obj->getNumberOfSymbols();
-  for (uint32_t i = 0; i < numSymbols; ++i) {
-    COFFSymbolRef sym = check(obj->getSymbol(i));
-    if (sym.getSectionNumber() != section)
-      continue;
-    if (const coff_aux_section_definition *def = sym.getSectionDefinition())
-      return def;
-  }
-  return nullptr;
-}
-
-void ObjFile::handleComdatSelection(
-    COFFSymbolRef sym, COMDATType &selection, bool &prevailing,
-    DefinedRegular *leader,
-    const llvm::object::coff_aux_section_definition *def) {
+void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
+                                    bool &prevailing, DefinedRegular *leader) {
   if (prevailing)
     return;
   // There's already an existing comdat for this symbol: `Leader`.
@@ -555,16 +540,8 @@ void ObjFile::handleComdatSelection(
     break;
 
   case IMAGE_COMDAT_SELECT_SAME_SIZE:
-    if (leaderChunk->getSize() != getSection(sym)->SizeOfRawData) {
-      if (!config->mingw) {
-        symtab->reportDuplicate(leader, this);
-      } else {
-        const coff_aux_section_definition *leaderDef = findSectionDef(
-            leaderChunk->file->getCOFFObj(), leaderChunk->getSectionNumber());
-        if (!leaderDef || leaderDef->Length != def->Length)
-          symtab->reportDuplicate(leader, this);
-      }
-    }
+    if (leaderChunk->getSize() != getSection(sym)->SizeOfRawData)
+      symtab->reportDuplicate(leader, this);
     break;
 
   case IMAGE_COMDAT_SELECT_EXACT_MATCH: {
@@ -680,7 +657,7 @@ Optional<Symbol *> ObjFile::createDefined(
     COMDATType selection = (COMDATType)def->Selection;
 
     if (leader->isCOMDAT)
-      handleComdatSelection(sym, selection, prevailing, leader, def);
+      handleComdatSelection(sym, selection, prevailing, leader);
 
     if (prevailing) {
       SectionChunk *c = readSection(sectionNumber, def, getName());

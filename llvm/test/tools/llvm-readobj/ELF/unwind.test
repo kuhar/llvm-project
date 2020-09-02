@@ -291,9 +291,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_386
 Sections:
   - Name:    .eh_frame
     Type:    SHT_PROGBITS
@@ -322,9 +323,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_NONE
 ProgramHeaders:
   - Type: PT_GNU_EH_FRAME
     MemSize:  [[SIZE]]

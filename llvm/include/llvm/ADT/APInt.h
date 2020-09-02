@@ -765,8 +765,8 @@ public:
 
   /// Move assignment operator.
   APInt &operator=(APInt &&that) {
-#ifdef EXPENSIVE_CHECKS
-    // Some std::shuffle implementations still do self-assignment.
+#ifdef _MSC_VER
+    // The MSVC std::shuffle implementation still does self-assignment.
     if (this == &that)
       return *this;
 #endif

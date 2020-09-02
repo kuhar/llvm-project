@@ -26,6 +26,12 @@ class Pass;
 
 //===----------------------------------------------------------------------===//
 //
+// ConstantPropagation - A worklist driven constant propagation pass
+//
+FunctionPass *createConstantPropagationPass();
+
+//===----------------------------------------------------------------------===//
+//
 // AlignmentFromAssumptions - Use assume intrinsics to set load/store
 // alignments.
 //

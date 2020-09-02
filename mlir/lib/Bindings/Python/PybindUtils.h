@@ -10,7 +10,6 @@
 #define MLIR_BINDINGS_PYTHON_PYBINDUTILS_H
 
 #include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 
 #include "llvm/ADT/Twine.h"
 
@@ -21,8 +20,7 @@ namespace python {
 // python runtime.
 // Correct usage:
 //   throw SetPyError(PyExc_ValueError, "Foobar'd");
-pybind11::error_already_set SetPyError(PyObject *excClass,
-                                       const llvm::Twine &message);
+pybind11::error_already_set SetPyError(PyObject *excClass, llvm::Twine message);
 
 } // namespace python
 } // namespace mlir

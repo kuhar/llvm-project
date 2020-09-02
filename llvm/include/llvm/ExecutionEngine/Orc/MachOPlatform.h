@@ -136,6 +136,8 @@ private:
     InitSymbolDepMap InitSymbolDeps;
   };
 
+  static std::vector<JITDylib *> getDFSLinkOrder(JITDylib &JD);
+
   void registerInitInfo(JITDylib &JD, JITTargetAddress ObjCImageInfoAddr,
                         MachOJITDylibInitializers::SectionExtent ModInits,
                         MachOJITDylibInitializers::SectionExtent ObjCSelRefs,

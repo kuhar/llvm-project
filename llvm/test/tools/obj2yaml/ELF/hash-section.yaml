@@ -18,9 +18,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_386
 Sections:
 ## Case 1: A non-empty hash table: nbucket == 1, nchain == 2. 
   - Name:    .hash1
@@ -52,9 +53,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_386
 Sections:
 ## Case 1: section has no data.
   - Name:    .empty_hash

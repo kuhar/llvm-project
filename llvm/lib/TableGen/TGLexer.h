@@ -40,10 +40,9 @@ namespace tgtok {
     l_paren, r_paren,   // ( )
     less, greater,      // < >
     colon, semi,        // : ;
-    comma, dot,         // , .
+    comma, period,      // , .
     equal, question,    // = ?
     paste,              // #
-    dotdotdot,          // ...
 
     // Keywords. ('ElseKW' is named to distinguish it from the existing 'Else'
     // that means the preprocessor #else.)

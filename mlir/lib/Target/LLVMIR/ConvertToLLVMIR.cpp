@@ -30,8 +30,7 @@ mlir::translateModuleToLLVMIR(ModuleOp m, llvm::LLVMContext &llvmContext,
 namespace mlir {
 void registerToLLVMIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "mlir-to-llvmir",
-      [](ModuleOp module, raw_ostream &output) {
+      "mlir-to-llvmir", [](ModuleOp module, raw_ostream &output) {
         llvm::LLVMContext llvmContext;
         auto llvmModule = LLVM::ModuleTranslation::translateModule<>(
             module, llvmContext, "LLVMDialectModule");
@@ -40,7 +39,6 @@ void registerToLLVMIRTranslation() {
 
         llvmModule->print(output, nullptr);
         return success();
-      },
-      [](DialectRegistry &registry) { registry.insert<LLVM::LLVMDialect>(); });
+      });
 }
 } // namespace mlir

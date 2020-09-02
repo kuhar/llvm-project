@@ -18,6 +18,7 @@
 __isl_give MULTI(BASE) *FN(MULTI(BASE),add)(__isl_take MULTI(BASE) *multi1,
 	__isl_take MULTI(BASE) *multi2)
 {
+	FN(MULTI(BASE),align_params_bin)(&multi1, &multi2);
 	return FN(MULTI(BASE),bin_op)(multi1, multi2, &FN(EL,add));
 }
 
@@ -26,6 +27,7 @@ __isl_give MULTI(BASE) *FN(MULTI(BASE),add)(__isl_take MULTI(BASE) *multi1,
 __isl_give MULTI(BASE) *FN(MULTI(BASE),sub)(__isl_take MULTI(BASE) *multi1,
 	__isl_take MULTI(BASE) *multi2)
 {
+	FN(MULTI(BASE),align_params_bin)(&multi1, &multi2);
 	return FN(MULTI(BASE),bin_op)(multi1, multi2, &FN(EL,sub));
 }
 

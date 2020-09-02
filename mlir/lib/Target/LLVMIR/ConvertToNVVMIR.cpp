@@ -99,8 +99,7 @@ mlir::translateModuleToNVVMIR(Operation *m, llvm::LLVMContext &llvmContext,
 namespace mlir {
 void registerToNVVMIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "mlir-to-nvvmir",
-      [](ModuleOp module, raw_ostream &output) {
+      "mlir-to-nvvmir", [](ModuleOp module, raw_ostream &output) {
         llvm::LLVMContext llvmContext;
         auto llvmModule = mlir::translateModuleToNVVMIR(module, llvmContext);
         if (!llvmModule)
@@ -108,9 +107,6 @@ void registerToNVVMIRTranslation() {
 
         llvmModule->print(output, nullptr);
         return success();
-      },
-      [](DialectRegistry &registry) {
-        registry.insert<LLVM::LLVMDialect, NVVM::NVVMDialect>();
       });
 }
 } // namespace mlir

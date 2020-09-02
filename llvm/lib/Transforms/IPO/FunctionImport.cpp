@@ -261,8 +261,8 @@ selectCallee(const ModuleSummaryIndex &Index,
 
 namespace {
 
-using EdgeInfo =
-    std::tuple<const GlobalValueSummary *, unsigned /* Threshold */>;
+using EdgeInfo = std::tuple<const FunctionSummary *, unsigned /* Threshold */,
+                            GlobalValue::GUID>;
 
 } // anonymous namespace
 
@@ -282,9 +282,8 @@ updateValueInfoForIndirectCalls(const ModuleSummaryIndex &Index, ValueInfo VI) {
 }
 
 static void computeImportForReferencedGlobals(
-    const GlobalValueSummary &Summary, const ModuleSummaryIndex &Index,
+    const FunctionSummary &Summary, const ModuleSummaryIndex &Index,
     const GVSummaryMapTy &DefinedGVSummaries,
-    SmallVectorImpl<EdgeInfo> &Worklist,
     FunctionImporter::ImportMapTy &ImportList,
     StringMap<FunctionImporter::ExportSetTy> *ExportLists) {
   for (auto &VI : Summary.refs()) {
@@ -322,11 +321,6 @@ static void computeImportForReferencedGlobals(
         // which is more efficient than adding them here.
         if (ExportLists)
           (*ExportLists)[RefSummary->modulePath()].insert(VI);
-
-        // If variable is not writeonly we attempt to recursively analyze
-        // its references in order to import referenced constants.
-        if (!Index.isWriteOnly(cast<GlobalVarSummary>(RefSummary.get())))
-          Worklist.emplace_back(RefSummary.get(), 0);
         break;
       }
   }
@@ -366,7 +360,7 @@ static void computeImportForFunction(
     StringMap<FunctionImporter::ExportSetTy> *ExportLists,
     FunctionImporter::ImportThresholdsTy &ImportThresholds) {
   computeImportForReferencedGlobals(Summary, Index, DefinedGVSummaries,
-                                    Worklist, ImportList, ExportLists);
+                                    ImportList, ExportLists);
   static int ImportCount = 0;
   for (auto &Edge : Summary.calls()) {
     ValueInfo VI = Edge.first;
@@ -514,7 +508,7 @@ static void computeImportForFunction(
     ImportCount++;
 
     // Insert the newly imported function to the worklist.
-    Worklist.emplace_back(ResolvedCalleeSummary, AdjThreshold);
+    Worklist.emplace_back(ResolvedCalleeSummary, AdjThreshold, VI.getGUID());
   }
 }
 
@@ -555,17 +549,13 @@ static void ComputeImportForModule(
 
   // Process the newly imported functions and add callees to the worklist.
   while (!Worklist.empty()) {
-    auto GVInfo = Worklist.pop_back_val();
-    auto *Summary = std::get<0>(GVInfo);
-    auto Threshold = std::get<1>(GVInfo);
+    auto FuncInfo = Worklist.pop_back_val();
+    auto *Summary = std::get<0>(FuncInfo);
+    auto Threshold = std::get<1>(FuncInfo);
 
-    if (auto *FS = dyn_cast<FunctionSummary>(Summary))
-      computeImportForFunction(*FS, Index, Threshold, DefinedGVSummaries,
-                               Worklist, ImportList, ExportLists,
-                               ImportThresholds);
-    else
-      computeImportForReferencedGlobals(*Summary, Index, DefinedGVSummaries,
-                                        Worklist, ImportList, ExportLists);
+    computeImportForFunction(*Summary, Index, Threshold, DefinedGVSummaries,
+                             Worklist, ImportList, ExportLists,
+                             ImportThresholds);
   }
 
   // Print stats about functions considered but rejected for importing

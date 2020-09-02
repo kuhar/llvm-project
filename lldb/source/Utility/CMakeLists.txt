@@ -50,7 +50,6 @@ add_lldb_library(lldbUtility
   RegularExpression.cpp
   Reproducer.cpp
   ReproducerInstrumentation.cpp
-  ReproducerProvider.cpp
   Scalar.cpp
   SelectHelper.cpp
   State.cpp

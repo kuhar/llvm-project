@@ -147,7 +147,7 @@ private:
                     common::LanguageFeature::ClassicCComments)));
   }
 
-  void LabelField(TokenSequence &);
+  void LabelField(TokenSequence &, int outCol = 1);
   void SkipToEndOfLine();
   bool MustSkipToEndOfLine() const;
   void NextChar();

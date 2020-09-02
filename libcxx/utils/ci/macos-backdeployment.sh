@@ -105,7 +105,7 @@ echo "@@@@@@"
 
 
 echo "@@@ Building and installing libc++ and libc++abi @@@"
-xcrun ninja -C "${LLVM_BUILD_DIR}" install-cxx install-cxxabi
+ninja -C "${LLVM_BUILD_DIR}" install-cxx install-cxxabi
 echo "@@@@@@"
 
 

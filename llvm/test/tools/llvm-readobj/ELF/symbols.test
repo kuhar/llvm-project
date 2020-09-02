@@ -115,9 +115,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2LSB
-  Type:  [[TYPE]]
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2LSB
+  Type:    [[TYPE]]
+  Machine: EM_X86_64
 Symbols:
   - Name:  foo
     Value: 0x1
@@ -169,6 +170,7 @@ FileHeader:
   Class:     ELFCLASS64
   Data:      ELFDATA2LSB
   Type:      ET_REL
+  Machine:   EM_X86_64
   EShStrNdx: [[SHSTRTAB=2]]
 Sections:
   - Name:    .symtab

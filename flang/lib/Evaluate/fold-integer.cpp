@@ -600,8 +600,10 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
 }
 
 // Substitute a bare type parameter reference with its value if it has one now
-Expr<TypeParamInquiry::Result> FoldOperation(
-    FoldingContext &context, TypeParamInquiry &&inquiry) {
+template <int KIND>
+Expr<Type<TypeCategory::Integer, KIND>> FoldOperation(
+    FoldingContext &context, TypeParamInquiry<KIND> &&inquiry) {
+  using IntKIND = Type<TypeCategory::Integer, KIND>;
   if (!inquiry.base()) {
     // A "bare" type parameter: replace with its value, if that's now known.
     if (const auto *pdt{context.pdtInstance()}) {
@@ -615,20 +617,21 @@ Expr<TypeParamInquiry::Result> FoldOperation(
                   IsConstantExpr(*details->init()))) {
             Expr<SomeInteger> expr{*details->init()};
             return Fold(context,
-                ConvertToType<TypeParamInquiry::Result>(std::move(expr)));
+                Expr<IntKIND>{
+                    Convert<IntKIND, TypeCategory::Integer>(std::move(expr))});
           }
         }
       }
       if (const auto *value{pdt->FindParameter(inquiry.parameter().name())}) {
         if (value->isExplicit()) {
           return Fold(context,
-              AsExpr(ConvertToType<TypeParamInquiry::Result>(
-                  Expr<SomeInteger>{value->GetExplicit().value()})));
+              Expr<IntKIND>{Convert<IntKIND, TypeCategory::Integer>(
+                  Expr<SomeInteger>{value->GetExplicit().value()})});
         }
       }
     }
   }
-  return AsExpr(std::move(inquiry));
+  return Expr<IntKIND>{std::move(inquiry)};
 }
 
 std::optional<std::int64_t> ToInt64(const Expr<SomeInteger> &expr) {

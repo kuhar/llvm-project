@@ -919,10 +919,7 @@ bool LoopVectorizationLegality::blockNeedsPredication(BasicBlock *BB) {
 }
 
 bool LoopVectorizationLegality::blockCanBePredicated(
-    BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs,
-    SmallPtrSetImpl<const Instruction *> &MaskedOp,
-    SmallPtrSetImpl<Instruction *> &ConditionalAssumes,
-    bool PreserveGuards) const {
+    BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs, bool PreserveGuards) {
   const bool IsAnnotatedParallel = TheLoop->isAnnotatedParallel();
 
   for (Instruction &I : *BB) {
@@ -1029,8 +1026,7 @@ bool LoopVectorizationLegality::canVectorizeWithIfConvert() {
 
     // We must be able to predicate all blocks that need to be predicated.
     if (blockNeedsPredication(BB)) {
-      if (!blockCanBePredicated(BB, SafePointers, MaskedOp,
-                                ConditionalAssumes)) {
+      if (!blockCanBePredicated(BB, SafePointers)) {
         reportVectorizationFailure(
             "Control flow cannot be substituted for a select",
             "control flow cannot be substituted for a select",
@@ -1257,10 +1253,10 @@ bool LoopVectorizationLegality::prepareToFoldTailByMasking() {
       Instruction *UI = cast<Instruction>(U);
       if (TheLoop->contains(UI))
         continue;
-      LLVM_DEBUG(
-          dbgs()
-          << "LV: Cannot fold tail by masking, loop has an outside user for "
-          << *UI << "\n");
+      reportVectorizationFailure(
+          "Cannot fold tail by masking, loop has an outside user for",
+          "Cannot fold tail by masking in the presence of live outs.",
+          "LiveOutFoldingTailByMasking", ORE, TheLoop, UI);
       return false;
     }
   }
@@ -1268,26 +1264,20 @@ bool LoopVectorizationLegality::prepareToFoldTailByMasking() {
   // The list of pointers that we can safely read and write to remains empty.
   SmallPtrSet<Value *, 8> SafePointers;
 
-  SmallPtrSet<const Instruction *, 8> TmpMaskedOp;
-  SmallPtrSet<Instruction *, 8> TmpConditionalAssumes;
-
   // Check and mark all blocks for predication, including those that ordinarily
   // do not need predication such as the header block.
   for (BasicBlock *BB : TheLoop->blocks()) {
-    if (!blockCanBePredicated(BB, SafePointers, TmpMaskedOp,
-                              TmpConditionalAssumes,
-                              /* MaskAllLoads= */ true)) {
-      LLVM_DEBUG(dbgs() << "LV: Cannot fold tail by masking as requested.\n");
+    if (!blockCanBePredicated(BB, SafePointers, /* MaskAllLoads= */ true)) {
+      reportVectorizationFailure(
+          "Cannot fold tail by masking as required",
+          "control flow cannot be substituted for a select",
+          "NoCFGForSelect", ORE, TheLoop,
+          BB->getTerminator());
       return false;
     }
   }
 
   LLVM_DEBUG(dbgs() << "LV: can fold tail by masking.\n");
-
-  MaskedOp.insert(TmpMaskedOp.begin(), TmpMaskedOp.end());
-  ConditionalAssumes.insert(TmpConditionalAssumes.begin(),
-                            TmpConditionalAssumes.end());
-
   return true;
 }
 

@@ -192,7 +192,7 @@ def ACCC_Private : Clause<"private"> {
 
 // 2.9.7
 def ACCC_Tile : Clause <"tile"> {
-  let flangClassValue = "AccTileExprList";
+  let flangClassValue = "AccSizeExprList";
 }
 
 // 2.8.1

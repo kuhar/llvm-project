@@ -260,13 +260,9 @@ void TimePassesHandler::registerCallbacks(PassInstrumentationCallbacks &PIC) {
   PIC.registerBeforeNonSkippedPassCallback(
       [this](StringRef P, Any) { this->runBeforePass(P); });
   PIC.registerAfterPassCallback(
-      [this](StringRef P, Any, const PreservedAnalyses &) {
-        this->runAfterPass(P);
-      });
+      [this](StringRef P, Any) { this->runAfterPass(P); });
   PIC.registerAfterPassInvalidatedCallback(
-      [this](StringRef P, const PreservedAnalyses &) {
-        this->runAfterPass(P);
-      });
+      [this](StringRef P) { this->runAfterPass(P); });
   PIC.registerBeforeAnalysisCallback(
       [this](StringRef P, Any) { this->runBeforePass(P); });
   PIC.registerAfterAnalysisCallback(

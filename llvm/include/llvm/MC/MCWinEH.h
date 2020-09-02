@@ -36,11 +36,10 @@ struct FrameInfo {
   const MCSymbol *Function = nullptr;
   const MCSymbol *PrologEnd = nullptr;
   const MCSymbol *Symbol = nullptr;
-  MCSection *TextSection = nullptr;
+  const MCSection *TextSection = nullptr;
 
   bool HandlesUnwind = false;
   bool HandlesExceptions = false;
-  bool EmitAttempted = false;
 
   int LastFrameInst = -1;
   const FrameInfo *ChainedParent = nullptr;
@@ -54,15 +53,6 @@ struct FrameInfo {
             const FrameInfo *ChainedParent)
       : Begin(BeginFuncEHLabel), Function(Function),
         ChainedParent(ChainedParent) {}
-
-  bool empty() const {
-    if (!Instructions.empty())
-      return false;
-    for (const auto &E : EpilogMap)
-      if (!E.second.empty())
-        return false;
-    return true;
-  }
 };
 
 class UnwindEmitter {

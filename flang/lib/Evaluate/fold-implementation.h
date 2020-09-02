@@ -115,8 +115,9 @@ Expr<T> FoldOperation(FoldingContext &context, Designator<T> &&designator) {
   return Folder<T>{context}.Folding(std::move(designator));
 }
 
-Expr<TypeParamInquiry::Result> FoldOperation(
-    FoldingContext &, TypeParamInquiry &&);
+template <int KIND>
+Expr<Type<TypeCategory::Integer, KIND>> FoldOperation(
+    FoldingContext &, TypeParamInquiry<KIND> &&);
 Expr<ImpliedDoIndex::Result> FoldOperation(
     FoldingContext &context, ImpliedDoIndex &&);
 template <typename T>

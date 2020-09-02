@@ -8,9 +8,7 @@
 
 #include "mlir-c/IR.h"
 
-#include "mlir/CAPI/IR.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Dialect.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
@@ -18,6 +16,46 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
+
+/* ========================================================================== */
+/* Definitions of methods for non-owning structures used in C API.            */
+/* ========================================================================== */
+
+#define DEFINE_C_API_PTR_METHODS(name, cpptype)                                \
+  static name wrap(cpptype *cpp) { return name{cpp}; }                         \
+  static cpptype *unwrap(name c) { return static_cast<cpptype *>(c.ptr); }
+
+DEFINE_C_API_PTR_METHODS(MlirContext, MLIRContext)
+DEFINE_C_API_PTR_METHODS(MlirOperation, Operation)
+DEFINE_C_API_PTR_METHODS(MlirBlock, Block)
+DEFINE_C_API_PTR_METHODS(MlirRegion, Region)
+
+#define DEFINE_C_API_METHODS(name, cpptype)                                    \
+  static name wrap(cpptype cpp) { return name{cpp.getAsOpaquePointer()}; }     \
+  static cpptype unwrap(name c) { return cpptype::getFromOpaquePointer(c.ptr); }
+
+DEFINE_C_API_METHODS(MlirAttribute, Attribute)
+DEFINE_C_API_METHODS(MlirLocation, Location);
+DEFINE_C_API_METHODS(MlirType, Type)
+DEFINE_C_API_METHODS(MlirValue, Value)
+DEFINE_C_API_METHODS(MlirModule, ModuleOp)
+
+template <typename CppTy, typename CTy>
+static ArrayRef<CppTy> unwrapList(intptr_t size, CTy *first,
+                                  SmallVectorImpl<CppTy> &storage) {
+  static_assert(
+      std::is_same<decltype(unwrap(std::declval<CTy>())), CppTy>::value,
+      "incompatible C and C++ types");
+
+  if (size == 0)
+    return llvm::None;
+
+  assert(storage.empty() && "expected to populate storage");
+  storage.reserve(size);
+  for (intptr_t i = 0; i < size; ++i)
+    storage.push_back(unwrap(*(first + i)));
+  return storage;
+}
 
 /* ========================================================================== */
 /* Printing helper.                                                           */
@@ -51,12 +89,8 @@ private:
 /* ========================================================================== */
 
 MlirContext mlirContextCreate() {
-  auto *context = new MLIRContext(/*loadAllDialects=*/false);
+  auto *context = new MLIRContext;
   return wrap(context);
-}
-
-int mlirContextEqual(MlirContext ctx1, MlirContext ctx2) {
-  return unwrap(ctx1) == unwrap(ctx2);
 }
 
 void mlirContextDestroy(MlirContext context) { delete unwrap(context); }
@@ -75,7 +109,7 @@ MlirLocation mlirLocationUnknownGet(MlirContext context) {
   return wrap(UnknownLoc::get(unwrap(context)));
 }
 
-void mlirLocationPrint(MlirLocation location, MlirStringCallback callback,
+void mlirLocationPrint(MlirLocation location, MlirPrintCallback callback,
                        void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(location).print(stream);
@@ -242,7 +276,7 @@ MlirAttribute mlirOperationGetAttributeByName(MlirOperation op,
   return wrap(unwrap(op)->getAttr(name));
 }
 
-void mlirOperationPrint(MlirOperation op, MlirStringCallback callback,
+void mlirOperationPrint(MlirOperation op, MlirPrintCallback callback,
                         void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(op)->print(stream);
@@ -324,7 +358,7 @@ MlirValue mlirBlockGetArgument(MlirBlock block, intptr_t pos) {
   return wrap(unwrap(block)->getArgument(static_cast<unsigned>(pos)));
 }
 
-void mlirBlockPrint(MlirBlock block, MlirStringCallback callback,
+void mlirBlockPrint(MlirBlock block, MlirPrintCallback callback,
                     void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(block)->print(stream);
@@ -339,7 +373,7 @@ MlirType mlirValueGetType(MlirValue value) {
   return wrap(unwrap(value).getType());
 }
 
-void mlirValuePrint(MlirValue value, MlirStringCallback callback,
+void mlirValuePrint(MlirValue value, MlirPrintCallback callback,
                     void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(value).print(stream);
@@ -354,13 +388,7 @@ MlirType mlirTypeParseGet(MlirContext context, const char *type) {
   return wrap(mlir::parseType(type, unwrap(context)));
 }
 
-MlirContext mlirTypeGetContext(MlirType type) {
-  return wrap(unwrap(type).getContext());
-}
-
-int mlirTypeEqual(MlirType t1, MlirType t2) { return unwrap(t1) == unwrap(t2); }
-
-void mlirTypePrint(MlirType type, MlirStringCallback callback, void *userData) {
+void mlirTypePrint(MlirType type, MlirPrintCallback callback, void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(type).print(stream);
   stream.flush();
@@ -376,11 +404,7 @@ MlirAttribute mlirAttributeParseGet(MlirContext context, const char *attr) {
   return wrap(mlir::parseAttribute(attr, unwrap(context)));
 }
 
-int mlirAttributeEqual(MlirAttribute a1, MlirAttribute a2) {
-  return unwrap(a1) == unwrap(a2);
-}
-
-void mlirAttributePrint(MlirAttribute attr, MlirStringCallback callback,
+void mlirAttributePrint(MlirAttribute attr, MlirPrintCallback callback,
                         void *userData) {
   CallbackOstream stream(callback, userData);
   unwrap(attr).print(stream);

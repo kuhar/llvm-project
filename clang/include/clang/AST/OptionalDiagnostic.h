@@ -63,7 +63,7 @@ public:
     return *this;
   }
 
-  OptionalDiagnostic &operator<<(const llvm::APFixedPoint &FX) {
+  OptionalDiagnostic &operator<<(const APFixedPoint &FX) {
     if (Diag) {
       SmallVector<char, 32> Buffer;
       FX.toString(Buffer);

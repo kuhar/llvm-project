@@ -228,8 +228,7 @@ template <typename T> const T* OwningBinary<T>::getBinary() const {
   return Bin.get();
 }
 
-Expected<OwningBinary<Binary>> createBinary(StringRef Path,
-                                            LLVMContext *Context = nullptr);
+Expected<OwningBinary<Binary>> createBinary(StringRef Path);
 
 } // end namespace object
 

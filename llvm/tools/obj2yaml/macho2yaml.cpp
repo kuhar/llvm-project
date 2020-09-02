@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Error.h"
 #include "obj2yaml.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -639,11 +640,19 @@ Error macho2yaml(raw_ostream &Out, const object::MachOUniversalBinary &Obj) {
 }
 
 Error macho2yaml(raw_ostream &Out, const object::Binary &Binary) {
-  if (const auto *MachOObj = dyn_cast<object::MachOUniversalBinary>(&Binary))
-    return macho2yaml(Out, *MachOObj);
+  if (const auto *MachOObj = dyn_cast<object::MachOUniversalBinary>(&Binary)) {
+    if (auto Err = macho2yaml(Out, *MachOObj)) {
+      return Err;
+    }
+    return Error::success();
+  }
 
-  if (const auto *MachOObj = dyn_cast<object::MachOObjectFile>(&Binary))
-    return macho2yaml(Out, *MachOObj);
+  if (const auto *MachOObj = dyn_cast<object::MachOObjectFile>(&Binary)) {
+    if (auto Err = macho2yaml(Out, *MachOObj)) {
+      return Err;
+    }
+    return Error::success();
+  }
 
-  llvm_unreachable("unexpected Mach-O file format");
+  return errorCodeToError(obj2yaml_error::unsupported_obj_file_format);
 }

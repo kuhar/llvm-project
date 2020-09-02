@@ -37,16 +37,13 @@ _main:
 
   movl $0x2000004, %eax # write() syscall
   mov $1, %rdi # stdout
-## We use pushq/popq here instead of movq in order to avoid relaxation.
-  pushq _hello_world@GOTPCREL(%rip)
-  popq %rsi
+  movq _hello_world@GOTPCREL(%rip), %rsi
   mov $13, %rdx # length of str
   syscall
 
   movl $0x2000004, %eax # write() syscall
   mov $1, %rdi # stdout
-  pushq _goodbye_world@GOTPCREL(%rip)
-  popq %rsi
+  movq _goodbye_world@GOTPCREL(%rip), %rsi
   mov $15, %rdx # length of str
   syscall
 

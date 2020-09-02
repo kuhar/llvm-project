@@ -80,7 +80,7 @@ protected:
   bool EnablePromoteAlloca;
   bool HasTrigReducedRange;
   unsigned MaxWavesPerEU;
-  unsigned LocalMemorySize;
+  int LocalMemorySize;
   char WavefrontSizeLog2;
 
 public:
@@ -204,7 +204,7 @@ public:
     return WavefrontSizeLog2;
   }
 
-  unsigned getLocalMemorySize() const {
+  int getLocalMemorySize() const {
     return LocalMemorySize;
   }
 
@@ -241,11 +241,7 @@ public:
   /// subtarget without any kind of limitation.
   unsigned getMaxWavesPerEU() const { return MaxWavesPerEU; }
 
-  /// Return the maximum workitem ID value in the function, for the given (0, 1,
-  /// 2) dimension.
-  unsigned getMaxWorkitemID(const Function &Kernel, unsigned Dimension) const;
-
-  /// Creates value range metadata on an workitemid.* intrinsic call or load.
+  /// Creates value range metadata on an workitemid.* inrinsic call or load.
   bool makeLIDRangeMetadata(Instruction *I) const;
 
   /// \returns Number of bytes of arguments that are passed to a shader or
@@ -320,7 +316,7 @@ protected:
   bool AutoWaitcntBeforeBarrier;
   bool CodeObjectV3;
   bool UnalignedScratchAccess;
-  bool UnalignedAccessMode;
+  bool UnalignedBufferAccess;
   bool HasApertureRegs;
   bool EnableXNACK;
   bool DoesNotSupportXNACK;
@@ -401,8 +397,6 @@ protected:
   bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
-  bool UnalignedBufferAccess;
-  bool UnalignedDSAccess;
   bool ScalarizeGlobal;
 
   bool HasVcmpxPermlaneHazard;
@@ -674,11 +668,6 @@ public:
     return CIInsts && EnableDS128;
   }
 
-  /// \return If target supports ds_read/write_b96/128.
-  bool hasDS96AndDS128() const {
-    return CIInsts;
-  }
-
   /// Have v_trunc_f64, v_ceil_f64, v_rndne_f64
   bool haveRoundOpsF64() const {
     return CIInsts;
@@ -709,24 +698,8 @@ public:
     return UnalignedBufferAccess;
   }
 
-  bool hasUnalignedBufferAccessEnabled() const {
-    return UnalignedBufferAccess && UnalignedAccessMode;
-  }
-
-  bool hasUnalignedDSAccess() const {
-    return UnalignedDSAccess;
-  }
-
-  bool hasUnalignedDSAccessEnabled() const {
-    return UnalignedDSAccess && UnalignedAccessMode;
-  }
-
   bool hasUnalignedScratchAccess() const {
     return UnalignedScratchAccess;
-  }
-
-  bool hasUnalignedAccessMode() const {
-    return UnalignedAccessMode;
   }
 
   bool hasApertureRegs() const {

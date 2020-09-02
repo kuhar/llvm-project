@@ -137,8 +137,6 @@ public:
     // file. Called with the empty string for other tasks.
     // (When called, the context from BackgroundIndex construction is active).
     std::function<Context(PathRef)> ContextProvider = nullptr;
-    // Whether to collect references to main-file-only symbols.
-    bool CollectMainFileRefs = false;
   };
 
   /// Creates a new background index and starts its threads.
@@ -190,7 +188,6 @@ private:
   const ThreadsafeFS &TFS;
   const GlobalCompilationDatabase &CDB;
   std::function<Context(PathRef)> ContextProvider;
-  bool CollectMainFileRefs;
 
   llvm::Error index(tooling::CompileCommand);
 

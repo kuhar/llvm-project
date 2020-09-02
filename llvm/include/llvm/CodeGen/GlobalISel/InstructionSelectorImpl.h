@@ -154,31 +154,24 @@ bool InstructionSelector::executeMatchTable(
       break;
     }
 
-    case GIM_CheckOpcode:
-    case GIM_CheckOpcodeIsEither: {
+    case GIM_CheckOpcode: {
       int64_t InsnID = MatchTable[CurrentIdx++];
-      int64_t Expected0 = MatchTable[CurrentIdx++];
-      int64_t Expected1 = -1;
-      if (MatcherOpcode == GIM_CheckOpcodeIsEither)
-        Expected1 = MatchTable[CurrentIdx++];
+      int64_t Expected = MatchTable[CurrentIdx++];
 
       assert(State.MIs[InsnID] != nullptr && "Used insn before defined");
       unsigned Opcode = State.MIs[InsnID]->getOpcode();
 
       DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
-        dbgs() << CurrentIdx << ": GIM_CheckOpcode(MIs[" << InsnID
-        << "], ExpectedOpcode=" << Expected0;
-        if (MatcherOpcode == GIM_CheckOpcodeIsEither)
-          dbgs() << " || " << Expected1;
-        dbgs() << ") // Got=" << Opcode << "\n";
-      );
-
-      if (Opcode != Expected0 && Opcode != Expected1) {
+                      dbgs() << CurrentIdx << ": GIM_CheckOpcode(MIs[" << InsnID
+                             << "], ExpectedOpcode=" << Expected
+                             << ") // Got=" << Opcode << "\n");
+      if (Opcode != Expected) {
         if (handleReject() == RejectAndGiveUp)
           return false;
       }
       break;
     }
+
     case GIM_SwitchOpcode: {
       int64_t InsnID = MatchTable[CurrentIdx++];
       int64_t LowerBound = MatchTable[CurrentIdx++];
@@ -200,7 +193,7 @@ bool InstructionSelector::executeMatchTable(
       CurrentIdx = MatchTable[CurrentIdx + (Opcode - LowerBound)];
       if (!CurrentIdx) {
         CurrentIdx = Default;
-        break;
+	break;
       }
       OnFailResumeAt.push_back(Default);
       break;

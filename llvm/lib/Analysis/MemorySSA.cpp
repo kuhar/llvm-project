@@ -1726,11 +1726,8 @@ MemoryUseOrDef *MemorySSA::createDefinedAccess(Instruction *I,
   if (CreationMustSucceed)
     assert(NewAccess != nullptr && "Tried to create a memory access for a "
                                    "non-memory touching instruction");
-  if (NewAccess) {
-    assert((!Definition || !isa<MemoryUse>(Definition)) &&
-           "A use cannot be a defining access");
+  if (NewAccess)
     NewAccess->setDefiningAccess(Definition);
-  }
   return NewAccess;
 }
 

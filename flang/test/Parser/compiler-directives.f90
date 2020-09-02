@@ -2,7 +2,6 @@
 
 ! Test that compiler directives can appear in various places.
 
-!dir$ integer
 module m
   !dir$ integer
   use iso_fortran_env

@@ -26,14 +26,6 @@ namespace llvm {
 
 ELFYAML::Chunk::~Chunk() = default;
 
-namespace ELFYAML {
-unsigned Object::getMachine() const {
-  if (Header.Machine)
-    return *Header.Machine;
-  return llvm::ELF::EM_NONE;
-}
-} // namespace ELFYAML
-
 namespace yaml {
 
 void ScalarEnumerationTraits<ELFYAML::ELF_ET>::enumeration(
@@ -293,7 +285,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
   assert(Object && "The IO context is not initialized");
 #define BCase(X) IO.bitSetCase(Value, #X, ELF::X)
 #define BCaseMask(X, M) IO.maskedBitSetCase(Value, #X, ELF::X, ELF::M)
-  switch (Object->getMachine()) {
+  switch (Object->Header.Machine) {
   case ELF::EM_ARM:
     BCase(EF_ARM_SOFT_FLOAT);
     BCase(EF_ARM_VFP_FLOAT);
@@ -442,8 +434,10 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCase(EF_AMDGPU_XNACK);
     BCase(EF_AMDGPU_SRAM_ECC);
     break;
-  default:
+  case ELF::EM_X86_64:
     break;
+  default:
+    llvm_unreachable("Unsupported architecture");
   }
 #undef BCase
 #undef BCaseMask
@@ -489,7 +483,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   ECase(SHT_GNU_verdef);
   ECase(SHT_GNU_verneed);
   ECase(SHT_GNU_versym);
-  switch (Object->getMachine()) {
+  switch (Object->Header.Machine) {
   case ELF::EM_ARM:
     ECase(SHT_ARM_EXIDX);
     ECase(SHT_ARM_PREEMPTMAP);
@@ -544,7 +538,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
   BCase(SHF_GROUP);
   BCase(SHF_TLS);
   BCase(SHF_COMPRESSED);
-  switch (Object->getMachine()) {
+  switch (Object->Header.Machine) {
   case ELF::EM_ARM:
     BCase(SHF_ARM_PURECODE);
     break;
@@ -636,7 +630,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   const auto *Object = static_cast<ELFYAML::Object *>(IO.getContext());
   assert(Object && "The IO context is not initialized");
 #define ELF_RELOC(X, Y) IO.enumCase(Value, #X, ELF::X);
-  switch (Object->getMachine()) {
+  switch (Object->Header.Machine) {
   case ELF::EM_X86_64:
 #include "llvm/BinaryFormat/ELFRelocs/x86_64.def"
     break;
@@ -701,7 +695,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 
 #define STRINGIFY(X) (#X)
 #define DYNAMIC_TAG(X, Y) IO.enumCase(Value, STRINGIFY(DT_##X), ELF::DT_##X);
-  switch (Object->getMachine()) {
+  switch (Object->Header.Machine) {
   case ELF::EM_AARCH64:
 #undef AARCH64_DYNAMIC_TAG
 #define AARCH64_DYNAMIC_TAG(name, value) DYNAMIC_TAG(name, value)
@@ -871,7 +865,7 @@ void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
   IO.mapOptional("OSABI", FileHdr.OSABI, ELFYAML::ELF_ELFOSABI(0));
   IO.mapOptional("ABIVersion", FileHdr.ABIVersion, Hex8(0));
   IO.mapRequired("Type", FileHdr.Type);
-  IO.mapOptional("Machine", FileHdr.Machine);
+  IO.mapRequired("Machine", FileHdr.Machine);
   IO.mapOptional("Flags", FileHdr.Flags, ELFYAML::ELF_EF(0));
   IO.mapOptional("Entry", FileHdr.Entry, Hex64(0));
 
@@ -944,7 +938,7 @@ struct NormalizedOther {
     std::vector<StOtherPiece> Ret;
     const auto *Object = static_cast<ELFYAML::Object *>(YamlIO.getContext());
     for (std::pair<StringRef, uint8_t> &P :
-         getFlags(Object->getMachine()).takeVector()) {
+         getFlags(Object->Header.Machine).takeVector()) {
       uint8_t FlagValue = P.second;
       if ((*Original & FlagValue) != FlagValue)
         continue;
@@ -963,7 +957,7 @@ struct NormalizedOther {
 
   uint8_t toValue(StringRef Name) {
     const auto *Object = static_cast<ELFYAML::Object *>(YamlIO.getContext());
-    MapVector<StringRef, uint8_t> Flags = getFlags(Object->getMachine());
+    MapVector<StringRef, uint8_t> Flags = getFlags(Object->Header.Machine);
 
     auto It = Flags.find(Name);
     if (It != Flags.end())
@@ -1670,7 +1664,7 @@ void MappingTraits<ELFYAML::Relocation>::mapping(IO &IO,
   IO.mapOptional("Offset", Rel.Offset, (Hex64)0);
   IO.mapOptional("Symbol", Rel.Symbol);
 
-  if (Object->getMachine() == ELFYAML::ELF_EM(ELF::EM_MIPS) &&
+  if (Object->Header.Machine == ELFYAML::ELF_EM(ELF::EM_MIPS) &&
       Object->Header.Class == ELFYAML::ELF_ELFCLASS(ELF::ELFCLASS64)) {
     MappingNormalization<NormalizedMips64RelType, ELFYAML::ELF_REL> Key(
         IO, Rel.Type);

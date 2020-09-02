@@ -43,7 +43,6 @@ static_library("bugprone") {
     "NotNullTerminatedResultCheck.cpp",
     "ParentVirtualCallCheck.cpp",
     "PosixReturnCheck.cpp",
-    "RedundantBranchConditionCheck.cpp",
     "ReservedIdentifierCheck.cpp",
     "SignedCharMisuseCheck.cpp",
     "SizeofContainerCheck.cpp",

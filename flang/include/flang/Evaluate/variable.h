@@ -128,9 +128,9 @@ private:
 // KIND(x), which is then folded to a constant value.
 // "Bare" type parameter references within a derived type definition do
 // not have base objects.
-class TypeParamInquiry {
+template <int KIND> class TypeParamInquiry {
 public:
-  using Result = SubscriptInteger;
+  using Result = Type<TypeCategory::Integer, KIND>;
   CLASS_BOILERPLATE(TypeParamInquiry)
   TypeParamInquiry(NamedEntity &&x, const Symbol &param)
       : base_{std::move(x)}, parameter_{param} {}
@@ -149,6 +149,9 @@ private:
   std::optional<NamedEntity> base_;
   SymbolRef parameter_;
 };
+
+EXPAND_FOR_EACH_INTEGER_KIND(
+    TEMPLATE_INSTANTIATION, extern template class TypeParamInquiry, )
 
 // R921 subscript-triplet
 class Triplet {
@@ -419,6 +422,8 @@ private:
 };
 
 #define INSTANTIATE_VARIABLE_TEMPLATES \
+  EXPAND_FOR_EACH_INTEGER_KIND( \
+      TEMPLATE_INSTANTIATION, template class TypeParamInquiry, ) \
   FOR_EACH_SPECIFIC_TYPE(template class Designator, )
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_VARIABLE_H_

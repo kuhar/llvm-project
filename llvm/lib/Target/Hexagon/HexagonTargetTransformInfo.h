@@ -155,9 +155,6 @@ public:
     return 1;
   }
 
-  bool isLegalMaskedStore(Type *DataType, Align Alignment);
-  bool isLegalMaskedLoad(Type *DataType, Align Alignment);
-
   /// @}
 
   int getUserCost(const User *U, ArrayRef<const Value *> Operands,

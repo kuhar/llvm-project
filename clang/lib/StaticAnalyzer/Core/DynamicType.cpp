@@ -65,13 +65,6 @@ const DynamicTypeInfo *getRawDynamicTypeInfo(ProgramStateRef State,
   return State->get<DynamicTypeMap>(MR);
 }
 
-static void unbox(QualType &Ty) {
-  // FIXME: Why are we being fed references to pointers in the first place?
-  while (Ty->isReferenceType() || Ty->isPointerType())
-    Ty = Ty->getPointeeType();
-  Ty = Ty.getCanonicalType().getUnqualifiedType();
-}
-
 const DynamicCastInfo *getDynamicCastInfo(ProgramStateRef State,
                                           const MemRegion *MR,
                                           QualType CastFromTy,
@@ -79,9 +72,6 @@ const DynamicCastInfo *getDynamicCastInfo(ProgramStateRef State,
   const auto *Lookup = State->get<DynamicCastMap>().lookup(MR);
   if (!Lookup)
     return nullptr;
-
-  unbox(CastFromTy);
-  unbox(CastToTy);
 
   for (const DynamicCastInfo &Cast : *Lookup)
     if (Cast.equals(CastFromTy, CastToTy))
@@ -121,9 +111,6 @@ ProgramStateRef setDynamicTypeAndCastInfo(ProgramStateRef State,
            "DynamicTypeInfo should always be a pointer.");
     State = State->set<DynamicTypeMap>(MR, CastToTy);
   }
-
-  unbox(CastFromTy);
-  unbox(CastToTy);
 
   DynamicCastInfo::CastResult ResultKind =
       CastSucceeds ? DynamicCastInfo::CastResult::Success

@@ -4637,27 +4637,6 @@ bool LLParser::ParseDIBasicType(MDNode *&Result, bool IsDistinct) {
   return false;
 }
 
-/// ParseDIStringType:
-///   ::= !DIStringType(name: "character(4)", size: 32, align: 32)
-bool LLParser::ParseDIStringType(MDNode *&Result, bool IsDistinct) {
-#define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
-  OPTIONAL(tag, DwarfTagField, (dwarf::DW_TAG_string_type));                   \
-  OPTIONAL(name, MDStringField, );                                             \
-  OPTIONAL(stringLength, MDField, );                                           \
-  OPTIONAL(stringLengthExpression, MDField, );                                 \
-  OPTIONAL(size, MDUnsignedField, (0, UINT64_MAX));                            \
-  OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));                           \
-  OPTIONAL(encoding, DwarfAttEncodingField, );
-  PARSE_MD_FIELDS();
-#undef VISIT_MD_FIELDS
-
-  Result = GET_OR_DISTINCT(DIStringType,
-                           (Context, tag.Val, name.Val, stringLength.Val,
-                            stringLengthExpression.Val, size.Val, align.Val,
-                            encoding.Val));
-  return false;
-}
-
 /// ParseDIDerivedType:
 ///   ::= !DIDerivedType(tag: DW_TAG_pointer_type, name: "int", file: !0,
 ///                      line: 7, scope: !1, baseType: !2, size: 32,
@@ -7416,7 +7395,7 @@ int LLParser::ParseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   // All vector parameters should have the same vector width.
   ElementCount GEPWidth = BaseType->isVectorTy()
                               ? cast<VectorType>(BaseType)->getElementCount()
-                              : ElementCount::getFixed(0);
+                              : ElementCount(0, false);
 
   while (EatIfPresent(lltok::comma)) {
     if (Lex.getKind() == lltok::MetadataVar) {
@@ -7429,7 +7408,7 @@ int LLParser::ParseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
 
     if (auto *ValVTy = dyn_cast<VectorType>(Val->getType())) {
       ElementCount ValNumEl = ValVTy->getElementCount();
-      if (GEPWidth != ElementCount::getFixed(0) && GEPWidth != ValNumEl)
+      if (GEPWidth != ElementCount(0, false) && GEPWidth != ValNumEl)
         return Error(EltLoc,
           "getelementptr vector index has a wrong number of elements");
       GEPWidth = ValNumEl;

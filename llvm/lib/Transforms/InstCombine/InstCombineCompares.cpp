@@ -898,7 +898,7 @@ Instruction *InstCombinerImpl::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
     // For vectors, we apply the same reasoning on a per-lane basis.
     auto *Base = GEPLHS->getPointerOperand();
     if (GEPLHS->getType()->isVectorTy() && Base->getType()->isPointerTy()) {
-      int NumElts = cast<FixedVectorType>(GEPLHS->getType())->getNumElements();
+      int NumElts = cast<VectorType>(GEPLHS->getType())->getNumElements();
       Base = Builder.CreateVectorSplat(NumElts, Base);
     }
     return new ICmpInst(Cond, Base,
@@ -1886,8 +1886,7 @@ Instruction *InstCombinerImpl::foldICmpAndConstant(ICmpInst &Cmp,
     if (ExactLogBase2 != -1 && DL.isLegalInteger(ExactLogBase2 + 1)) {
       Type *NTy = IntegerType::get(Cmp.getContext(), ExactLogBase2 + 1);
       if (auto *AndVTy = dyn_cast<VectorType>(And->getType()))
-        NTy = FixedVectorType::get(
-            NTy, cast<FixedVectorType>(AndVTy)->getNumElements());
+        NTy = FixedVectorType::get(NTy, AndVTy->getNumElements());
       Value *Trunc = Builder.CreateTrunc(X, NTy);
       auto NewPred = Cmp.getPredicate() == CmpInst::ICMP_EQ ? CmpInst::ICMP_SGE
                                                             : CmpInst::ICMP_SLT;
@@ -2193,8 +2192,7 @@ Instruction *InstCombinerImpl::foldICmpShlConstant(ICmpInst &Cmp,
       DL.isLegalInteger(TypeBits - Amt)) {
     Type *TruncTy = IntegerType::get(Cmp.getContext(), TypeBits - Amt);
     if (auto *ShVTy = dyn_cast<VectorType>(ShType))
-      TruncTy = FixedVectorType::get(
-          TruncTy, cast<FixedVectorType>(ShVTy)->getNumElements());
+      TruncTy = FixedVectorType::get(TruncTy, ShVTy->getNumElements());
     Constant *NewC =
         ConstantInt::get(TruncTy, C.ashr(*ShiftAmt).trunc(TypeBits - Amt));
     return new ICmpInst(Pred, Builder.CreateTrunc(X, TruncTy), NewC);
@@ -2828,8 +2826,7 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
 
           Type *NewType = Builder.getIntNTy(XType->getScalarSizeInBits());
           if (auto *XVTy = dyn_cast<VectorType>(XType))
-            NewType = FixedVectorType::get(
-                NewType, cast<FixedVectorType>(XVTy)->getNumElements());
+            NewType = FixedVectorType::get(NewType, XVTy->getNumElements());
           Value *NewBitcast = Builder.CreateBitCast(X, NewType);
           if (TrueIfSigned)
             return new ICmpInst(ICmpInst::ICMP_SLT, NewBitcast,
@@ -3394,7 +3391,7 @@ static Value *foldICmpWithLowBitMaskedVal(ICmpInst &I,
   Type *OpTy = M->getType();
   auto *VecC = dyn_cast<Constant>(M);
   if (OpTy->isVectorTy() && VecC && VecC->containsUndefElement()) {
-    auto *OpVTy = cast<FixedVectorType>(OpTy);
+    auto *OpVTy = cast<VectorType>(OpTy);
     Constant *SafeReplacementConstant = nullptr;
     for (unsigned i = 0, e = OpVTy->getNumElements(); i != e; ++i) {
       if (!isa<UndefValue>(VecC->getAggregateElement(i))) {
@@ -3722,7 +3719,7 @@ Value *InstCombinerImpl::foldUnsignedMultiplicationOverflowCheck(ICmpInst &I) {
   return Res;
 }
 
-static Instruction *foldICmpXNegX(ICmpInst &I) {
+Instruction *foldICmpXNegX(ICmpInst &I) {
   CmpInst::Predicate Pred;
   Value *X;
   if (!match(&I, m_c_ICmp(Pred, m_NSWNeg(m_Value(X)), m_Deferred(X))))
@@ -5244,7 +5241,7 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
     if (!ConstantIsOk(CI))
       return llvm::None;
   } else if (auto *VTy = dyn_cast<VectorType>(Type)) {
-    unsigned NumElts = cast<FixedVectorType>(VTy)->getNumElements();
+    unsigned NumElts = VTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = C->getAggregateElement(i);
       if (!Elt)
@@ -5309,7 +5306,7 @@ static ICmpInst *canonicalizeCmpWithConstant(ICmpInst &I) {
 
 /// If we have a comparison with a non-canonical predicate, if we can update
 /// all the users, invert the predicate and adjust all the users.
-CmpInst *InstCombinerImpl::canonicalizeICmpPredicate(CmpInst &I) {
+static CmpInst *canonicalizeICmpPredicate(CmpInst &I) {
   // Is the predicate already canonical?
   CmpInst::Predicate Pred = I.getPredicate();
   if (InstCombiner::isCanonicalPredicate(Pred))
@@ -5337,7 +5334,7 @@ CmpInst *InstCombinerImpl::canonicalizeICmpPredicate(CmpInst &I) {
       cast<BranchInst>(U)->swapSuccessors(); // swaps prof metadata too
       break;
     case Instruction::Xor:
-      replaceInstUsesWith(cast<Instruction>(*U), &I);
+      U->replaceAllUsesWith(&I);
       break;
     default:
       llvm_unreachable("Got unexpected user - out of sync with "

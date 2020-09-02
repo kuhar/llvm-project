@@ -2,7 +2,8 @@
 # RUN:   -emit-call-site-info | llvm-dwarfdump - | FileCheck %s -implicit-check-not=call_site_parameter
 
 # CHECK: DW_TAG_formal_parameter
-# CHECK-NEXT: DW_AT_location (DW_OP_reg17 XMM0)
+# CHECK-NEXT: DW_AT_location
+# CHECK-NEXT: DW_OP_reg17
 
 # struct S {
 #   float w;

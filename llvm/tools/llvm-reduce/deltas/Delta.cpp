@@ -14,15 +14,12 @@
 
 #include "Delta.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <fstream>
 #include <set>
 
 using namespace llvm;
-
-void writeOutput(llvm::Module *M, llvm::StringRef Message);
 
 bool IsReduced(Module &M, TestRunner &Test, SmallString<128> &CurrentFilepath) {
   // Write Module to tmp file
@@ -106,9 +103,6 @@ void llvm::runDeltaPass(
       errs() << "\nInput isn't interesting! Verify interesting-ness test\n";
       exit(1);
     }
-
-    assert(!verifyModule(*Program, &errs()) &&
-           "input module is broken before making changes");
   }
 
   std::vector<Chunk> ChunksStillConsideredInteresting = {{1, Targets}};
@@ -139,13 +133,6 @@ void llvm::runDeltaPass(
       // Generate Module with only Targets inside Current Chunks
       ExtractChunksFromModule(CurrentChunks, Clone.get());
 
-      // Some reductions may result in invalid IR. Skip such reductions.
-      if (verifyModule(*Clone.get(), &errs())) {
-        errs() << " **** WARNING | reduction resulted in invalid module, "
-                  "skipping\n";
-        continue;
-      }
-
       errs() << "Ignoring: ";
       ChunkToCheckForUninterestingness.print();
       for (const Chunk &C : UninterestingChunks)
@@ -162,7 +149,6 @@ void llvm::runDeltaPass(
       UninterestingChunks.insert(ChunkToCheckForUninterestingness);
       ReducedProgram = std::move(Clone);
       errs() << " **** SUCCESS | lines: " << getLines(CurrentFilepath) << "\n";
-      writeOutput(ReducedProgram.get(), "Saved new best reduction to ");
     }
     // Delete uninteresting chunks
     erase_if(ChunksStillConsideredInteresting,

@@ -238,10 +238,6 @@ def FeaturePairedVectorMemops:
   SubtargetFeature<"paired-vector-memops", "PairedVectorMemops", "true",
                    "32Byte load and store instructions",
                    [FeatureISA3_0]>;
-def FeatureMMA : SubtargetFeature<"mma", "HasMMA", "true",
-                                  "Enable MMA instructions",
-                                  [FeatureP8Vector, FeatureP9Altivec,
-                                   FeaturePairedVectorMemops]>;
 
 def FeaturePredictableSelectIsExpensive :
   SubtargetFeature<"predictable-select-expensive",
@@ -347,8 +343,7 @@ def ProcessorFeatures {
   // still exist with the exception of those we know are Power9 specific.
   list<SubtargetFeature> P10AdditionalFeatures =
     [DirectivePwr10, FeatureISA3_1, FeaturePrefixInstrs,
-     FeaturePCRelativeMemops, FeatureP10Vector, FeatureMMA,
-     FeaturePairedVectorMemops];
+     FeaturePCRelativeMemops, FeatureP10Vector, FeaturePairedVectorMemops];
   list<SubtargetFeature> P10SpecificFeatures = [];
   list<SubtargetFeature> P10InheritableFeatures =
     !listconcat(P9InheritableFeatures, P10AdditionalFeatures);

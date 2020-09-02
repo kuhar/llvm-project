@@ -91,13 +91,13 @@ template <typename ScfOp, typename OpTy>
 static void replaceSCFOutputValue(ScfOp scfOp, OpTy newOp,
                                   SPIRVTypeConverter &typeConverter,
                                   ConversionPatternRewriter &rewriter,
-                                  ScfToSPIRVContextImpl *scfToSPIRVContext,
-                                  ArrayRef<Type> returnTypes) {
+                                  ScfToSPIRVContextImpl *scfToSPIRVContext) {
 
   Location loc = scfOp.getLoc();
   auto &allocas = scfToSPIRVContext->outputVars[newOp];
   SmallVector<Value, 8> resultValue;
-  for (Type convertedType : returnTypes) {
+  for (Value result : scfOp.results()) {
+    auto convertedType = typeConverter.convertType(result.getType());
     auto pointerType =
         spirv::PointerType::get(convertedType, spirv::StorageClass::Function);
     rewriter.setInsertionPoint(newOp);
@@ -185,15 +185,8 @@ ForOpConversion::matchAndRewrite(scf::ForOp forOp, ArrayRef<Value> operands,
       loc, newIndVar.getType(), newIndVar, forOperands.step());
   rewriter.create<spirv::BranchOp>(loc, header, updatedIndVar);
 
-  // Infer the return types from the init operands. Vector type may get
-  // converted to CooperativeMatrix or to Vector type, to avoid having complex
-  // extra logic to figure out the right type we just infer it from the Init
-  // operands.
-  SmallVector<Type, 8> initTypes;
-  for (auto arg : forOperands.initArgs())
-    initTypes.push_back(arg.getType());
   replaceSCFOutputValue(forOp, loopOp, typeConverter, rewriter,
-                        scfToSPIRVContext, initTypes);
+                        scfToSPIRVContext);
   return success();
 }
 
@@ -245,13 +238,8 @@ IfOpConversion::matchAndRewrite(scf::IfOp ifOp, ArrayRef<Value> operands,
                                               thenBlock, ArrayRef<Value>(),
                                               elseBlock, ArrayRef<Value>());
 
-  SmallVector<Type, 8> returnTypes;
-  for (auto result : ifOp.results()) {
-    auto convertedType = typeConverter.convertType(result.getType());
-    returnTypes.push_back(convertedType);
-  }
   replaceSCFOutputValue(ifOp, selectionOp, typeConverter, rewriter,
-                        scfToSPIRVContext, returnTypes);
+                        scfToSPIRVContext);
   return success();
 }
 

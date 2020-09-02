@@ -671,10 +671,8 @@ ParseSubMultiClassReference(MultiClass *CurMC) {
 
 /// ParseRangePiece - Parse a bit/value range.
 ///   RangePiece ::= INTVAL
-///   RangePiece ::= INTVAL '...' INTVAL
 ///   RangePiece ::= INTVAL '-' INTVAL
-///   RangePiece ::= INTVAL INTVAL 
-// The last two forms are deprecated.
+///   RangePiece ::= INTVAL INTVAL
 bool TGParser::ParseRangePiece(SmallVectorImpl<unsigned> &Ranges,
                                TypedInit *FirstItem) {
   Init *CurVal = FirstItem;
@@ -695,8 +693,6 @@ bool TGParser::ParseRangePiece(SmallVectorImpl<unsigned> &Ranges,
   default:
     Ranges.push_back(Start);
     return false;
-
-  case tgtok::dotdotdot:
   case tgtok::minus: {
     Lex.Lex(); // eat
 
@@ -2171,7 +2167,7 @@ Init *TGParser::ParseValue(Record *CurRec, RecTy *ItemType, IDParseMode Mode) {
       }
       break;
     }
-    case tgtok::dot: {
+    case tgtok::period: {
       if (Lex.Lex() != tgtok::Id) {  // eat the .
         TokError("expected field identifier after '.'");
         return nullptr;
@@ -2207,8 +2203,6 @@ Init *TGParser::ParseValue(Record *CurRec, RecTy *ItemType, IDParseMode Mode) {
           break;
         default:
           Init *RHSResult = ParseValue(CurRec, ItemType, ParseNameMode);
-          if (!RHSResult)
-            return nullptr;
           Result = BinOpInit::getListConcat(LHS, RHSResult);
         }
         break;
@@ -2245,8 +2239,6 @@ Init *TGParser::ParseValue(Record *CurRec, RecTy *ItemType, IDParseMode Mode) {
 
       default:
         Init *RHSResult = ParseValue(CurRec, nullptr, ParseNameMode);
-        if (!RHSResult)
-          return nullptr;
         RHS = dyn_cast<TypedInit>(RHSResult);
         if (!RHS) {
           Error(PasteLoc, "RHS of paste is not typed!");

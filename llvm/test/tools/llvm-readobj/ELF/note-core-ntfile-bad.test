@@ -24,9 +24,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_CORE
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_CORE
+  Machine: EM_X86_64
 Sections:
   - Name:    .note.foo
     Type:    SHT_NOTE
@@ -58,9 +59,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_CORE
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_CORE
+  Machine: EM_X86_64
 Sections:
   - Name:    .note.foo
     Type:    SHT_NOTE
@@ -92,9 +94,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_CORE
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_CORE
+  Machine: EM_X86_64
 Sections:
   - Name:    .note.foo
     Type:    SHT_NOTE
@@ -129,9 +132,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_CORE
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_CORE
+  Machine: EM_X86_64
 Sections:
   - Name:    .note.foo
     Type:    SHT_NOTE

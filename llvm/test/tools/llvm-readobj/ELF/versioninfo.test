@@ -8,10 +8,11 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  OSABI: ELFOSABI_FREEBSD
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  OSABI:   ELFOSABI_FREEBSD
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:         .gnu.version
     Type:         SHT_GNU_versym

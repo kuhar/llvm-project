@@ -35,9 +35,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2[[ENCODE]]
-  Type:  ET_DYN
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2[[ENCODE]]
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .relr.dyn
     Type: SHT_RELR
@@ -54,9 +55,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2MSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2MSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name: .relr.dyn
     Type: SHT_RELR
@@ -76,9 +78,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2MSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2MSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:    .relr.dyn
     Type:    SHT_RELR

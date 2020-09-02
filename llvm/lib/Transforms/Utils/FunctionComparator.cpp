@@ -488,13 +488,12 @@ int FunctionComparator::cmpTypes(Type *TyL, Type *TyR) const {
   case Type::ScalableVectorTyID: {
     auto *STyL = cast<VectorType>(TyL);
     auto *STyR = cast<VectorType>(TyR);
-    if (STyL->getElementCount().isScalable() !=
-        STyR->getElementCount().isScalable())
-      return cmpNumbers(STyL->getElementCount().isScalable(),
-                        STyR->getElementCount().isScalable());
-    if (STyL->getElementCount() != STyR->getElementCount())
-      return cmpNumbers(STyL->getElementCount().getKnownMinValue(),
-                        STyR->getElementCount().getKnownMinValue());
+    if (STyL->getElementCount().Scalable != STyR->getElementCount().Scalable)
+      return cmpNumbers(STyL->getElementCount().Scalable,
+                        STyR->getElementCount().Scalable);
+    if (STyL->getElementCount().Min != STyR->getElementCount().Min)
+      return cmpNumbers(STyL->getElementCount().Min,
+                        STyR->getElementCount().Min);
     return cmpTypes(STyL->getElementType(), STyR->getElementType());
   }
   }

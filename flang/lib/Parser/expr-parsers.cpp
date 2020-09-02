@@ -119,7 +119,7 @@ inline std::optional<Expr> MultOperand::Parse(ParseState &state) {
 // R1005 add-operand -> [add-operand mult-op] mult-operand
 // R1008 mult-op -> * | /
 // The left recursion in the grammar is implemented iteratively.
-struct AddOperand {
+constexpr struct AddOperand {
   using resultType = Expr;
   constexpr AddOperand() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -142,8 +142,7 @@ struct AddOperand {
     }
     return result;
   }
-};
-constexpr AddOperand addOperand;
+} addOperand;
 
 // R1006 level-2-expr -> [[level-2-expr] add-op] add-operand
 // R1009 add-op -> + | -
@@ -152,7 +151,7 @@ constexpr AddOperand addOperand;
 // by means of a missing first operand; e.g., 2*-3 is valid in C but not
 // standard Fortran.  We accept unary + and - to appear before any primary
 // as an extension.
-struct Level2Expr {
+constexpr struct Level2Expr {
   using resultType = Expr;
   constexpr Level2Expr() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -180,14 +179,13 @@ struct Level2Expr {
     }
     return result;
   }
-};
-constexpr Level2Expr level2Expr;
+} level2Expr;
 
 // R1010 level-3-expr -> [level-3-expr concat-op] level-2-expr
 // R1011 concat-op -> //
 // Concatenation (//) is left-associative for parsing performance, although
 // one would never notice if it were right-associated.
-struct Level3Expr {
+constexpr struct Level3Expr {
   using resultType = Expr;
   constexpr Level3Expr() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -205,15 +203,14 @@ struct Level3Expr {
     }
     return result;
   }
-};
-constexpr Level3Expr level3Expr;
+} level3Expr;
 
 // R1012 level-4-expr -> [level-3-expr rel-op] level-3-expr
 // R1013 rel-op ->
 //         .EQ. | .NE. | .LT. | .LE. | .GT. | .GE. |
 //          == | /= | < | <= | > | >=  @ | <>
 // N.B. relations are not recursive (i.e., LOGICAL is not ordered)
-struct Level4Expr {
+constexpr struct Level4Expr {
   using resultType = Expr;
   constexpr Level4Expr() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -255,19 +252,17 @@ struct Level4Expr {
     }
     return result;
   }
-};
-constexpr Level4Expr level4Expr;
+} level4Expr;
 
 // R1014 and-operand -> [not-op] level-4-expr
 // R1018 not-op -> .NOT.
 // N.B. Fortran's .NOT. binds less tightly than its comparison operators do.
 // PGI/Intel extension: accept multiple .NOT. operators
-struct AndOperand {
+constexpr struct AndOperand {
   using resultType = Expr;
   constexpr AndOperand() {}
   static inline std::optional<Expr> Parse(ParseState &);
-};
-constexpr AndOperand andOperand;
+} andOperand;
 
 // Match a logical operator or, optionally, its abbreviation.
 inline constexpr auto logicalOp(const char *op, const char *abbrev) {
@@ -288,7 +283,7 @@ inline std::optional<Expr> AndOperand::Parse(ParseState &state) {
 // R1015 or-operand -> [or-operand and-op] and-operand
 // R1019 and-op -> .AND.
 // .AND. is left-associative
-struct OrOperand {
+constexpr struct OrOperand {
   using resultType = Expr;
   constexpr OrOperand() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -308,13 +303,12 @@ struct OrOperand {
     }
     return result;
   }
-};
-constexpr OrOperand orOperand;
+} orOperand;
 
 // R1016 equiv-operand -> [equiv-operand or-op] or-operand
 // R1020 or-op -> .OR.
 // .OR. is left-associative
-struct EquivOperand {
+constexpr struct EquivOperand {
   using resultType = Expr;
   constexpr EquivOperand() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -333,14 +327,13 @@ struct EquivOperand {
     }
     return result;
   }
-};
-constexpr EquivOperand equivOperand;
+} equivOperand;
 
 // R1017 level-5-expr -> [level-5-expr equiv-op] equiv-operand
 // R1021 equiv-op -> .EQV. | .NEQV.
 // Logical equivalence is left-associative.
 // Extension: .XOR. as synonym for .NEQV.
-struct Level5Expr {
+constexpr struct Level5Expr {
   using resultType = Expr;
   constexpr Level5Expr() {}
   static inline std::optional<Expr> Parse(ParseState &state) {
@@ -365,8 +358,7 @@ struct Level5Expr {
     }
     return result;
   }
-};
-constexpr Level5Expr level5Expr;
+} level5Expr;
 
 // R1022 expr -> [expr defined-binary-op] level-5-expr
 // Defined binary operators associate leftwards.

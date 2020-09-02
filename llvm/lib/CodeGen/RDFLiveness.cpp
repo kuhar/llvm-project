@@ -230,12 +230,13 @@ NodeList Liveness::getAllReachingDefs(RegisterRef RefRR,
     TmpBB.push_back(Bucket.first);
     if (Bucket.second.size() > 2)
       GetOrder(*Bucket.first);
-    llvm::sort(Bucket.second.begin(), Bucket.second.end(), Precedes);
+    std::sort(Bucket.second.begin(), Bucket.second.end(), Precedes);
   }
 
   // Sort the blocks with respect to dominance.
-  llvm::sort(TmpBB.begin(), TmpBB.end(),
-             [this](auto A, auto B) { return MDT.properlyDominates(A, B); });
+  std::sort(TmpBB.begin(), TmpBB.end(), [this](auto A, auto B) {
+    return MDT.dominates(A, B);
+  });
 
   std::vector<NodeId> TmpInst;
   for (auto I = TmpBB.rbegin(), E = TmpBB.rend(); I != E; ++I) {

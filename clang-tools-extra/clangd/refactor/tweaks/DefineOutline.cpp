@@ -388,9 +388,9 @@ public:
 
     // Bail out if this is a function template or specialization, as their
     // definitions need to be visible in all including translation units.
-    if (Source->getDescribedFunctionTemplate())
+    if (auto *PT = Source->getDescribedFunctionTemplate())
       return false;
-    if (Source->getTemplateSpecializationInfo())
+    if (auto *TSI = Source->getTemplateSpecializationInfo())
       return false;
 
     // Bail out in templated classes, as it is hard to spell the class name, i.e

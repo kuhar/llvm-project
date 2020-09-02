@@ -83,7 +83,7 @@ namespace llvm {
         if (isa<ScalableVectorType>(VTy))
           NumElements = Unbounded;
         else
-          NumElements = cast<FixedVectorType>(VTy)->getNumElements();
+          NumElements = VTy->getNumElements();
       } else
         CurTy = dyn_cast<StructType>(Ty);
       ++OpIt;

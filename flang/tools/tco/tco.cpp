@@ -60,9 +60,8 @@ static int compileFIR() {
   // load the file into a module
   SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), SMLoc());
-  mlir::MLIRContext context;
-  fir::registerFIRDialects(context.getDialectRegistry());
-  auto owningRef = mlir::parseSourceFile(sourceMgr, &context);
+  auto context = std::make_unique<mlir::MLIRContext>();
+  auto owningRef = mlir::parseSourceFile(sourceMgr, context.get());
 
   if (!owningRef) {
     errs() << "Error can't load file " << inputFilename << '\n';
@@ -77,7 +76,7 @@ static int compileFIR() {
   ToolOutputFile out(outputFilename, ec, sys::fs::OF_None);
 
   // run passes
-  mlir::PassManager pm{&context};
+  mlir::PassManager pm{context.get()};
   mlir::applyPassManagerCLOptions(pm);
   if (emitFir) {
     // parse the input and pretty-print it back out
@@ -104,6 +103,7 @@ static int compileFIR() {
 }
 
 int main(int argc, char **argv) {
+  fir::registerFIR();
   fir::registerFIRPasses();
   [[maybe_unused]] InitLLVM y(argc, argv);
   mlir::registerPassManagerCLOptions();

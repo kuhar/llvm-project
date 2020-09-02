@@ -207,10 +207,8 @@ entry:
 ; GCN-DAG: v_bfe_i32
 ; GCN-DAG: v_bfe_i32
 
-; SI-DAG: ds_write_b64
-; SI-DAG: ds_write_b32
-; CIVI-DAG: ds_write_b96
-; GFX9-DAG: ds_write_b96
+; GCN-DAG: ds_write_b64
+; GCN-DAG: ds_write_b32
 
 ; EG: LDS_READ_RET
 ; EG-DAG: BFE_INT

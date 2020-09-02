@@ -300,7 +300,6 @@ protected:
 
 private:
   void constructTypeDIE(DIE &Buffer, const DIBasicType *BTy);
-  void constructTypeDIE(DIE &Buffer, const DIStringType *BTy);
   void constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy);
   void constructTypeDIE(DIE &Buffer, const DISubroutineType *CTy);
   void constructSubrangeDIE(DIE &Buffer, const DISubrange *SR, DIE *IndexTy);

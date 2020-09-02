@@ -236,12 +236,15 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
   Attribute TuneAttr = F.getFnAttribute("tune-cpu");
   Attribute FSAttr = F.getFnAttribute("target-features");
 
-  StringRef CPU =
-      CPUAttr.isValid() ? CPUAttr.getValueAsString() : (StringRef)TargetCPU;
-  StringRef TuneCPU =
-      TuneAttr.isValid() ? TuneAttr.getValueAsString() : (StringRef)CPU;
-  StringRef FS =
-      FSAttr.isValid() ? FSAttr.getValueAsString() : (StringRef)TargetFS;
+  StringRef CPU = !CPUAttr.hasAttribute(Attribute::None)
+                      ? CPUAttr.getValueAsString()
+                      : (StringRef)TargetCPU;
+  StringRef TuneCPU = !TuneAttr.hasAttribute(Attribute::None)
+                      ? TuneAttr.getValueAsString()
+                      : (StringRef)CPU;
+  StringRef FS = !FSAttr.hasAttribute(Attribute::None)
+                     ? FSAttr.getValueAsString()
+                     : (StringRef)TargetFS;
 
   SmallString<512> Key;
   // The additions here are ordered so that the definitely short strings are
@@ -251,9 +254,8 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   // Extract prefer-vector-width attribute.
   unsigned PreferVectorWidthOverride = 0;
-  Attribute PreferVecWidthAttr = F.getFnAttribute("prefer-vector-width");
-  if (PreferVecWidthAttr.isValid()) {
-    StringRef Val = PreferVecWidthAttr.getValueAsString();
+  if (F.hasFnAttribute("prefer-vector-width")) {
+    StringRef Val = F.getFnAttribute("prefer-vector-width").getValueAsString();
     unsigned Width;
     if (!Val.getAsInteger(0, Width)) {
       Key += "prefer-vector-width=";
@@ -264,9 +266,9 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   // Extract min-legal-vector-width attribute.
   unsigned RequiredVectorWidth = UINT32_MAX;
-  Attribute MinLegalVecWidthAttr = F.getFnAttribute("min-legal-vector-width");
-  if (MinLegalVecWidthAttr.isValid()) {
-    StringRef Val = MinLegalVecWidthAttr.getValueAsString();
+  if (F.hasFnAttribute("min-legal-vector-width")) {
+    StringRef Val =
+        F.getFnAttribute("min-legal-vector-width").getValueAsString();
     unsigned Width;
     if (!Val.getAsInteger(0, Width)) {
       Key += "min-legal-vector-width=";

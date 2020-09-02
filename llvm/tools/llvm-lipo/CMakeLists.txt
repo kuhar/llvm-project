@@ -4,8 +4,6 @@ set(LLVM_LINK_COMPONENTS
   Option
   Support
   TextAPI
-  Core
-  BinaryFormat
 )
 
 set(LLVM_TARGET_DEFINITIONS LipoOpts.td)

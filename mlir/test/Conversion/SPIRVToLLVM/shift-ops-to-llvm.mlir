@@ -5,7 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: @shift_right_arithmetic_scalar
-spv.func @shift_right_arithmetic_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %arg3 : ui16) "None" {
+func @shift_right_arithmetic_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %arg3 : ui16) {
   // CHECK: llvm.ashr %{{.*}}, %{{.*}} : !llvm.i32
   %0 = spv.ShiftRightArithmetic %arg0, %arg0 : i32, i32
 
@@ -19,11 +19,11 @@ spv.func @shift_right_arithmetic_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %a
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.i16 to !llvm.i32
   // CHECK: llvm.ashr %{{.*}}, %[[ZEXT]] : !llvm.i32
   %3 = spv.ShiftRightArithmetic %arg0, %arg3 : i32, ui16
-  spv.Return
+  return
 }
 
 // CHECK-LABEL: @shift_right_arithmetic_vector
-spv.func @shift_right_arithmetic_vector(%arg0: vector<4xi64>, %arg1: vector<4xui64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) "None" {
+func @shift_right_arithmetic_vector(%arg0: vector<4xi64>, %arg1: vector<4xui64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) {
   // CHECK: llvm.ashr %{{.*}}, %{{.*}} : !llvm.vec<4 x i64>
   %0 = spv.ShiftRightArithmetic %arg0, %arg0 : vector<4xi64>, vector<4xi64>
 
@@ -37,7 +37,7 @@ spv.func @shift_right_arithmetic_vector(%arg0: vector<4xi64>, %arg1: vector<4xui
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.vec<4 x i32> to !llvm.vec<4 x i64>
   // CHECK: llvm.ashr %{{.*}}, %[[ZEXT]] : !llvm.vec<4 x i64>
   %3 = spv.ShiftRightArithmetic %arg0, %arg3 : vector<4xi64>, vector<4xui32>
-  spv.Return
+  return
 }
 
 //===----------------------------------------------------------------------===//
@@ -45,7 +45,7 @@ spv.func @shift_right_arithmetic_vector(%arg0: vector<4xi64>, %arg1: vector<4xui
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: @shift_right_logical_scalar
-spv.func @shift_right_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : si16, %arg3 : ui16) "None" {
+func @shift_right_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : si16, %arg3 : ui16) {
   // CHECK: llvm.lshr %{{.*}}, %{{.*}} : !llvm.i32
   %0 = spv.ShiftRightLogical %arg0, %arg0 : i32, i32
 
@@ -59,11 +59,11 @@ spv.func @shift_right_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : si16, %arg
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.i16 to !llvm.i32
   // CHECK: llvm.lshr %{{.*}}, %[[ZEXT]] : !llvm.i32
   %3 = spv.ShiftRightLogical %arg0, %arg3 : i32, ui16
-  spv.Return
+  return
 }
 
 // CHECK-LABEL: @shift_right_logical_vector
-spv.func @shift_right_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) "None" {
+func @shift_right_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) {
   // CHECK: llvm.lshr %{{.*}}, %{{.*}} : !llvm.vec<4 x i64>
   %0 = spv.ShiftRightLogical %arg0, %arg0 : vector<4xi64>, vector<4xi64>
 
@@ -77,7 +77,7 @@ spv.func @shift_right_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.vec<4 x i32> to !llvm.vec<4 x i64>
   // CHECK: llvm.lshr %{{.*}}, %[[ZEXT]] : !llvm.vec<4 x i64>
   %3 = spv.ShiftRightLogical %arg0, %arg3 : vector<4xi64>, vector<4xui32>
-  spv.Return
+  return
 }
 
 //===----------------------------------------------------------------------===//
@@ -85,7 +85,7 @@ spv.func @shift_right_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>
 //===----------------------------------------------------------------------===//
 
 // CHECK-LABEL: @shift_left_logical_scalar
-spv.func @shift_left_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %arg3 : ui16) "None" {
+func @shift_left_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %arg3 : ui16) {
   // CHECK: llvm.shl %{{.*}}, %{{.*}} : !llvm.i32
   %0 = spv.ShiftLeftLogical %arg0, %arg0 : i32, i32
 
@@ -99,11 +99,11 @@ spv.func @shift_left_logical_scalar(%arg0: i32, %arg1: si32, %arg2 : i16, %arg3 
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.i16 to !llvm.i32
   // CHECK: llvm.shl %{{.*}}, %[[ZEXT]] : !llvm.i32
   %3 = spv.ShiftLeftLogical %arg0, %arg3 : i32, ui16
-  spv.Return
+  return
 }
 
 // CHECK-LABEL: @shift_left_logical_vector
-spv.func @shift_left_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) "None" {
+func @shift_left_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>, %arg2: vector<4xi32>, %arg3: vector<4xui32>) {
   // CHECK: llvm.shl %{{.*}}, %{{.*}} : !llvm.vec<4 x i64>
   %0 = spv.ShiftLeftLogical %arg0, %arg0 : vector<4xi64>, vector<4xi64>
 
@@ -117,5 +117,5 @@ spv.func @shift_left_logical_vector(%arg0: vector<4xi64>, %arg1: vector<4xsi64>,
   // CHECK: %[[ZEXT:.*]] = llvm.zext %{{.*}} : !llvm.vec<4 x i32> to !llvm.vec<4 x i64>
   // CHECK: llvm.shl %{{.*}}, %[[ZEXT]] : !llvm.vec<4 x i64>
   %3 = spv.ShiftLeftLogical %arg0, %arg3 : vector<4xi64>, vector<4xui32>
-  spv.Return
+  return
 }

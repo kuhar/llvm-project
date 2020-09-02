@@ -293,7 +293,7 @@ uptr SignalContext::GetAddress() const {
 
 bool SignalContext::IsMemoryAccess() const {
   auto si = static_cast<const siginfo_t *>(siginfo);
-  return si->si_signo == SIGSEGV || si->si_signo == SIGBUS;
+  return si->si_signo == SIGSEGV;
 }
 
 int SignalContext::GetType() const {

@@ -552,8 +552,7 @@ static void LocalPrintStackTrace(raw_ostream &OS, PCONTEXT C) {
                            StackFrame, C);
 }
 
-void llvm::sys::PrintStackTrace(raw_ostream &OS, int Depth) {
-  // FIXME: Handle "Depth" parameter to print stack trace upto specified Depth
+void llvm::sys::PrintStackTrace(raw_ostream &OS) {
   LocalPrintStackTrace(OS, nullptr);
 }
 

@@ -85,9 +85,9 @@ PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
     }
 
     if (UR.InvalidatedSCCs.count(C))
-      PI.runAfterPassInvalidated<LazyCallGraph::SCC>(*Pass, PassPA);
+      PI.runAfterPassInvalidated<LazyCallGraph::SCC>(*Pass);
     else
-      PI.runAfterPass<LazyCallGraph::SCC>(*Pass, *C, PassPA);
+      PI.runAfterPass<LazyCallGraph::SCC>(*Pass, *C);
 
     // Update the SCC if necessary.
     C = UR.UpdatedC ? UR.UpdatedC : C;

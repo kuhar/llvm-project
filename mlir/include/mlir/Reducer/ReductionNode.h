@@ -32,11 +32,8 @@ class ReductionNode {
 public:
   ReductionNode(ModuleOp module, ReductionNode *parent);
 
-  ReductionNode(ModuleOp module, ReductionNode *parent,
-                std::vector<bool> transformSpace);
-
   /// Calculates and initializes the size and interesting values of the node.
-  void measureAndTest(const Tester &test);
+  void measureAndTest(const Tester *test);
 
   /// Returns the module.
   ModuleOp getModule() const { return module; }
@@ -53,20 +50,11 @@ public:
   /// Returns the pointer to a child variant by index.
   ReductionNode *getVariant(unsigned long index) const;
 
-  /// Returns the number of child variants.
-  int variantsSize() const;
-
   /// Returns true if the vector containing the child variants is empty.
   bool variantsEmpty() const;
 
   /// Sort the child variants and remove the uninteresting ones.
-  void organizeVariants(const Tester &test);
-
-  /// Returns the number of child variants.
-  int transformSpaceSize();
-
-  /// Returns a vector indicating the transformed indices as true.
-  const std::vector<bool> getTransformSpace();
+  void organizeVariants(const Tester *test);
 
 private:
   /// Link a child variant node.
@@ -85,10 +73,6 @@ private:
 
   // This indicates if the module has been evalueated (measured and tested).
   bool evaluated;
-
-  // Indicates the indices in the node that have been transformed in previous
-  // levels of the reduction tree.
-  std::vector<bool> transformSpace;
 
   // This points to the child variants that were created using this node as a
   // starting point.

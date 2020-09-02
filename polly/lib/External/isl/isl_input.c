@@ -242,7 +242,8 @@ error:
 
 /* Read an isl_val from "str".
  */
-__isl_give isl_val *isl_val_read_from_str(isl_ctx *ctx, const char *str)
+struct isl_val *isl_val_read_from_str(struct isl_ctx *ctx,
+	const char *str)
 {
 	isl_val *val;
 	isl_stream *s = isl_stream_new_str(ctx, str);
@@ -336,10 +337,10 @@ error:
 static __isl_give isl_pw_aff *accept_affine(__isl_keep isl_stream *s,
 	__isl_take isl_space *space, struct vars *v);
 static __isl_give isl_pw_aff_list *accept_affine_list(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v);
+	__isl_take isl_space *dim, struct vars *v);
 
 static __isl_give isl_pw_aff *accept_minmax(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v)
+	__isl_take isl_space *dim, struct vars *v)
 {
 	struct isl_token *tok;
 	isl_pw_aff_list *list = NULL;
@@ -354,17 +355,17 @@ static __isl_give isl_pw_aff *accept_minmax(__isl_keep isl_stream *s,
 	if (isl_stream_eat(s, '('))
 		goto error;
 
-	list = accept_affine_list(s, isl_space_copy(space), v);
+	list = accept_affine_list(s, isl_space_copy(dim), v);
 	if (!list)
 		goto error;
 
 	if (isl_stream_eat(s, ')'))
 		goto error;
 
-	isl_space_free(space);
+	isl_space_free(dim);
 	return min ? isl_pw_aff_list_min(list) : isl_pw_aff_list_max(list);
 error:
-	isl_space_free(space);
+	isl_space_free(dim);
 	isl_pw_aff_list_free(list);
 	return NULL;
 }
@@ -399,7 +400,7 @@ static int is_start_of_div(struct isl_token *tok)
  *	ceild(<affine expression>,<denominator>)
  */
 static __isl_give isl_pw_aff *accept_div(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v)
+	__isl_take isl_space *dim, struct vars *v)
 {
 	struct isl_token *tok;
 	int f = 0;
@@ -423,7 +424,7 @@ static __isl_give isl_pw_aff *accept_div(__isl_keep isl_stream *s,
 			goto error;
 	}
 
-	pwaff = accept_affine(s, isl_space_copy(space), v);
+	pwaff = accept_affine(s, isl_space_copy(dim), v);
 
 	if (extra) {
 		if (isl_stream_eat(s, ','))
@@ -454,10 +455,10 @@ static __isl_give isl_pw_aff *accept_div(__isl_keep isl_stream *s,
 			goto error;
 	}
 
-	isl_space_free(space);
+	isl_space_free(dim);
 	return pwaff;
 error:
-	isl_space_free(space);
+	isl_space_free(dim);
 	isl_pw_aff_free(pwaff);
 	return NULL;
 }
@@ -735,7 +736,7 @@ static int is_comparator(struct isl_token *tok)
 static __isl_give isl_map *read_formula(__isl_keep isl_stream *s,
 	struct vars *v, __isl_take isl_map *map, int rational);
 static __isl_give isl_pw_aff *accept_extended_affine(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v, int rational);
+	__isl_take isl_space *dim, struct vars *v, int rational);
 
 /* Accept a ternary operator, given the first argument.
  */
@@ -833,15 +834,16 @@ static int next_is_comparator(__isl_keep isl_stream *s)
  * argument of a ternary operator and try to parse that.
  */
 static __isl_give isl_pw_aff *accept_extended_affine(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v, int rational)
+	__isl_take isl_space *dim, struct vars *v, int rational)
 {
+	isl_space *space;
 	isl_map *cond;
 	isl_pw_aff *pwaff;
 	int line = -1, col = -1;
 
 	set_current_line_col(s, &line, &col);
 
-	pwaff = accept_affine(s, space, v);
+	pwaff = accept_affine(s, dim, v);
 	if (rational)
 		pwaff = isl_pw_aff_set_rational(pwaff);
 	if (!pwaff)
@@ -898,13 +900,13 @@ static __isl_give isl_map *read_var_def(__isl_keep isl_stream *s,
 }
 
 static __isl_give isl_pw_aff_list *accept_affine_list(__isl_keep isl_stream *s,
-	__isl_take isl_space *space, struct vars *v)
+	__isl_take isl_space *dim, struct vars *v)
 {
 	isl_pw_aff *pwaff;
 	isl_pw_aff_list *list;
 	struct isl_token *tok = NULL;
 
-	pwaff = accept_affine(s, isl_space_copy(space), v);
+	pwaff = accept_affine(s, isl_space_copy(dim), v);
 	list = isl_pw_aff_list_from_pw_aff(pwaff);
 	if (!list)
 		goto error;
@@ -921,17 +923,17 @@ static __isl_give isl_pw_aff_list *accept_affine_list(__isl_keep isl_stream *s,
 		}
 		isl_token_free(tok);
 
-		pwaff = accept_affine(s, isl_space_copy(space), v);
+		pwaff = accept_affine(s, isl_space_copy(dim), v);
 		list = isl_pw_aff_list_concat(list,
 				isl_pw_aff_list_from_pw_aff(pwaff));
 		if (!list)
 			goto error;
 	}
 
-	isl_space_free(space);
+	isl_space_free(dim);
 	return list;
 error:
-	isl_space_free(space);
+	isl_space_free(dim);
 	isl_pw_aff_list_free(list);
 	return NULL;
 }
@@ -2027,9 +2029,9 @@ static __isl_give isl_map *read_conjunct(__isl_keep isl_stream *s,
 		return map;
 
 	if (isl_stream_eat_if_available(s, ISL_TOKEN_FALSE)) {
-		isl_space *space = isl_map_get_space(map);
+		isl_space *dim = isl_map_get_space(map);
 		isl_map_free(map);
-		return isl_map_empty(space);
+		return isl_map_empty(dim);
 	}
 		
 	return add_constraint(s, v, map, rational);
@@ -2064,7 +2066,7 @@ static __isl_give isl_map *read_conjuncts(__isl_keep isl_stream *s,
 	return res;
 }
 
-static __isl_give isl_map *read_disjuncts(__isl_keep isl_stream *s,
+static struct isl_map *read_disjuncts(__isl_keep isl_stream *s,
 	struct vars *v, __isl_take isl_map *map, int rational)
 {
 	isl_map *res;
@@ -2342,7 +2344,7 @@ error:
 	return NULL;
 }
 
-static __isl_give isl_map *map_read_polylib(__isl_keep isl_stream *s)
+static struct isl_map *map_read_polylib(__isl_keep isl_stream *s)
 {
 	struct isl_token *tok;
 	struct isl_token *tok2;
@@ -3175,7 +3177,7 @@ __isl_give isl_basic_set *isl_basic_set_read_from_file(isl_ctx *ctx,
 	return bset;
 }
 
-__isl_give isl_basic_map *isl_basic_map_read_from_str(isl_ctx *ctx,
+struct isl_basic_map *isl_basic_map_read_from_str(struct isl_ctx *ctx,
 	const char *str)
 {
 	struct isl_basic_map *bmap;
@@ -3187,7 +3189,7 @@ __isl_give isl_basic_map *isl_basic_map_read_from_str(isl_ctx *ctx,
 	return bmap;
 }
 
-__isl_give isl_basic_set *isl_basic_set_read_from_str(isl_ctx *ctx,
+struct isl_basic_set *isl_basic_set_read_from_str(struct isl_ctx *ctx,
 	const char *str)
 {
 	isl_basic_set *bset;
@@ -3235,7 +3237,8 @@ __isl_give isl_set *isl_set_read_from_file(struct isl_ctx *ctx,
 	return set;
 }
 
-__isl_give isl_set *isl_set_read_from_str(isl_ctx *ctx, const char *str)
+struct isl_set *isl_set_read_from_str(struct isl_ctx *ctx,
+	const char *str)
 {
 	isl_set *set;
 	isl_stream *s = isl_stream_new_str(ctx, str);

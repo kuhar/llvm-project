@@ -39,7 +39,6 @@ static int size_val(isl::size s)
 	return s.is_error() ? -1 : unsigned(s);
 }
 
-#undef assert
 #define assert(exp) assert_impl(exp, __FILE__, __LINE__, #exp)
 #define IS_TRUE(b)	(b).is_true()
 #define SIZE_VAL(s)	size_val(s)

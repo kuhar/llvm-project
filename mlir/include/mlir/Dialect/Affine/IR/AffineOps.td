@@ -405,8 +405,7 @@ def AffineIfOp : Affine_Op<"if",
 
 class AffineLoadOpBase<string mnemonic, list<OpTrait> traits = []> :
     Affine_Op<mnemonic, !listconcat(traits,
-        [DeclareOpInterfaceMethods<AffineReadOpInterface>,
-        MemRefsNormalizable])> {
+        [DeclareOpInterfaceMethods<AffineReadOpInterface>])> {
   let arguments = (ins Arg<AnyMemRef, "the reference to load from",
       [MemRead]>:$memref,
       Variadic<Index>:$indices);
@@ -622,6 +621,11 @@ def AffineParallelOp : Affine_Op<"parallel",
     /// Get the number of dimensions.
     unsigned getNumDims();
 
+    operand_range getLowerBoundsOperands();
+    operand_range getUpperBoundsOperands();
+
+    AffineValueMap getLowerBoundsValueMap();
+    AffineValueMap getUpperBoundsValueMap();
     AffineValueMap getRangesValueMap();
 
     /// Get ranges as constants, may fail in dynamic case.
@@ -632,18 +636,6 @@ def AffineParallelOp : Affine_Op<"parallel",
     MutableArrayRef<BlockArgument> getIVs() {
       return getBody()->getArguments();
     }
-
-    operand_range getLowerBoundsOperands();
-    AffineValueMap getLowerBoundsValueMap();
-    void setLowerBounds(ValueRange operands, AffineMap map);
-    void setLowerBoundsMap(AffineMap map);
-
-    operand_range getUpperBoundsOperands();
-    AffineValueMap getUpperBoundsValueMap();
-    void setUpperBounds(ValueRange operands, AffineMap map);
-    void setUpperBoundsMap(AffineMap map);
-
-    SmallVector<int64_t, 8> getSteps();
     void setSteps(ArrayRef<int64_t> newSteps);
 
     static StringRef getReductionsAttrName() { return "reductions"; }
@@ -651,8 +643,6 @@ def AffineParallelOp : Affine_Op<"parallel",
     static StringRef getUpperBoundsMapAttrName() { return "upperBoundsMap"; }
     static StringRef getStepsAttrName() { return "steps"; }
   }];
-
-  let hasFolder = 1;
 }
 
 def AffinePrefetchOp : Affine_Op<"prefetch"> {
@@ -733,8 +723,7 @@ def AffinePrefetchOp : Affine_Op<"prefetch"> {
 
 class AffineStoreOpBase<string mnemonic, list<OpTrait> traits = []> :
     Affine_Op<mnemonic, !listconcat(traits,
-    [DeclareOpInterfaceMethods<AffineWriteOpInterface>,
-    MemRefsNormalizable])> {
+        [DeclareOpInterfaceMethods<AffineWriteOpInterface>])> {
   code extraClassDeclarationBase = [{
     /// Returns the operand index of the value to be stored.
     unsigned getStoredValOperandIndex() { return 0; }

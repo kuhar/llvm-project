@@ -813,7 +813,6 @@ template <typename A> bool IsAllocatableOrPointer(const A &x) {
 
 // Procedure and pointer detection predicates
 bool IsProcedure(const Expr<SomeType> &);
-bool IsFunction(const Expr<SomeType> &);
 bool IsProcedurePointer(const Expr<SomeType> &);
 bool IsNullPointer(const Expr<SomeType> &);
 

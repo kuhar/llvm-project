@@ -58,13 +58,14 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class:  ELFCLASS64
-  Data:   ELFDATA2LSB
-  Type:   ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 ## We simulate no section header table by
 ## overriding the ELF header properties.
-  EShOff: 0x0
-  EShNum: 0x0
+  EShOff:  0x0
+  EShNum:  0x0
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -102,9 +103,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:   .hash
     Type:   SHT_HASH
@@ -195,9 +197,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
   - Name:    .hash
     Type:    SHT_HASH

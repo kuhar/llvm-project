@@ -858,9 +858,7 @@ bool raw_fd_ostream::is_displayed() const {
 }
 
 bool raw_fd_ostream::has_colors() const {
-  if (!HasColors)
-    HasColors = sys::Process::FileDescriptorHasColors(FD);
-  return *HasColors;
+  return sys::Process::FileDescriptorHasColors(FD);
 }
 
 Expected<sys::fs::FileLocker> raw_fd_ostream::lock() {

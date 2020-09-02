@@ -66,11 +66,9 @@ extern template void DeleteEdge<BBPostDomTree>(BBPostDomTree &DT,
                                                BasicBlock *To);
 
 extern template void ApplyUpdates<BBDomTree>(BBDomTree &DT,
-                                             BBDomTreeGraphDiff &,
-                                             BBDomTreeGraphDiff *);
+                                             BBDomTreeGraphDiff &);
 extern template void ApplyUpdates<BBPostDomTree>(BBPostDomTree &DT,
-                                                 BBPostDomTreeGraphDiff &,
-                                                 BBPostDomTreeGraphDiff *);
+                                                 BBPostDomTreeGraphDiff &);
 
 extern template bool Verify<BBDomTree>(const BBDomTree &DT,
                                        BBDomTree::VerificationLevel VL);

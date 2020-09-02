@@ -519,8 +519,7 @@ def C_JR : RVInst16CR<0b1000, 0b10, (outs), (ins GPRNoX0:$rs1),
   let rs2 = 0;
 }
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isMoveReg = 1,
-    isAsCheapAsAMove = 1 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def C_MV : RVInst16CR<0b1000, 0b10, (outs GPRNoX0:$rs1), (ins GPRNoX0:$rs2),
                       "c.mv", "$rs1, $rs2">,
            Sched<[WriteIALU, ReadIALU]>;

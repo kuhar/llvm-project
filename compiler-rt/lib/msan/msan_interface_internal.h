@@ -187,12 +187,6 @@ void __msan_scoped_disable_interceptor_checks();
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void __msan_scoped_enable_interceptor_checks();
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void __msan_start_switch_fiber(const void *bottom, uptr size);
-
-SANITIZER_INTERFACE_ATTRIBUTE
-void __msan_finish_switch_fiber(const void **bottom_old, uptr *size_old);
 }  // extern "C"
 
 #endif  // MSAN_INTERFACE_INTERNAL_H

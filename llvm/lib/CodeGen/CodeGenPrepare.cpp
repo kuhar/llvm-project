@@ -2044,12 +2044,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
     switch (II->getIntrinsicID()) {
     default: break;
     case Intrinsic::assume: {
-      Value *Operand = II->getOperand(0);
       II->eraseFromParent();
-      // Prune the operand, it's most likely dead.
-      RecursivelyDeleteTriviallyDeadInstructions(
-          Operand, TLInfo, nullptr,
-          [&](Value *V) { removeAllAssertingVHReferences(V); });
       return true;
     }
 
@@ -6487,7 +6482,9 @@ bool CodeGenPrepare::optimizeFunnelShift(IntrinsicInst *Fsh) {
 /// If we have a SelectInst that will likely profit from branch prediction,
 /// turn it into a branch.
 bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
-  if (DisableSelectToBranch)
+  // If branch conversion isn't desirable, exit early.
+  if (DisableSelectToBranch || OptSize ||
+      llvm::shouldOptimizeForSize(SI->getParent(), PSI, BFI.get()))
     return false;
 
   // Find all consecutive select instructions that share the same condition.
@@ -6523,8 +6520,7 @@ bool CodeGenPrepare::optimizeSelectInst(SelectInst *SI) {
     SelectKind = TargetLowering::ScalarValSelect;
 
   if (TLI->isSelectSupported(SelectKind) &&
-      (!isFormingBranchFromSelectProfitable(TTI, TLI, SI) || OptSize ||
-       llvm::shouldOptimizeForSize(SI->getParent(), PSI, BFI.get())))
+      !isFormingBranchFromSelectProfitable(TTI, TLI, SI))
     return false;
 
   // The DominatorTree needs to be rebuilt by any consumers after this
@@ -6962,10 +6958,10 @@ class VectorPromoteHelper {
     if (UseSplat)
       return ConstantVector::getSplat(EC, Val);
 
-    if (!EC.isScalable()) {
+    if (!EC.Scalable) {
       SmallVector<Constant *, 4> ConstVec;
       UndefValue *UndefVal = UndefValue::get(Val->getType());
-      for (unsigned Idx = 0; Idx != EC.getKnownMinValue(); ++Idx) {
+      for (unsigned Idx = 0; Idx != EC.Min; ++Idx) {
         if (Idx == ExtractIdx)
           ConstVec.push_back(Val);
         else

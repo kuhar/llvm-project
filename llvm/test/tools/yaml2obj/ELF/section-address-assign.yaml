@@ -46,9 +46,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  [[TYPE]]
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    [[TYPE]]
+  Machine: EM_X86_64
 Sections:
 ## Show we can place a section at any address.
   - Name:    .text.any.addr

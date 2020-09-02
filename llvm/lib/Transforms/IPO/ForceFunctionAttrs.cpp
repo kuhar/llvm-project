@@ -26,13 +26,6 @@ static cl::list<std::string>
                              "example -force-attribute=foo:noinline. This "
                              "option can be specified multiple times."));
 
-static cl::list<std::string> ForceRemoveAttributes(
-    "force-remove-attribute", cl::Hidden,
-    cl::desc("Remove an attribute from a function. This should be a "
-             "pair of 'function-name:attribute-name', for "
-             "example -force-remove-attribute=foo:noinline. This "
-             "option can be specified multiple times."));
-
 static Attribute::AttrKind parseAttrKind(StringRef Kind) {
   return StringSwitch<Attribute::AttrKind>(Kind)
       .Case("alwaysinline", Attribute::AlwaysInline)
@@ -77,41 +70,25 @@ static Attribute::AttrKind parseAttrKind(StringRef Kind) {
 }
 
 /// If F has any forced attributes given on the command line, add them.
-/// If F has any forced remove attributes given on the command line, remove
-/// them. When both force and force-remove are given to a function, the latter
-/// takes precedence.
-static void forceAttributes(Function &F) {
-  auto ParseFunctionAndAttr = [&](StringRef S) {
-    auto Kind = Attribute::None;
+static void addForcedAttributes(Function &F) {
+  for (auto &S : ForceAttributes) {
     auto KV = StringRef(S).split(':');
     if (KV.first != F.getName())
-      return Kind;
-    Kind = parseAttrKind(KV.second);
+      continue;
+
+    auto Kind = parseAttrKind(KV.second);
     if (Kind == Attribute::None) {
       LLVM_DEBUG(dbgs() << "ForcedAttribute: " << KV.second
                         << " unknown or not handled!\n");
+      continue;
     }
-    return Kind;
-  };
-
-  for (auto &S : ForceAttributes) {
-    auto Kind = ParseFunctionAndAttr(S);
-    if (Kind == Attribute::None || F.hasFnAttribute(Kind))
+    if (F.hasFnAttribute(Kind))
       continue;
     F.addFnAttr(Kind);
   }
-
-  for (auto &S : ForceRemoveAttributes) {
-    auto Kind = ParseFunctionAndAttr(S);
-    if (Kind == Attribute::None || !F.hasFnAttribute(Kind))
-      continue;
-    F.removeFnAttr(Kind);
-  }
 }
 
-static bool hasForceAttributes() {
-  return !ForceAttributes.empty() || !ForceRemoveAttributes.empty();
-}
+static bool hasForceAttributes() { return !ForceAttributes.empty(); }
 
 PreservedAnalyses ForceFunctionAttrsPass::run(Module &M,
                                               ModuleAnalysisManager &) {
@@ -119,7 +96,7 @@ PreservedAnalyses ForceFunctionAttrsPass::run(Module &M,
     return PreservedAnalyses::all();
 
   for (Function &F : M.functions())
-    forceAttributes(F);
+    addForcedAttributes(F);
 
   // Just conservatively invalidate analyses, this isn't likely to be important.
   return PreservedAnalyses::none();
@@ -134,11 +111,11 @@ struct ForceFunctionAttrsLegacyPass : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    if (!hasForceAttributes())
+    if (ForceAttributes.empty())
       return false;
 
     for (Function &F : M.functions())
-      forceAttributes(F);
+      addForcedAttributes(F);
 
     // Conservatively assume we changed something.
     return true;

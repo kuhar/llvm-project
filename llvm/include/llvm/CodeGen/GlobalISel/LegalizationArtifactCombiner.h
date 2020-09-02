@@ -506,78 +506,20 @@ public:
       Observer.changedInstr(*UseMI);
   }
 
-  /// Return the operand index in \p MI that defines \p Def
-  static unsigned getDefIndex(const MachineInstr &MI, Register SearchDef) {
-    unsigned DefIdx = 0;
-    for (const MachineOperand &Def : MI.defs()) {
-      if (Def.getReg() == SearchDef)
-        break;
-      ++DefIdx;
-    }
-
-    return DefIdx;
-  }
-
-  bool tryCombineUnmergeValues(MachineInstr &MI,
-                               SmallVectorImpl<MachineInstr *> &DeadInsts,
-                               SmallVectorImpl<Register> &UpdatedDefs,
-                               GISelObserverWrapper &Observer) {
+  bool tryCombineMerges(MachineInstr &MI,
+                        SmallVectorImpl<MachineInstr *> &DeadInsts,
+                        SmallVectorImpl<Register> &UpdatedDefs,
+                        GISelObserverWrapper &Observer) {
     assert(MI.getOpcode() == TargetOpcode::G_UNMERGE_VALUES);
 
     unsigned NumDefs = MI.getNumOperands() - 1;
-    Register SrcReg = MI.getOperand(NumDefs).getReg();
-    MachineInstr *SrcDef = getDefIgnoringCopies(SrcReg, MRI);
+    MachineInstr *SrcDef =
+        getDefIgnoringCopies(MI.getOperand(NumDefs).getReg(), MRI);
     if (!SrcDef)
       return false;
 
     LLT OpTy = MRI.getType(MI.getOperand(NumDefs).getReg());
     LLT DestTy = MRI.getType(MI.getOperand(0).getReg());
-
-    if (SrcDef->getOpcode() == TargetOpcode::G_UNMERGE_VALUES) {
-      // %0:_(<4 x s16>) = G_FOO
-      // %1:_(<2 x s16>), %2:_(<2 x s16>) = G_UNMERGE_VALUES %0
-      // %3:_(s16), %4:_(s16) = G_UNMERGE_VALUES %1
-      //
-      // %3:_(s16), %4:_(s16), %5:_(s16), %6:_(s16) = G_UNMERGE_VALUES %0
-      const unsigned NumSrcOps = SrcDef->getNumOperands();
-      Register SrcUnmergeSrc = SrcDef->getOperand(NumSrcOps - 1).getReg();
-      LLT SrcUnmergeSrcTy = MRI.getType(SrcUnmergeSrc);
-
-      // If we need to decrease the number of vector elements in the result type
-      // of an unmerge, this would involve the creation of an equivalent unmerge
-      // to copy back to the original result registers.
-      LegalizeActionStep ActionStep = LI.getAction(
-          {TargetOpcode::G_UNMERGE_VALUES, {OpTy, SrcUnmergeSrcTy}});
-      switch (ActionStep.Action) {
-      case LegalizeActions::Lower:
-      case LegalizeActions::Unsupported:
-        break;
-      case LegalizeActions::FewerElements:
-      case LegalizeActions::NarrowScalar:
-        if (ActionStep.TypeIdx == 1)
-          return false;
-        break;
-      default:
-        return false;
-      }
-
-      Builder.setInstrAndDebugLoc(MI);
-      auto NewUnmerge = Builder.buildUnmerge(DestTy, SrcUnmergeSrc);
-
-      // TODO: Should we try to process out the other defs now? If the other
-      // defs of the source unmerge are also unmerged, we end up with a separate
-      // unmerge for each one.
-      unsigned SrcDefIdx = getDefIndex(*SrcDef, SrcReg);
-      for (unsigned I = 0; I != NumDefs; ++I) {
-        Register Def = MI.getOperand(I).getReg();
-        replaceRegOrBuildCopy(Def, NewUnmerge.getReg(SrcDefIdx * NumDefs + I),
-                              MRI, Builder, UpdatedDefs, Observer);
-      }
-
-      markInstAndDefDead(MI, *SrcDef, DeadInsts, SrcDefIdx);
-      return true;
-    }
-
     MachineInstr *MergeI = SrcDef;
     unsigned ConvertOp = 0;
 
@@ -805,8 +747,7 @@ public:
       Changed = tryCombineSExt(MI, DeadInsts, UpdatedDefs);
       break;
     case TargetOpcode::G_UNMERGE_VALUES:
-      Changed =
-          tryCombineUnmergeValues(MI, DeadInsts, UpdatedDefs, WrapperObserver);
+      Changed = tryCombineMerges(MI, DeadInsts, UpdatedDefs, WrapperObserver);
       break;
     case TargetOpcode::G_MERGE_VALUES:
     case TargetOpcode::G_BUILD_VECTOR:
@@ -894,8 +835,7 @@ private:
   /// dead.
   /// MI is not marked dead.
   void markDefDead(MachineInstr &MI, MachineInstr &DefMI,
-                   SmallVectorImpl<MachineInstr *> &DeadInsts,
-                   unsigned DefIdx = 0) {
+                   SmallVectorImpl<MachineInstr *> &DeadInsts) {
     // Collect all the copy instructions that are made dead, due to deleting
     // this instruction. Collect all of them until the Trunc(DefMI).
     // Eg,
@@ -922,27 +862,8 @@ private:
         break;
       PrevMI = TmpDef;
     }
-
-    if (PrevMI == &DefMI) {
-      unsigned I = 0;
-      bool IsDead = true;
-      for (MachineOperand &Def : DefMI.defs()) {
-        if (I != DefIdx) {
-          if (!MRI.use_empty(Def.getReg())) {
-            IsDead = false;
-            break;
-          }
-        } else {
-          if (!MRI.hasOneUse(DefMI.getOperand(DefIdx).getReg()))
-            break;
-        }
-
-        ++I;
-      }
-
-      if (IsDead)
-        DeadInsts.push_back(&DefMI);
-    }
+    if (PrevMI == &DefMI && MRI.hasOneUse(DefMI.getOperand(0).getReg()))
+      DeadInsts.push_back(&DefMI);
   }
 
   /// Mark MI as dead. If a def of one of MI's operands, DefMI, would also be
@@ -951,10 +872,9 @@ private:
   /// copies in between the extends and the truncs, and this attempts to collect
   /// the in between copies if they're dead.
   void markInstAndDefDead(MachineInstr &MI, MachineInstr &DefMI,
-                          SmallVectorImpl<MachineInstr *> &DeadInsts,
-                          unsigned DefIdx = 0) {
+                          SmallVectorImpl<MachineInstr *> &DeadInsts) {
     DeadInsts.push_back(&MI);
-    markDefDead(MI, DefMI, DeadInsts, DefIdx);
+    markDefDead(MI, DefMI, DeadInsts);
   }
 
   /// Erase the dead instructions in the list and call the observer hooks.

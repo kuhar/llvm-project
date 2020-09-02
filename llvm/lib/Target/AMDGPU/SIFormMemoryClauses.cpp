@@ -62,7 +62,7 @@ public:
 
 private:
   template <typename Callable>
-  void forAllLanes(Register Reg, LaneBitmask LaneMask, Callable Func) const;
+  void forAllLanes(unsigned Reg, LaneBitmask LaneMask, Callable Func) const;
 
   bool canBundle(const MachineInstr &MI, RegUse &Defs, RegUse &Uses) const;
   bool checkPressure(const MachineInstr &MI, GCNDownwardRPTracker &RPT);
@@ -145,15 +145,15 @@ static unsigned getMopState(const MachineOperand &MO) {
     S |= RegState::Kill;
   if (MO.isEarlyClobber())
     S |= RegState::EarlyClobber;
-  if (MO.getReg().isPhysical() && MO.isRenamable())
+  if (Register::isPhysicalRegister(MO.getReg()) && MO.isRenamable())
     S |= RegState::Renamable;
   return S;
 }
 
 template <typename Callable>
-void SIFormMemoryClauses::forAllLanes(Register Reg, LaneBitmask LaneMask,
+void SIFormMemoryClauses::forAllLanes(unsigned Reg, LaneBitmask LaneMask,
                                       Callable Func) const {
-  if (LaneMask.all() || Reg.isPhysical() ||
+  if (LaneMask.all() || Register::isPhysicalRegister(Reg) ||
       LaneMask == MRI->getMaxLaneMaskForVReg(Reg)) {
     Func(0);
     return;
@@ -228,7 +228,7 @@ bool SIFormMemoryClauses::canBundle(const MachineInstr &MI,
     if (Conflict == Map.end())
       continue;
 
-    if (Reg.isPhysical())
+    if (Register::isPhysicalRegister(Reg))
       return false;
 
     LaneBitmask Mask = TRI->getSubRegIndexLaneMask(MO.getSubReg());
@@ -270,7 +270,7 @@ void SIFormMemoryClauses::collectRegUses(const MachineInstr &MI,
     if (!Reg)
       continue;
 
-    LaneBitmask Mask = Reg.isVirtual()
+    LaneBitmask Mask = Register::isVirtualRegister(Reg)
                            ? TRI->getSubRegIndexLaneMask(MO.getSubReg())
                            : LaneBitmask::getAll();
     RegUse &Map = MO.isDef() ? Defs : Uses;
@@ -388,17 +388,17 @@ bool SIFormMemoryClauses::runOnMachineFunction(MachineFunction &MF) {
       }
 
       for (auto &&R : Defs) {
-        Register Reg = R.first;
+        unsigned Reg = R.first;
         Uses.erase(Reg);
-        if (Reg.isPhysical())
+        if (Register::isPhysicalRegister(Reg))
           continue;
         LIS->removeInterval(Reg);
         LIS->createAndComputeVirtRegInterval(Reg);
       }
 
       for (auto &&R : Uses) {
-        Register Reg = R.first;
-        if (Reg.isPhysical())
+        unsigned Reg = R.first;
+        if (Register::isPhysicalRegister(Reg))
           continue;
         LIS->removeInterval(Reg);
         LIS->createAndComputeVirtRegInterval(Reg);

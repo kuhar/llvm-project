@@ -508,7 +508,7 @@ public:
         PassPA = Pass.run(F, FAM);
       }
 
-      PI.runAfterPass<Function>(Pass, F, PassPA);
+      PI.runAfterPass<Function>(Pass, F);
 
       // We know that the function pass couldn't have invalidated any other
       // function's analyses (that's the contract of a function pass), so
@@ -639,9 +639,9 @@ public:
       PreservedAnalyses PassPA = Pass.run(*C, AM, CG, UR);
 
       if (UR.InvalidatedSCCs.count(C))
-        PI.runAfterPassInvalidated<LazyCallGraph::SCC>(Pass, PassPA);
+        PI.runAfterPassInvalidated<LazyCallGraph::SCC>(Pass);
       else
-        PI.runAfterPass<LazyCallGraph::SCC>(Pass, *C, PassPA);
+        PI.runAfterPass<LazyCallGraph::SCC>(Pass, *C);
 
       // If the SCC structure has changed, bail immediately and let the outer
       // CGSCC layer handle any iteration to reflect the refined structure.
@@ -903,9 +903,9 @@ ModuleToPostOrderCGSCCPassAdaptor<CGSCCPassT>::run(Module &M,
           }
 
           if (UR.InvalidatedSCCs.count(C))
-            PI.runAfterPassInvalidated<LazyCallGraph::SCC>(Pass, PassPA);
+            PI.runAfterPassInvalidated<LazyCallGraph::SCC>(Pass);
           else
-            PI.runAfterPass<LazyCallGraph::SCC>(Pass, *C, PassPA);
+            PI.runAfterPass<LazyCallGraph::SCC>(Pass, *C);
 
           // Update the SCC and RefSCC if necessary.
           C = UR.UpdatedC ? UR.UpdatedC : C;

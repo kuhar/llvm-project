@@ -87,9 +87,9 @@ bool llvm::isEqual(const GCNRPTracker::LiveRegSet &S1,
 ///////////////////////////////////////////////////////////////////////////////
 // GCNRegPressure
 
-unsigned GCNRegPressure::getRegKind(Register Reg,
+unsigned GCNRegPressure::getRegKind(unsigned Reg,
                                     const MachineRegisterInfo &MRI) {
-  assert(Reg.isVirtual());
+  assert(Register::isVirtualRegister(Reg));
   const auto RC = MRI.getRegClass(Reg);
   auto STI = static_cast<const SIRegisterInfo*>(MRI.getTargetRegisterInfo());
   return STI->isSGPRClass(RC) ?
@@ -199,7 +199,7 @@ void GCNRegPressure::print(raw_ostream &OS, const GCNSubtarget *ST) const {
 
 static LaneBitmask getDefRegMask(const MachineOperand &MO,
                                  const MachineRegisterInfo &MRI) {
-  assert(MO.isDef() && MO.isReg() && MO.getReg().isVirtual());
+  assert(MO.isDef() && MO.isReg() && Register::isVirtualRegister(MO.getReg()));
 
   // We don't rely on read-undef flag because in case of tentative schedule
   // tracking it isn't set correctly yet. This works correctly however since
@@ -212,7 +212,7 @@ static LaneBitmask getDefRegMask(const MachineOperand &MO,
 static LaneBitmask getUsedRegMask(const MachineOperand &MO,
                                   const MachineRegisterInfo &MRI,
                                   const LiveIntervals &LIS) {
-  assert(MO.isUse() && MO.isReg() && MO.getReg().isVirtual());
+  assert(MO.isUse() && MO.isReg() && Register::isVirtualRegister(MO.getReg()));
 
   if (auto SubReg = MO.getSubReg())
     return MRI.getTargetRegisterInfo()->getSubRegIndexLaneMask(SubReg);
@@ -233,7 +233,7 @@ collectVirtualRegUses(const MachineInstr &MI, const LiveIntervals &LIS,
                       const MachineRegisterInfo &MRI) {
   SmallVector<RegisterMaskPair, 8> Res;
   for (const auto &MO : MI.operands()) {
-    if (!MO.isReg() || !MO.getReg().isVirtual())
+    if (!MO.isReg() || !Register::isVirtualRegister(MO.getReg()))
       continue;
     if (!MO.isUse() || !MO.readsReg())
       continue;
@@ -330,7 +330,8 @@ void GCNUpwardRPTracker::recede(const MachineInstr &MI) {
   MaxPressure = max(AtMIPressure, MaxPressure);
 
   for (const auto &MO : MI.operands()) {
-    if (!MO.isReg() || !MO.isDef() || !MO.getReg().isVirtual() || MO.isDead())
+    if (!MO.isReg() || !MO.isDef() ||
+        !Register::isVirtualRegister(MO.getReg()) || MO.isDead())
       continue;
 
     auto Reg = MO.getReg();
@@ -409,7 +410,7 @@ void GCNDownwardRPTracker::advanceToNext() {
     if (!MO.isReg() || !MO.isDef())
       continue;
     Register Reg = MO.getReg();
-    if (!Reg.isVirtual())
+    if (!Register::isVirtualRegister(Reg))
       continue;
     auto &LiveMask = LiveRegs[Reg];
     auto PrevMask = LiveMask;

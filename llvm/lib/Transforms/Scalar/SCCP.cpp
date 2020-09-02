@@ -1976,18 +1976,18 @@ bool llvm::runIPSCCP(
       // inaccessiblemem_or_argmemonly attributes do not hold any longer. Remove
       // them from both the function and callsites.
       if (ReplacedPointerArg) {
-        AttrBuilder AttributesToRemove;
-        AttributesToRemove.addAttribute(Attribute::ArgMemOnly);
-        AttributesToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
-        F.removeAttributes(AttributeList::FunctionIndex, AttributesToRemove);
+        SmallVector<Attribute::AttrKind, 2> AttributesToRemove = {
+            Attribute::ArgMemOnly, Attribute::InaccessibleMemOrArgMemOnly};
+        for (auto Attr : AttributesToRemove)
+          F.removeFnAttr(Attr);
 
         for (User *U : F.users()) {
           auto *CB = dyn_cast<CallBase>(U);
           if (!CB || CB->getCalledFunction() != &F)
             continue;
 
-          CB->removeAttributes(AttributeList::FunctionIndex,
-                               AttributesToRemove);
+          for (auto Attr : AttributesToRemove)
+            CB->removeAttribute(AttributeList::FunctionIndex, Attr);
         }
       }
     }

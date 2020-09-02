@@ -48,9 +48,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2[[ENDIAN]]
-  Type:  ET_EXEC
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2[[ENDIAN]]
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_aranges:
     - Version:  2
@@ -98,9 +99,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:         .debug_aranges
     Type:         [[TYPE=SHT_PROGBITS]]
@@ -136,9 +138,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS=64]]
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS[[BITS=64]]
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_aranges:
     - Version:     2
@@ -166,9 +169,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_aranges:
     - Length:   0x1234
@@ -185,9 +189,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_aranges: []
 

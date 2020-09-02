@@ -263,7 +263,7 @@ public:
   // Converts the raw parameter list to a map, naming each actual parameter.
   void CookParameters(evaluate::FoldingContext &);
   // Evaluates type parameter expressions.
-  void EvaluateParameters(SemanticsContext &);
+  void EvaluateParameters(evaluate::FoldingContext &);
   void AddParamValue(SourceName, ParamValue &&);
   // Creates a Scope for the type and populates it with component
   // instantiations that have been specialized with actual type parameter

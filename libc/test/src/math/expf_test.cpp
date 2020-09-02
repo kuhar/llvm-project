@@ -28,6 +28,11 @@ using BitPatterns = __llvm_libc::fputil::BitPatterns<float>;
 
 namespace mpfr = __llvm_libc::testing::mpfr;
 
+// 12 additional bits of precision over the base precision of a |float|
+// value.
+static constexpr mpfr::Tolerance tolerance{mpfr::Tolerance::floatPrecision, 12,
+                                           0xFFF};
+
 TEST(ExpfTest, SpecialNumbers) {
   llvmlibc_errno = 0;
 
@@ -105,19 +110,19 @@ TEST(ExpfTest, Borderline) {
 
   llvmlibc_errno = 0;
   x = valueFromBits(0x42affff8U);
-  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), 1.0);
+  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), tolerance);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0x42b00008U);
-  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), 1.0);
+  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), tolerance);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc2affff8U);
-  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), 1.0);
+  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), tolerance);
   EXPECT_EQ(llvmlibc_errno, 0);
 
   x = valueFromBits(0xc2b00008U);
-  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), 1.0);
+  ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), tolerance);
   EXPECT_EQ(llvmlibc_errno, 0);
 }
 
@@ -137,6 +142,6 @@ TEST(ExpfTest, InFloatRange) {
     // wider precision.
     if (isnan(result) || isinf(result) || llvmlibc_errno != 0)
       continue;
-    ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), 1.0);
+    ASSERT_MPFR_MATCH(mpfr::Operation::Exp, x, __llvm_libc::expf(x), tolerance);
   }
 }

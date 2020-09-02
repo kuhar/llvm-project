@@ -1,7 +1,6 @@
 ! RUN: %S/test_errors.sh %s %t %f18
   character(kind=1,len=100) msg1
   character(kind=2,len=200) msg2
-  character, parameter :: const_msg = 'doof'
   integer(1) stat1
   integer(2) stat2
   integer(8) stat8
@@ -28,9 +27,6 @@
 
   !ERROR: Duplicate IOSTAT specifier
   endfile(iostat=stat2, err=9, unit=10, iostat=stat8, iomsg=msg1)
-
-  !ERROR: IOMSG variable 'const_msg' must be definable
-  flush(iomsg=const_msg, unit=10, iostat=stat8, err=9)
 
   !ERROR: REWIND statement must have a UNIT number specifier
   rewind(iostat=stat2)

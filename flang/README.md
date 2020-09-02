@@ -8,33 +8,30 @@ F18 was subsequently accepted into the LLVM project and rechristened as Flang.
 
 ## Getting Started
 
-Read more about flang in the [docs directory](docs).
-Start with the [compiler overview](docs/Overview.md).
+Read more about flang in the [documentation directory](documentation).
+Start with the [compiler overview](documentation/Overview.md).
 
 To better understand Fortran as a language
 and the specific grammar accepted by flang,
-read [Fortran For C Programmers](docs/FortranForCProgrammers.md)
+read [Fortran For C Programmers](documentation/FortranForCProgrammers.md)
 and
-flang's specifications of the [Fortran grammar](docs/f2018-grammar.txt)
+flang's specifications of the [Fortran grammar](documentation/f2018-grammar.txt)
 and
-the [OpenMP grammar](docs/OpenMP-4.5-grammar.txt).
+the [OpenMP grammar](documentation/OpenMP-4.5-grammar.txt).
 
 Treatment of language extensions is covered
-in [this document](docs/Extensions.md).
+in [this document](documentation/Extensions.md).
 
 To understand the compilers handling of intrinsics,
-see the [discussion of intrinsics](docs/Intrinsics.md).
+see the [discussion of intrinsics](documentation/Intrinsics.md).
 
 To understand how a flang program communicates with libraries at runtime,
-see the discussion of [runtime descriptors](docs/RuntimeDescriptor.md).
+see the discussion of [runtime descriptors](documentation/RuntimeDescriptor.md).
 
 If you're interested in contributing to the compiler,
-read the [style guide](docs/C++style.md)
+read the [style guide](documentation/C++style.md)
 and
-also review [how flang uses modern C++ features](docs/C++17.md).
-
-If you are interested in writing new documentation, follow 
-[markdown style guide from LLVM](https://github.com/llvm/llvm-project/blob/master/llvm/docs/MarkdownQuickstartTemplate.md).
+also review [how flang uses modern C++ features](documentation/C++17.md).
 
 ## Supported C++ compilers
 
@@ -218,26 +215,4 @@ make doxygen-flang
 It will generate html in
 
     <build-dir>/tools/flang/docs/doxygen/html # for flang docs
-```
-## Generate Sphinx-based Documentation
-<!TODO: Add webpage once we have a website.
-!>
-Flang documentation should preferably be written in `markdown(.md)` syntax (they can be in `reStructuredText(.rst)` format as well but markdown is recommended in first place), it
-is mostly meant to be processed by the Sphinx documentation generation
-system to create HTML pages which would be hosted on the webpage of flang and
-updated periodically.
-
-If you would like to generate and view the HTML locally, install
-Sphinx <http://sphinx-doc.org/> and then:
-
-- Pass `-DLLVM_ENABLE_SPHINX=ON -DSPHINX_WARNINGS_AS_ERRORS=OFF` to the cmake command.
-
-```
-cd ~/llvm-project/build
-cmake -DLLVM_ENABLE_SPHINX=ON -DSPHINX_WARNINGS_AS_ERRORS=OFF ../llvm
-make docs-flang-html
-
-It will generate html in
-
-   $BROWSER <build-dir>/tools/flang/docs/html/
 ```

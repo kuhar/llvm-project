@@ -103,7 +103,7 @@ TEST(TFUtilsTest, JSONParsing) {
   auto Value = json::parse(
       R"({"name": "tensor_name", 
         "port": 2, 
-        "type": "int32_t", 
+        "type": "int32", 
         "shape":[1,4]
         })");
   EXPECT_TRUE(!!Value);

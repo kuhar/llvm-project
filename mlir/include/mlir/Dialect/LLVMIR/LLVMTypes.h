@@ -64,6 +64,34 @@ class LLVMIntegerType;
 /// structs, the entire type is the identifier) and are thread-safe.
 class LLVMType : public Type {
 public:
+  enum Kind {
+    // Keep non-parametric types contiguous in the enum.
+    VoidType = FIRST_LLVM_TYPE + 1,
+    HalfType,
+    BFloatType,
+    FloatType,
+    DoubleType,
+    FP128Type,
+    X86FP80Type,
+    PPCFP128Type,
+    X86MMXType,
+    LabelType,
+    TokenType,
+    MetadataType,
+    // End of non-parametric types.
+    FunctionType,
+    IntegerType,
+    PointerType,
+    FixedVectorType,
+    ScalableVectorType,
+    ArrayType,
+    StructType,
+    FIRST_NEW_LLVM_TYPE = VoidType,
+    LAST_NEW_LLVM_TYPE = StructType,
+    FIRST_TRIVIAL_TYPE = VoidType,
+    LAST_TRIVIAL_TYPE = MetadataType
+  };
+
   /// Inherit base constructors.
   using Type::Type;
 
@@ -228,24 +256,27 @@ public:
 //===----------------------------------------------------------------------===//
 
 // Batch-define trivial types.
-#define DEFINE_TRIVIAL_LLVM_TYPE(ClassName)                                    \
+#define DEFINE_TRIVIAL_LLVM_TYPE(ClassName, Kind)                              \
   class ClassName : public Type::TypeBase<ClassName, LLVMType, TypeStorage> {  \
   public:                                                                      \
     using Base::Base;                                                          \
+    static ClassName get(MLIRContext *context) {                               \
+      return Base::get(context, Kind);                                         \
+    }                                                                          \
   }
 
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMVoidType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMHalfType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMBFloatType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMFloatType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMDoubleType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMFP128Type);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMX86FP80Type);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMPPCFP128Type);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMX86MMXType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMTokenType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMLabelType);
-DEFINE_TRIVIAL_LLVM_TYPE(LLVMMetadataType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMVoidType, LLVMType::VoidType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMHalfType, LLVMType::HalfType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMBFloatType, LLVMType::BFloatType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMFloatType, LLVMType::FloatType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMDoubleType, LLVMType::DoubleType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMFP128Type, LLVMType::FP128Type);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMX86FP80Type, LLVMType::X86FP80Type);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMPPCFP128Type, LLVMType::PPCFP128Type);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMX86MMXType, LLVMType::X86MMXType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMTokenType, LLVMType::TokenType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMLabelType, LLVMType::LabelType);
+DEFINE_TRIVIAL_LLVM_TYPE(LLVMMetadataType, LLVMType::MetadataType);
 
 #undef DEFINE_TRIVIAL_LLVM_TYPE
 

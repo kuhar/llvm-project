@@ -328,7 +328,7 @@ void VulkanLaunchFuncToVulkanCallsPass::declareVulkanFunctions(Location loc) {
       std::string fnName = "bindMemRef" + std::to_string(i) + "D" +
                            std::string(stringifyType(type));
       if (type.isHalfTy())
-        type = LLVM::LLVMType::getInt16Ty(&getContext());
+        type = getMemRefType(i, LLVM::LLVMType::getInt16Ty(&getContext()));
       if (!module.lookupSymbol(fnName)) {
         auto fnType = LLVM::LLVMType::getFunctionTy(
             getVoidType(),

@@ -20,7 +20,6 @@
 #include "llvm/IR/OptBisect.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassTimingInfo.h"
-#include "llvm/IR/StructuralHash.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -192,19 +191,7 @@ bool LPPassManager::runOnFunction(Function &F) {
       {
         PassManagerPrettyStackEntry X(P, *CurrentLoop->getHeader());
         TimeRegion PassTimer(getPassTimer(P));
-#ifdef EXPENSIVE_CHECKS
-        uint64_t RefHash = StructuralHash(F);
-#endif
         LocalChanged = P->runOnLoop(CurrentLoop, *this);
-
-#ifdef EXPENSIVE_CHECKS
-        if (!LocalChanged && (RefHash != StructuralHash(F))) {
-          llvm::errs() << "Pass modifies its input and doesn't report it: "
-                       << P->getPassName() << "\n";
-          llvm_unreachable("Pass modifies its input and doesn't report it");
-        }
-#endif
-
         Changed |= LocalChanged;
         if (EmitICRemark) {
           unsigned NewSize = F.getInstructionCount();
@@ -254,8 +241,7 @@ bool LPPassManager::runOnFunction(Function &F) {
         F.getContext().yield();
       }
 
-      if (LocalChanged)
-        removeNotPreservedAnalysis(P);
+      removeNotPreservedAnalysis(P);
       recordAvailableAnalysis(P);
       removeDeadPasses(P,
                        CurrentLoopDeleted ? "<deleted>"

@@ -50,18 +50,15 @@ MachineSSAUpdater::~MachineSSAUpdater() {
 }
 
 /// Initialize - Reset this object to get ready for a new set of SSA
-/// updates.
-void MachineSSAUpdater::Initialize(const TargetRegisterClass *RC) {
+/// updates.  ProtoValue is the value used to name PHI nodes.
+void MachineSSAUpdater::Initialize(Register V) {
   if (!AV)
     AV = new AvailableValsTy();
   else
     getAvailableVals(AV).clear();
 
-  VRC = RC;
-}
-
-void MachineSSAUpdater::Initialize(Register V) {
-  Initialize(MRI->getRegClass(V));
+  VR = V;
+  VRC = MRI->getRegClass(VR);
 }
 
 /// HasValueForBlock - Return true if the MachineSSAUpdater already has a value for

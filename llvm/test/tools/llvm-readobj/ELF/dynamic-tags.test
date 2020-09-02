@@ -143,6 +143,7 @@ FileHeader:
   Class:      ELFCLASS[[BITS=64]]
   Data:       ELFDATA2LSB
   Type:       ET_EXEC
+  Machine:    EM_NONE
   EPhEntSize: [[PHENTSIZE=<none>]]
 Sections:
   - Name:    .dynstr
@@ -459,9 +460,10 @@ ProgramHeaders:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS=64]]
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS[[BITS=64]]
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_NONE
 Sections:
   - Name: .dynamic
     Type: SHT_DYNAMIC

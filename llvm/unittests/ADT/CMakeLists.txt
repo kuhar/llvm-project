@@ -4,7 +4,6 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_unittest(ADTTests
   AnyTest.cpp
-  APFixedPointTest.cpp
   APFloatTest.cpp
   APIntTest.cpp
   APSIntTest.cpp

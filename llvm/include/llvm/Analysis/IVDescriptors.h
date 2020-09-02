@@ -183,22 +183,22 @@ public:
                          DenseMap<Instruction *, Instruction *> &SinkAfter,
                          DominatorTree *DT);
 
-  RecurrenceKind getRecurrenceKind() const { return Kind; }
+  RecurrenceKind getRecurrenceKind() { return Kind; }
 
-  MinMaxRecurrenceKind getMinMaxRecurrenceKind() const { return MinMaxKind; }
+  MinMaxRecurrenceKind getMinMaxRecurrenceKind() { return MinMaxKind; }
 
-  FastMathFlags getFastMathFlags() const { return FMF; }
+  FastMathFlags getFastMathFlags() { return FMF; }
 
-  TrackingVH<Value> getRecurrenceStartValue() const { return StartValue; }
+  TrackingVH<Value> getRecurrenceStartValue() { return StartValue; }
 
-  Instruction *getLoopExitInstr() const { return LoopExitInstr; }
+  Instruction *getLoopExitInstr() { return LoopExitInstr; }
 
   /// Returns true if the recurrence has unsafe algebra which requires a relaxed
   /// floating-point model.
-  bool hasUnsafeAlgebra() const { return UnsafeAlgebraInst != nullptr; }
+  bool hasUnsafeAlgebra() { return UnsafeAlgebraInst != nullptr; }
 
   /// Returns first unsafe algebra instruction in the PHI node's use-chain.
-  Instruction *getUnsafeAlgebraInst() const { return UnsafeAlgebraInst; }
+  Instruction *getUnsafeAlgebraInst() { return UnsafeAlgebraInst; }
 
   /// Returns true if the recurrence kind is an integer kind.
   static bool isIntegerRecurrenceKind(RecurrenceKind Kind);
@@ -211,14 +211,14 @@ public:
 
   /// Returns the type of the recurrence. This type can be narrower than the
   /// actual type of the Phi if the recurrence has been type-promoted.
-  Type *getRecurrenceType() const { return RecurrenceType; }
+  Type *getRecurrenceType() { return RecurrenceType; }
 
   /// Returns a reference to the instructions used for type-promoting the
   /// recurrence.
-  const SmallPtrSet<Instruction *, 8> &getCastInsts() const { return CastInsts; }
+  SmallPtrSet<Instruction *, 8> &getCastInsts() { return CastInsts; }
 
   /// Returns true if all source operands of the recurrence are SExtInsts.
-  bool isSigned() const{ return IsSigned; }
+  bool isSigned() { return IsSigned; }
 
   /// Attempts to find a chain of operations from Phi to LoopExitInst that can
   /// be treated as a set of reductions instructions for in-loop reductions.

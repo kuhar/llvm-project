@@ -14,8 +14,6 @@
 #ifndef LLVM_TRANSFORMS_OBJCARC_H
 #define LLVM_TRANSFORMS_OBJCARC_H
 
-#include "llvm/IR/PassManager.h"
-
 namespace llvm {
 
 class Pass;
@@ -43,13 +41,6 @@ Pass *createObjCARCContractPass();
 // ObjCARCOpt - ObjC ARC optimization.
 //
 Pass *createObjCARCOptPass();
-
-class ObjCARCOptPass : public PassInfoMixin<ObjCARCOptPass> {
-public:
-  ObjCARCOptPass() {}
-
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-};
 
 } // End llvm namespace
 

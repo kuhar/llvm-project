@@ -201,6 +201,9 @@ Operation *Block::getTerminator() {
   return &back();
 }
 
+/// Return true if this block has no predecessors.
+bool Block::hasNoPredecessors() { return pred_begin() == pred_end(); }
+
 // Indexed successor access.
 unsigned Block::getNumSuccessors() {
   return empty() ? 0 : back().getNumSuccessors();

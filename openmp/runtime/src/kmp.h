@@ -3465,7 +3465,13 @@ enum fork_context_e {
 extern int __kmp_fork_call(ident_t *loc, int gtid,
                            enum fork_context_e fork_context, kmp_int32 argc,
                            microtask_t microtask, launch_t invoker,
-                           kmp_va_list ap);
+/* TODO: revert workaround for Intel(R) 64 tracker #96 */
+#if (KMP_ARCH_ARM || KMP_ARCH_X86_64 || KMP_ARCH_AARCH64) && KMP_OS_LINUX
+                           va_list *ap
+#else
+                           va_list ap
+#endif
+                           );
 
 extern void __kmp_join_call(ident_t *loc, int gtid
 #if OMPT_SUPPORT

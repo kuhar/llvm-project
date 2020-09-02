@@ -102,11 +102,12 @@ unsigned Type::getIntOrFloatBitWidth() {
 //===----------------------------------------------------------------------===//
 
 ComplexType ComplexType::get(Type elementType) {
-  return Base::get(elementType.getContext(), elementType);
+  return Base::get(elementType.getContext(), StandardTypes::Complex,
+                   elementType);
 }
 
 ComplexType ComplexType::getChecked(Type elementType, Location location) {
-  return Base::getChecked(location, elementType);
+  return Base::getChecked(location, StandardTypes::Complex, elementType);
 }
 
 /// Verify the construction of an integer type.
@@ -264,12 +265,13 @@ bool ShapedType::hasStaticShape(ArrayRef<int64_t> shape) const {
 //===----------------------------------------------------------------------===//
 
 VectorType VectorType::get(ArrayRef<int64_t> shape, Type elementType) {
-  return Base::get(elementType.getContext(), shape, elementType);
+  return Base::get(elementType.getContext(), StandardTypes::Vector, shape,
+                   elementType);
 }
 
 VectorType VectorType::getChecked(ArrayRef<int64_t> shape, Type elementType,
                                   Location location) {
-  return Base::getChecked(location, shape, elementType);
+  return Base::getChecked(location, StandardTypes::Vector, shape, elementType);
 }
 
 LogicalResult VectorType::verifyConstructionInvariants(Location loc,
@@ -318,13 +320,15 @@ bool TensorType::isValidElementType(Type type) {
 
 RankedTensorType RankedTensorType::get(ArrayRef<int64_t> shape,
                                        Type elementType) {
-  return Base::get(elementType.getContext(), shape, elementType);
+  return Base::get(elementType.getContext(), StandardTypes::RankedTensor, shape,
+                   elementType);
 }
 
 RankedTensorType RankedTensorType::getChecked(ArrayRef<int64_t> shape,
                                               Type elementType,
                                               Location location) {
-  return Base::getChecked(location, shape, elementType);
+  return Base::getChecked(location, StandardTypes::RankedTensor, shape,
+                          elementType);
 }
 
 LogicalResult RankedTensorType::verifyConstructionInvariants(
@@ -345,12 +349,13 @@ ArrayRef<int64_t> RankedTensorType::getShape() const {
 //===----------------------------------------------------------------------===//
 
 UnrankedTensorType UnrankedTensorType::get(Type elementType) {
-  return Base::get(elementType.getContext(), elementType);
+  return Base::get(elementType.getContext(), StandardTypes::UnrankedTensor,
+                   elementType);
 }
 
 UnrankedTensorType UnrankedTensorType::getChecked(Type elementType,
                                                   Location location) {
-  return Base::getChecked(location, elementType);
+  return Base::getChecked(location, StandardTypes::UnrankedTensor, elementType);
 }
 
 LogicalResult
@@ -439,8 +444,8 @@ MemRefType MemRefType::getImpl(ArrayRef<int64_t> shape, Type elementType,
     cleanedAffineMapComposition.push_back(map);
   }
 
-  return Base::get(context, shape, elementType, cleanedAffineMapComposition,
-                   memorySpace);
+  return Base::get(context, StandardTypes::MemRef, shape, elementType,
+                   cleanedAffineMapComposition, memorySpace);
 }
 
 ArrayRef<int64_t> MemRefType::getShape() const { return getImpl()->getShape(); }
@@ -457,13 +462,15 @@ unsigned MemRefType::getMemorySpace() const { return getImpl()->memorySpace; }
 
 UnrankedMemRefType UnrankedMemRefType::get(Type elementType,
                                            unsigned memorySpace) {
-  return Base::get(elementType.getContext(), elementType, memorySpace);
+  return Base::get(elementType.getContext(), StandardTypes::UnrankedMemRef,
+                   elementType, memorySpace);
 }
 
 UnrankedMemRefType UnrankedMemRefType::getChecked(Type elementType,
                                                   unsigned memorySpace,
                                                   Location location) {
-  return Base::getChecked(location, elementType, memorySpace);
+  return Base::getChecked(location, StandardTypes::UnrankedMemRef, elementType,
+                          memorySpace);
 }
 
 unsigned UnrankedMemRefType::getMemorySpace() const {
@@ -635,7 +642,7 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
 /// Get or create a new TupleType with the provided element types. Assumes the
 /// arguments define a well-formed type.
 TupleType TupleType::get(TypeRange elementTypes, MLIRContext *context) {
-  return Base::get(context, elementTypes);
+  return Base::get(context, StandardTypes::Tuple, elementTypes);
 }
 
 /// Get or create an empty tuple type.

@@ -3357,12 +3357,14 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   }
   case ISD::BITREVERSE: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known = Known2.reverseBits();
+    Known.Zero = Known2.Zero.reverseBits();
+    Known.One = Known2.One.reverseBits();
     break;
   }
   case ISD::BSWAP: {
     Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known = Known2.byteSwap();
+    Known.Zero = Known2.Zero.byteSwap();
+    Known.One = Known2.One.byteSwap();
     break;
   }
   case ISD::ABS: {
@@ -6977,7 +6979,7 @@ SDValue SelectionDAG::getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
     assert(VT.isVector() == MemVT.isVector() &&
            "Cannot use an ext load to convert to or from a vector!");
     assert((!VT.isVector() ||
-            VT.getVectorElementCount() == MemVT.getVectorElementCount()) &&
+            VT.getVectorNumElements() == MemVT.getVectorNumElements()) &&
            "Cannot use an ext load to change the number of vector elements!");
   }
 
@@ -9074,10 +9076,6 @@ ConstantFPSDNode *llvm::isConstOrConstSplatFP(SDValue N, bool AllowUndefs) {
       return CN;
   }
 
-  if (N.getOpcode() == ISD::SPLAT_VECTOR)
-    if (ConstantFPSDNode *CN = dyn_cast<ConstantFPSDNode>(N.getOperand(0)))
-      return CN;
-
   return nullptr;
 }
 
@@ -9635,24 +9633,24 @@ std::pair<EVT, EVT>
 SelectionDAG::GetDependentSplitDestVTs(const EVT &VT, const EVT &EnvVT,
                                        bool *HiIsEmpty) const {
   EVT EltTp = VT.getVectorElementType();
+  bool IsScalable = VT.isScalableVector();
   // Examples:
   //   custom VL=8  with enveloping VL=8/8 yields 8/0 (hi empty)
   //   custom VL=9  with enveloping VL=8/8 yields 8/1
   //   custom VL=10 with enveloping VL=8/8 yields 8/2
   //   etc.
-  ElementCount VTNumElts = VT.getVectorElementCount();
-  ElementCount EnvNumElts = EnvVT.getVectorElementCount();
-  assert(VTNumElts.isScalable() == EnvNumElts.isScalable() &&
-         "Mixing fixed width and scalable vectors when enveloping a type");
+  unsigned VTNumElts = VT.getVectorNumElements();
+  unsigned EnvNumElts = EnvVT.getVectorNumElements();
   EVT LoVT, HiVT;
-  if (VTNumElts.getKnownMinValue() > EnvNumElts.getKnownMinValue()) {
+  if (VTNumElts > EnvNumElts) {
     LoVT = EnvVT;
-    HiVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts - EnvNumElts);
+    HiVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts - EnvNumElts,
+                            IsScalable);
     *HiIsEmpty = false;
   } else {
     // Flag that hi type has zero storage size, but return split envelop type
     // (this would be easier if vector types with zero elements were allowed).
-    LoVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts);
+    LoVT = EVT::getVectorVT(*getContext(), EltTp, VTNumElts, IsScalable);
     HiVT = EnvVT;
     *HiIsEmpty = true;
   }

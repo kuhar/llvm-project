@@ -24,14 +24,10 @@ static void extractInstrFromModule(std::vector<Chunk> ChunksToKeep,
   std::set<Instruction *> InstToKeep;
 
   for (auto &F : *Program)
-    for (auto &BB : F) {
-      // Removing the terminator would make the block invalid. Only iterate over
-      // instructions before the terminator.
-      InstToKeep.insert(BB.getTerminator());
-      for (auto &Inst : make_range(BB.begin(), std::prev(BB.end())))
+    for (auto &BB : F)
+      for (auto &Inst : BB)
         if (O.shouldKeep())
           InstToKeep.insert(&Inst);
-    }
 
   std::vector<Instruction *> InstToDelete;
   for (auto &F : *Program)
@@ -53,8 +49,7 @@ static unsigned countInstructions(Module *Program) {
   int InstCount = 0;
   for (auto &F : *Program)
     for (auto &BB : F)
-      // Well-formed blocks have terminators, which we cannot remove.
-      InstCount += BB.getInstList().size() - 1;
+        InstCount += BB.getInstList().size();
   outs() << "Number of instructions: " << InstCount << "\n";
 
   return InstCount;

@@ -1,7 +1,6 @@
 ! RUN: %S/test_errors.sh %s %t %f18
   integer :: unit10 = 10
   integer :: unit11 = 11
-  integer, parameter :: const_stat = 6666
 
   integer(kind=1) :: stat1
   integer(kind=8) :: stat8
@@ -28,9 +27,6 @@
 
   !ERROR: Invalid STATUS value 'old'
   close(status='old', unit=17)
-
-  !ERROR: IOSTAT variable 'const_stat' must be definable
-  close(14, iostat=const_stat)
 
 9 continue
 end

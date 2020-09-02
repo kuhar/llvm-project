@@ -68,9 +68,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  [[ENDIAN]]
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    [[ENDIAN]]
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_ranges:
     - AddrSize: 0x04
@@ -157,9 +158,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .debug_ranges
     Type:    SHT_PROGBITS
@@ -176,9 +178,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .debug_ranges
     Type: SHT_PROGBITS
@@ -193,9 +196,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .debug_ranges
     Type: SHT_PROGBITS
@@ -213,9 +217,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .debug_ranges
     Type:    SHT_PROGBITS
@@ -238,9 +243,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:         .debug_ranges
     Type:         SHT_STRTAB  # SHT_PROGBITS by default.
@@ -263,9 +269,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:         .debug_ranges
     Type:         SHT_STRTAB  # SHT_PROGBITS by default.
@@ -328,9 +335,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_ranges:
     - Entries:
@@ -354,9 +362,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_ranges:
     - Entries:
@@ -380,9 +389,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_ranges:
     - AddrSize: 0x07
@@ -398,9 +408,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_ranges:
     - AddrSize: 0x07

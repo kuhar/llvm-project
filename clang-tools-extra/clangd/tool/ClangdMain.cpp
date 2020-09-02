@@ -291,8 +291,9 @@ opt<bool> RecoveryAST{
 opt<bool> RecoveryASTType{
     "recovery-ast-type",
     cat(Features),
-    desc("Preserve the type for recovery AST."),
-    init(ClangdServer::Options().PreserveRecoveryASTType),
+    desc("Preserve the type for recovery AST. Note that "
+         "this feature is experimental and may lead to crashes"),
+    init(false),
     Hidden,
 };
 
@@ -447,13 +448,6 @@ opt<bool> EnableConfig{
         "\tOthers: $XDG_CONFIG_HOME, usually ~/.config\n"
         "Configuration is documented at https://clangd.llvm.org/config.html"),
     init(true),
-};
-
-opt<bool> CollectMainFileRefs{
-    "collect-main-file-refs",
-    cat(Misc),
-    desc("Store references to main-file-only symbols in the index"),
-    init(false),
 };
 
 #if CLANGD_ENABLE_REMOTE
@@ -688,7 +682,6 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   if (!ResourceDir.empty())
     Opts.ResourceDir = ResourceDir;
   Opts.BuildDynamicSymbolIndex = EnableIndex;
-  Opts.CollectMainFileRefs = CollectMainFileRefs;
   std::unique_ptr<SymbolIndex> StaticIdx;
   std::future<void> AsyncIndexLoad; // Block exit while loading the index.
   if (EnableIndex && !IndexFile.empty()) {

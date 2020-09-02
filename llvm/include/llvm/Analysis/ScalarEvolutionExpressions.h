@@ -74,25 +74,14 @@ class Type;
   /// This is the base class for unary cast operator classes.
   class SCEVCastExpr : public SCEV {
   protected:
-    std::array<const SCEV *, 1> Operands;
+    const SCEV *Op;
     Type *Ty;
 
     SCEVCastExpr(const FoldingSetNodeIDRef ID,
                  unsigned SCEVTy, const SCEV *op, Type *ty);
 
   public:
-    const SCEV *getOperand() const { return Operands[0]; }
-    const SCEV *getOperand(unsigned i) const {
-      assert(i == 0 && "Operand index out of range!");
-      return Operands[0];
-    }
-    using op_iterator = std::array<const SCEV *, 1>::const_iterator;
-    using op_range = iterator_range<op_iterator>;
-
-    op_range operands() const {
-      return make_range(Operands.begin(), Operands.end());
-    }
-    size_t getNumOperands() const { return 1; }
+    const SCEV *getOperand() const { return Op; }
     Type *getType() const { return Ty; }
 
     /// Methods for support type inquiry through isa, cast, and dyn_cast:
@@ -274,28 +263,16 @@ class Type;
   class SCEVUDivExpr : public SCEV {
     friend class ScalarEvolution;
 
-    std::array<const SCEV *, 2> Operands;
+    const SCEV *LHS;
+    const SCEV *RHS;
 
     SCEVUDivExpr(const FoldingSetNodeIDRef ID, const SCEV *lhs, const SCEV *rhs)
-        : SCEV(ID, scUDivExpr, computeExpressionSize({lhs, rhs})) {
-        Operands[0] = lhs;
-        Operands[1] = rhs;
-      }
+        : SCEV(ID, scUDivExpr, computeExpressionSize({lhs, rhs})), LHS(lhs),
+          RHS(rhs) {}
 
   public:
-    const SCEV *getLHS() const { return Operands[0]; }
-    const SCEV *getRHS() const { return Operands[1]; }
-    size_t getNumOperands() const { return 2; }
-    const SCEV *getOperand(unsigned i) const {
-      assert((i == 0 || i == 1) && "Operand index out of range!");
-      return i == 0 ? getLHS() : getRHS();
-    }
-
-    using op_iterator = std::array<const SCEV *, 2>::const_iterator;
-    using op_range = iterator_range<op_iterator>;
-    op_range operands() const {
-      return make_range(Operands.begin(), Operands.end());
-    }
+    const SCEV *getLHS() const { return LHS; }
+    const SCEV *getRHS() const { return RHS; }
 
     Type *getType() const {
       // In most cases the types of LHS and RHS will be the same, but in some

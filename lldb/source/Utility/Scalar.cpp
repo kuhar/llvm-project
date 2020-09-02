@@ -25,57 +25,76 @@ using namespace lldb_private;
 
 using llvm::APFloat;
 using llvm::APInt;
-using llvm::APSInt;
 
-Scalar::PromotionKey Scalar::GetPromoKey() const {
-  switch (m_type) {
-  case e_void:
-    return PromotionKey{e_void, 0, false};
-  case e_int:
-    return PromotionKey{e_int, m_integer.getBitWidth(), m_integer.isUnsigned()};
-  case e_float:
-    return GetFloatPromoKey(m_float.getSemantics());
-  }
-  llvm_unreachable("Unhandled category!");
+namespace {
+enum class Category { Void, Integral, Float };
 }
 
-Scalar::PromotionKey Scalar::GetFloatPromoKey(const llvm::fltSemantics &sem) {
-  static const llvm::fltSemantics *const order[] = {
-      &APFloat::IEEEsingle(), &APFloat::IEEEdouble(),
-      &APFloat::x87DoubleExtended()};
-  for (const auto &entry : llvm::enumerate(order)) {
-    if (entry.value() == &sem)
-      return PromotionKey{e_float, entry.index(), false};
+static Category GetCategory(Scalar::Type type) {
+  switch (type) {
+  case Scalar::e_void:
+    return Category::Void;
+  case Scalar::e_float:
+  case Scalar::e_double:
+  case Scalar::e_long_double:
+    return Category::Float;
+  case Scalar::e_sint:
+  case Scalar::e_uint:
+    return Category::Integral;
   }
-  llvm_unreachable("Unsupported semantics!");
+  llvm_unreachable("Unhandled type!");
+}
+
+static bool IsSigned(Scalar::Type type) {
+  switch (type) {
+  case Scalar::e_void:
+  case Scalar::e_uint:
+    return false;
+  case Scalar::e_sint:
+  case Scalar::e_float:
+  case Scalar::e_double:
+  case Scalar::e_long_double:
+    return true;
+  }
+  llvm_unreachable("Unhandled type!");
+}
+
+Scalar::IntPromotionKey Scalar::GetIntKey() const {
+  assert(GetCategory(GetType()) == Category::Integral);
+  return {m_integer.getBitWidth(), !IsSigned(m_type)};
 }
 
 // Promote to max type currently follows the ANSI C rule for type promotion in
 // expressions.
 Scalar::Type Scalar::PromoteToMaxType(Scalar &lhs, Scalar &rhs) {
   const auto &Promote = [](Scalar &a, const Scalar &b) {
-    switch (b.GetType()) {
-    case e_void:
-      break;
-    case e_int:
-      a.IntegralPromote(b.m_integer.getBitWidth(), b.m_integer.isSigned());
-      break;
-    case e_float:
-      a.FloatPromote(b.m_float.getSemantics());
-    }
+    if (GetCategory(b.GetType()) == Category::Integral)
+      a.IntegralPromote(b.UInt128(APInt()).getBitWidth(),
+                        IsSigned(b.GetType()));
+    else
+      a.FloatPromote(b.GetType());
   };
 
-  PromotionKey lhs_key = lhs.GetPromoKey();
-  PromotionKey rhs_key = rhs.GetPromoKey();
+  // Extract the types of both the right and left hand side values
+  Scalar::Type lhs_type = lhs.GetType();
+  Scalar::Type rhs_type = rhs.GetType();
 
-  if (lhs_key > rhs_key)
+  if (GetCategory(lhs_type) == Category::Integral &&
+      GetCategory(rhs_type) == Category::Integral) {
+    IntPromotionKey lhs_key = lhs.GetIntKey();
+    IntPromotionKey rhs_key = rhs.GetIntKey();
+    if (lhs_key > rhs_key)
+      Promote(rhs, lhs);
+    else if (rhs_key > lhs_key)
+      Promote(lhs, rhs);
+  } else if (lhs_type > rhs_type)
     Promote(rhs, lhs);
-  else if (rhs_key > lhs_key)
+  else if (lhs_type < rhs_type)
     Promote(lhs, rhs);
 
   // Make sure our type promotion worked as expected
-  if (lhs.GetPromoKey() == rhs.GetPromoKey())
-    return lhs.GetType(); // Return the resulting type
+  if (lhs.GetType() == rhs.GetType())
+    return lhs.GetType(); // Return the resulting max type
 
   // Return the void type (zero) if we fail to promote either of the values.
   return Scalar::e_void;
@@ -116,13 +135,13 @@ void Scalar::GetBytes(llvm::MutableArrayRef<uint8_t> storage) const {
   const auto &store = [&](const llvm::APInt &val) {
     StoreIntToMemory(val, storage.data(), (val.getBitWidth() + 7) / 8);
   };
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
+  case Category::Integral:
     store(m_integer);
     break;
-  case e_float:
+  case Category::Float:
     store(m_float.bitcastToAPInt());
     break;
   }
@@ -132,21 +151,26 @@ size_t Scalar::GetByteSize() const {
   switch (m_type) {
   case e_void:
     break;
-  case e_int:
+  case e_sint:
+  case e_uint:
     return (m_integer.getBitWidth() / 8);
   case e_float:
-    return m_float.bitcastToAPInt().getBitWidth() / 8;
+    return sizeof(float_t);
+  case e_double:
+    return sizeof(double_t);
+  case e_long_double:
+    return sizeof(long_double_t);
   }
   return 0;
 }
 
 bool Scalar::IsZero() const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
+  case Category::Integral:
     return m_integer.isNullValue();
-  case e_float:
+  case Category::Float:
     return m_float.isZero();
   }
   return false;
@@ -156,13 +180,13 @@ void Scalar::GetValue(Stream *s, bool show_type) const {
   if (show_type)
     s->Printf("(%s) ", GetTypeAsCString());
 
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
-    s->PutCString(m_integer.toString(10));
+  case Category::Integral:
+    s->PutCString(m_integer.toString(10, IsSigned(m_type)));
     break;
-  case e_float:
+  case Category::Float:
     llvm::SmallString<24> string;
     m_float.toString(string);
     s->PutCString(string);
@@ -170,47 +194,72 @@ void Scalar::GetValue(Stream *s, bool show_type) const {
   }
 }
 
+Scalar::Type Scalar::GetBestTypeForBitSize(size_t bit_size, bool sign) {
+  return sign ? e_sint : e_uint;
+}
+
 void Scalar::TruncOrExtendTo(uint16_t bits, bool sign) {
-  m_integer.setIsSigned(sign);
-  m_integer = m_integer.extOrTrunc(bits);
+  m_integer = sign ? m_integer.sextOrTrunc(bits) : m_integer.zextOrTrunc(bits);
+  m_type = GetBestTypeForBitSize(bits, sign);
+}
+
+static const llvm::fltSemantics &GetFltSemantics(Scalar::Type type) {
+  switch (type) {
+  case Scalar::e_void:
+  case Scalar::e_sint:
+  case Scalar::e_uint:
+    llvm_unreachable("Only floating point types supported!");
+  case Scalar::e_float:
+    return llvm::APFloat::IEEEsingle();
+  case Scalar::e_double:
+    return llvm::APFloat::IEEEdouble();
+  case Scalar::e_long_double:
+    return llvm::APFloat::x87DoubleExtended();
+  }
+  llvm_unreachable("Unhandled type!");
 }
 
 bool Scalar::IntegralPromote(uint16_t bits, bool sign) {
-  switch (m_type) {
-  case e_void:
-  case e_float:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
+  case Category::Float:
     break;
-  case e_int:
-    if (GetPromoKey() > PromotionKey(e_int, bits, !sign))
+  case Category::Integral:
+    if (GetIntKey() > IntPromotionKey(bits, !sign))
       break;
-    m_integer = m_integer.extOrTrunc(bits);
-    m_integer.setIsSigned(sign);
+    if (IsSigned(m_type))
+      m_integer = m_integer.sextOrTrunc(bits);
+    else
+      m_integer = m_integer.zextOrTrunc(bits);
+    m_type = sign ? e_sint : e_uint;
     return true;
   }
   return false;
 }
 
-bool Scalar::FloatPromote(const llvm::fltSemantics &semantics) {
+bool Scalar::FloatPromote(Scalar::Type type) {
+  assert(GetCategory(type) == Category::Float);
   bool success = false;
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
-    m_float = llvm::APFloat(semantics);
-    m_float.convertFromAPInt(m_integer, m_integer.isSigned(),
+  case Category::Integral:
+    m_float = llvm::APFloat(GetFltSemantics(type));
+    m_float.convertFromAPInt(m_integer, IsSigned(m_type),
                              llvm::APFloat::rmNearestTiesToEven);
     success = true;
     break;
-  case e_float:
-    if (GetFloatPromoKey(semantics) < GetFloatPromoKey(m_float.getSemantics()))
+  case Category::Float:
+    if (type < m_type)
       break;
     bool ignore;
     success = true;
-    m_float.convert(semantics, llvm::APFloat::rmNearestTiesToEven, &ignore);
+    m_float.convert(GetFltSemantics(type), llvm::APFloat::rmNearestTiesToEven,
+                    &ignore);
   }
 
   if (success)
-    m_type = e_float;
+    m_type = type;
   return success;
 }
 
@@ -218,24 +267,38 @@ const char *Scalar::GetValueTypeAsCString(Scalar::Type type) {
   switch (type) {
   case e_void:
     return "void";
-  case e_int:
-    return "int";
+  case e_sint:
+    return "signed int";
+  case e_uint:
+    return "unsigned int";
   case e_float:
     return "float";
+  case e_double:
+    return "double";
+  case e_long_double:
+    return "long double";
   }
   return "???";
 }
 
-bool Scalar::IsSigned() const {
-  switch (m_type) {
-  case e_void:
-    return false;
-  case e_int:
-    return m_integer.isSigned();
-  case e_float:
-    return true;
-  }
-  llvm_unreachable("Unrecognized type!");
+Scalar::Type
+Scalar::GetValueTypeForSignedIntegerWithByteSize(size_t byte_size) {
+  return e_sint;
+}
+
+Scalar::Type
+Scalar::GetValueTypeForUnsignedIntegerWithByteSize(size_t byte_size) {
+  return e_uint;
+}
+
+Scalar::Type Scalar::GetValueTypeForFloatWithByteSize(size_t byte_size) {
+  if (byte_size == sizeof(float_t))
+    return e_float;
+  if (byte_size == sizeof(double_t))
+    return e_double;
+  if (byte_size == sizeof(long_double_t))
+    return e_long_double;
+  return e_void;
 }
 
 bool Scalar::MakeSigned() {
@@ -244,11 +307,20 @@ bool Scalar::MakeSigned() {
   switch (m_type) {
   case e_void:
     break;
-  case e_int:
-    m_integer.setIsSigned(true);
+  case e_sint:
+    success = true;
+    break;
+  case e_uint:
+    m_type = e_sint;
     success = true;
     break;
   case e_float:
+    success = true;
+    break;
+  case e_double:
+    success = true;
+    break;
+  case e_long_double:
     success = true;
     break;
   }
@@ -262,11 +334,20 @@ bool Scalar::MakeUnsigned() {
   switch (m_type) {
   case e_void:
     break;
-  case e_int:
-    m_integer.setIsUnsigned(true);
+  case e_sint:
+    m_type = e_uint;
+    success = true;
+    break;
+  case e_uint:
     success = true;
     break;
   case e_float:
+    success = true;
+    break;
+  case e_double:
+    success = true;
+    break;
+  case e_long_double:
     success = true;
     break;
   }
@@ -283,16 +364,14 @@ static llvm::APInt ToAPInt(const llvm::APFloat &f, unsigned bits,
 }
 
 template <typename T> T Scalar::GetAs(T fail_value) const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int: {
-    APSInt ext = m_integer.extOrTrunc(sizeof(T) * 8);
-    if (ext.isSigned())
-      return ext.getSExtValue();
-    return ext.getZExtValue();
-  }
-  case e_float:
+  case Category::Integral:
+    if (IsSigned(m_type))
+      return m_integer.sextOrTrunc(sizeof(T) * 8).getSExtValue();
+    return m_integer.zextOrTrunc(sizeof(T) * 8).getZExtValue();
+  case Category::Float:
     return ToAPInt(m_float, sizeof(T) * 8, std::is_unsigned<T>::value)
         .getSExtValue();
   }
@@ -336,39 +415,39 @@ unsigned long long Scalar::ULongLong(unsigned long long fail_value) const {
 }
 
 llvm::APInt Scalar::SInt128(const llvm::APInt &fail_value) const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
+  case Category::Integral:
     return m_integer;
-  case e_float:
+  case Category::Float:
     return ToAPInt(m_float, 128, /*is_unsigned=*/false);
   }
   return fail_value;
 }
 
 llvm::APInt Scalar::UInt128(const llvm::APInt &fail_value) const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
+  case Category::Integral:
     return m_integer;
-  case e_float:
+  case Category::Float:
     return ToAPInt(m_float, 128, /*is_unsigned=*/true);
   }
   return fail_value;
 }
 
 float Scalar::Float(float fail_value) const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
-    if (m_integer.isSigned())
+  case Category::Integral:
+    if (IsSigned(m_type))
       return llvm::APIntOps::RoundSignedAPIntToFloat(m_integer);
     return llvm::APIntOps::RoundAPIntToFloat(m_integer);
 
-  case e_float: {
+  case Category::Float: {
     APFloat result = m_float;
     bool losesInfo;
     result.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven,
@@ -380,15 +459,15 @@ float Scalar::Float(float fail_value) const {
 }
 
 double Scalar::Double(double fail_value) const {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
-    if (m_integer.isSigned())
+  case Category::Integral:
+    if (IsSigned(m_type))
       return llvm::APIntOps::RoundSignedAPIntToDouble(m_integer);
     return llvm::APIntOps::RoundAPIntToDouble(m_integer);
 
-  case e_float: {
+  case Category::Float: {
     APFloat result = m_float;
     bool losesInfo;
     result.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
@@ -407,14 +486,14 @@ long double Scalar::LongDouble(long double fail_value) const {
 Scalar &Scalar::operator+=(Scalar rhs) {
   Scalar copy = *this;
   if ((m_type = PromoteToMaxType(copy, rhs)) != Scalar::e_void) {
-    switch (m_type) {
-    case e_void:
+    switch (GetCategory(m_type)) {
+    case Category::Void:
       break;
-    case e_int:
+    case Category::Integral:
       m_integer = copy.m_integer + rhs.m_integer;
       break;
 
-    case e_float:
+    case Category::Float:
       m_float = copy.m_float + rhs.m_float;
       break;
     }
@@ -423,15 +502,17 @@ Scalar &Scalar::operator+=(Scalar rhs) {
 }
 
 Scalar &Scalar::operator<<=(const Scalar &rhs) {
-  if (m_type == e_int && rhs.m_type == e_int)
-    static_cast<APInt &>(m_integer) <<= rhs.m_integer;
+  if (GetCategory(m_type) == Category::Integral &&
+      GetCategory(rhs.m_type) == Category::Integral)
+    m_integer <<= rhs.m_integer;
   else
     m_type = e_void;
   return *this;
 }
 
 bool Scalar::ShiftRightLogical(const Scalar &rhs) {
-  if (m_type == e_int && rhs.m_type == e_int) {
+  if (GetCategory(m_type) == Category::Integral &&
+      GetCategory(rhs.m_type) == Category::Integral) {
     m_integer = m_integer.lshr(rhs.m_integer);
     return true;
   }
@@ -443,16 +524,22 @@ Scalar &Scalar::operator>>=(const Scalar &rhs) {
   switch (m_type) {
   case e_void:
   case e_float:
+  case e_double:
+  case e_long_double:
     m_type = e_void;
     break;
 
-  case e_int:
+  case e_sint:
+  case e_uint:
     switch (rhs.m_type) {
     case e_void:
     case e_float:
+    case e_double:
+    case e_long_double:
       m_type = e_void;
       break;
-    case e_int:
+    case e_sint:
+    case e_uint:
       m_integer = m_integer.ashr(rhs.m_integer);
       break;
     }
@@ -462,7 +549,8 @@ Scalar &Scalar::operator>>=(const Scalar &rhs) {
 }
 
 Scalar &Scalar::operator&=(const Scalar &rhs) {
-  if (m_type == e_int && rhs.m_type == e_int)
+  if (GetCategory(m_type) == Category::Integral &&
+      GetCategory(rhs.m_type) == Category::Integral)
     m_integer &= rhs.m_integer;
   else
     m_type = e_void;
@@ -474,12 +562,16 @@ bool Scalar::AbsoluteValue() {
   case e_void:
     break;
 
-  case e_int:
+  case e_sint:
     if (m_integer.isNegative())
       m_integer = -m_integer;
     return true;
 
+  case e_uint:
+    return true;
   case e_float:
+  case e_double:
+  case e_long_double:
     m_float.clearSign();
     return true;
   }
@@ -487,13 +579,13 @@ bool Scalar::AbsoluteValue() {
 }
 
 bool Scalar::UnaryNegate() {
-  switch (m_type) {
-  case e_void:
+  switch (GetCategory(m_type)) {
+  case Category::Void:
     break;
-  case e_int:
+  case Category::Integral:
     m_integer = -m_integer;
     return true;
-  case e_float:
+  case Category::Float:
     m_float.changeSign();
     return true;
   }
@@ -501,7 +593,7 @@ bool Scalar::UnaryNegate() {
 }
 
 bool Scalar::OnesComplement() {
-  if (m_type == e_int) {
+  if (GetCategory(m_type) == Category::Integral) {
     m_integer = ~m_integer;
     return true;
   }
@@ -518,13 +610,13 @@ const Scalar lldb_private::operator+(const Scalar &lhs, const Scalar &rhs) {
 const Scalar lldb_private::operator-(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    switch (result.m_type) {
-    case Scalar::e_void:
+    switch (GetCategory(result.m_type)) {
+    case Category::Void:
       break;
-    case Scalar::e_int:
+    case Category::Integral:
       result.m_integer = lhs.m_integer - rhs.m_integer;
       break;
-    case Scalar::e_float:
+    case Category::Float:
       result.m_float = lhs.m_float - rhs.m_float;
       break;
     }
@@ -536,13 +628,16 @@ const Scalar lldb_private::operator/(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void &&
       !rhs.IsZero()) {
-    switch (result.m_type) {
-    case Scalar::e_void:
+    switch (GetCategory(result.m_type)) {
+    case Category::Void:
       break;
-    case Scalar::e_int:
-      result.m_integer = lhs.m_integer / rhs.m_integer;
+    case Category::Integral:
+      if (IsSigned(result.m_type))
+        result.m_integer = lhs.m_integer.sdiv(rhs.m_integer);
+      else
+        result.m_integer = lhs.m_integer.udiv(rhs.m_integer);
       return result;
-    case Scalar::e_float:
+    case Category::Float:
       result.m_float = lhs.m_float / rhs.m_float;
       return result;
     }
@@ -556,13 +651,13 @@ const Scalar lldb_private::operator/(Scalar lhs, Scalar rhs) {
 const Scalar lldb_private::operator*(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    switch (result.m_type) {
-    case Scalar::e_void:
+    switch (GetCategory(result.m_type)) {
+    case Category::Void:
       break;
-    case Scalar::e_int:
+    case Category::Integral:
       result.m_integer = lhs.m_integer * rhs.m_integer;
       break;
-    case Scalar::e_float:
+    case Category::Float:
       result.m_float = lhs.m_float * rhs.m_float;
       break;
     }
@@ -573,7 +668,7 @@ const Scalar lldb_private::operator*(Scalar lhs, Scalar rhs) {
 const Scalar lldb_private::operator&(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    if (result.m_type == Scalar::e_int)
+    if (GetCategory(result.m_type) == Category::Integral)
       result.m_integer = lhs.m_integer & rhs.m_integer;
     else
       result.m_type = Scalar::e_void;
@@ -584,7 +679,7 @@ const Scalar lldb_private::operator&(Scalar lhs, Scalar rhs) {
 const Scalar lldb_private::operator|(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    if (result.m_type == Scalar::e_int)
+    if (GetCategory(result.m_type) == Category::Integral)
       result.m_integer = lhs.m_integer | rhs.m_integer;
     else
       result.m_type = Scalar::e_void;
@@ -595,8 +690,11 @@ const Scalar lldb_private::operator|(Scalar lhs, Scalar rhs) {
 const Scalar lldb_private::operator%(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    if (!rhs.IsZero() && result.m_type == Scalar::e_int) {
-      result.m_integer = lhs.m_integer % rhs.m_integer;
+    if (!rhs.IsZero() && GetCategory(result.m_type) == Category::Integral) {
+      if (IsSigned(result.m_type))
+        result.m_integer = lhs.m_integer.srem(rhs.m_integer);
+      else
+        result.m_integer = lhs.m_integer.urem(rhs.m_integer);
       return result;
     }
   }
@@ -607,7 +705,7 @@ const Scalar lldb_private::operator%(Scalar lhs, Scalar rhs) {
 const Scalar lldb_private::operator^(Scalar lhs, Scalar rhs) {
   Scalar result;
   if ((result.m_type = Scalar::PromoteToMaxType(lhs, rhs)) != Scalar::e_void) {
-    if (result.m_type == Scalar::e_int)
+    if (GetCategory(result.m_type) == Category::Integral)
       result.m_integer = lhs.m_integer ^ rhs.m_integer;
     else
       result.m_type = Scalar::e_void;
@@ -664,24 +762,27 @@ Status Scalar::SetValueFromCString(const char *value_str, Encoding encoding,
           value_str, byte_size);
       break;
     }
-    m_type = e_int;
-    m_integer =
-        APSInt(std::move(integer), !is_signed).extOrTrunc(8 * byte_size);
+    if (is_signed) {
+      m_type = e_sint;
+      m_integer = integer.sextOrTrunc(8 * byte_size);
+    } else {
+      m_type = e_uint;
+      m_integer = integer.zextOrTrunc(8 * byte_size);
+    }
     break;
   }
 
   case eEncodingIEEE754: {
-    // FIXME: It's not possible to unambiguously map a byte size to a floating
-    // point type. This function should be refactored to take an explicit
-    // semantics argument.
-    const llvm::fltSemantics &sem =
-        byte_size <= 4 ? APFloat::IEEEsingle()
-                       : byte_size <= 8 ? APFloat::IEEEdouble()
-                                        : APFloat::x87DoubleExtended();
-    APFloat f(sem);
+    Type type = GetValueTypeForFloatWithByteSize(byte_size);
+    if (type == e_void) {
+      error.SetErrorStringWithFormatv("unsupported float byte size: {0}",
+                                      byte_size);
+      break;
+    }
+    APFloat f(GetFltSemantics(type));
     if (llvm::Expected<APFloat::opStatus> op =
             f.convertFromString(value_str, APFloat::rmNearestTiesToEven)) {
-      m_type = e_float;
+      m_type = type;
       m_float = std::move(f);
     } else
       error = op.takeError();
@@ -712,10 +813,14 @@ Status Scalar::SetValueFromData(const DataExtractor &data,
   case lldb::eEncodingSint: {
     if (data.GetByteSize() < byte_size)
       return Status("insufficient data");
-    m_type = e_int;
-    m_integer =
-        APSInt(APInt::getNullValue(8 * byte_size), encoding == eEncodingUint);
+    Type type = GetBestTypeForBitSize(byte_size*8, encoding == lldb::eEncodingSint);
+    if (type == e_void) {
+      return Status("unsupported integer byte size: %" PRIu64 "",
+                    static_cast<uint64_t>(byte_size));
+    }
+    m_type = type;
     if (data.GetByteOrder() == endian::InlHostByteOrder()) {
+      m_integer = APInt::getNullValue(8 * byte_size);
       llvm::LoadIntFromMemory(m_integer, data.GetDataStart(), byte_size);
     } else {
       std::vector<uint8_t> buffer(byte_size);
@@ -749,18 +854,21 @@ bool Scalar::SignExtend(uint32_t sign_bit_pos) {
     switch (m_type) {
     case Scalar::e_void:
     case Scalar::e_float:
+    case Scalar::e_double:
+    case Scalar::e_long_double:
       return false;
 
-    case Scalar::e_int:
+    case Scalar::e_sint:
+    case Scalar::e_uint:
       if (max_bit_pos == sign_bit_pos)
         return true;
       else if (sign_bit_pos < (max_bit_pos - 1)) {
         llvm::APInt sign_bit = llvm::APInt::getSignMask(sign_bit_pos + 1);
         llvm::APInt bitwize_and = m_integer & sign_bit;
         if (bitwize_and.getBoolValue()) {
-          llvm::APInt mask =
+          const llvm::APInt mask =
               ~(sign_bit) + llvm::APInt(m_integer.getBitWidth(), 1);
-          m_integer |= APSInt(std::move(mask), m_integer.isUnsigned());
+          m_integer |= mask;
         }
         return true;
       }
@@ -802,11 +910,20 @@ bool Scalar::ExtractBitfield(uint32_t bit_size, uint32_t bit_offset) {
   switch (m_type) {
   case Scalar::e_void:
   case Scalar::e_float:
+  case Scalar::e_double:
+  case Scalar::e_long_double:
     break;
 
-  case Scalar::e_int:
-    m_integer >>= bit_offset;
-    m_integer = m_integer.extOrTrunc(bit_size).extOrTrunc(8 * GetByteSize());
+  case Scalar::e_sint:
+    m_integer = m_integer.ashr(bit_offset)
+                    .sextOrTrunc(bit_size)
+                    .sextOrSelf(8 * GetByteSize());
+    return true;
+
+  case Scalar::e_uint:
+    m_integer = m_integer.lshr(bit_offset)
+                    .zextOrTrunc(bit_size)
+                    .zextOrSelf(8 * GetByteSize());
     return true;
   }
   return false;
@@ -821,9 +938,12 @@ bool lldb_private::operator==(Scalar lhs, Scalar rhs) {
   switch (Scalar::PromoteToMaxType(lhs, rhs)) {
   case Scalar::e_void:
     break;
-  case Scalar::e_int:
+  case Scalar::e_sint:
+  case Scalar::e_uint:
     return lhs.m_integer == rhs.m_integer;
   case Scalar::e_float:
+  case Scalar::e_double:
+  case Scalar::e_long_double:
     result = lhs.m_float.compare(rhs.m_float);
     if (result == llvm::APFloat::cmpEqual)
       return true;
@@ -843,9 +963,13 @@ bool lldb_private::operator<(Scalar lhs, Scalar rhs) {
   switch (Scalar::PromoteToMaxType(lhs, rhs)) {
   case Scalar::e_void:
     break;
-  case Scalar::e_int:
-    return lhs.m_integer < rhs.m_integer;
+  case Scalar::e_sint:
+    return lhs.m_integer.slt(rhs.m_integer);
+  case Scalar::e_uint:
+    return lhs.m_integer.ult(rhs.m_integer);
   case Scalar::e_float:
+  case Scalar::e_double:
+  case Scalar::e_long_double:
     result = lhs.m_float.compare(rhs.m_float);
     if (result == llvm::APFloat::cmpLessThan)
       return true;
@@ -869,10 +993,13 @@ bool Scalar::ClearBit(uint32_t bit) {
   switch (m_type) {
   case e_void:
     break;
-  case e_int:
+  case e_sint:
+  case e_uint:
     m_integer.clearBit(bit);
     return true;
   case e_float:
+  case e_double:
+  case e_long_double:
     break;
   }
   return false;
@@ -882,10 +1009,13 @@ bool Scalar::SetBit(uint32_t bit) {
   switch (m_type) {
   case e_void:
     break;
-  case e_int:
+  case e_sint:
+  case e_uint:
     m_integer.setBit(bit);
     return true;
   case e_float:
+  case e_double:
+  case e_long_double:
     break;
   }
   return false;

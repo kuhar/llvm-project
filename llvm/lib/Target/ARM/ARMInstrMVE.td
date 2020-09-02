@@ -5829,7 +5829,6 @@ class MVE_vldst24_base<bit writeback, bit fourregs, bits<2> stage, bits<2> size,
   let mayLoad = load;
   let mayStore = !eq(load,0);
   let hasSideEffects = 0;
-  let validForTailPredication = load;
 }
 
 // A parameter class used to encapsulate all the ways the writeback

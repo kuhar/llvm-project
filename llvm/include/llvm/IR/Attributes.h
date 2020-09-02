@@ -139,9 +139,6 @@ public:
   /// Return true if the attribute is a type attribute.
   bool isTypeAttribute() const;
 
-  /// Return true if the attribute is any kind of attribute.
-  bool isValid() const { return pImpl; }
-
   /// Return true if the attribute is present.
   bool hasAttribute(AttrKind Val) const;
 
@@ -753,14 +750,7 @@ public:
   void clear();
 
   /// Add an attribute to the builder.
-  AttrBuilder &addAttribute(Attribute::AttrKind Val) {
-    assert((unsigned)Val < Attribute::EndAttrKinds &&
-           "Attribute out of range!");
-    assert(!Attribute::doesAttrKindHaveArgument(Val) &&
-           "Adding integer attribute without adding a value!");
-    Attrs[Val] = true;
-    return *this;
-  }
+  AttrBuilder &addAttribute(Attribute::AttrKind Val);
 
   /// Add the Attribute object to the builder.
   AttrBuilder &addAttribute(Attribute A);

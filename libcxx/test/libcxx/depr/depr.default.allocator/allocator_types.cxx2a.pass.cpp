@@ -8,8 +8,7 @@
 
 // <memory>
 
-// Check that the following types are provided regardless of the Standard when
-// we request them from libc++.
+// check nested types:
 
 // template <class T>
 // class allocator
@@ -46,5 +45,5 @@ int main(int, char**)
     static_assert((std::is_same<std::allocator<char>::rebind<int>::other,
                                 std::allocator<int> >::value), "");
 
-    return 0;
+  return 0;
 }

@@ -128,7 +128,7 @@ TypeSize Type::getPrimitiveSizeInBits() const {
     ElementCount EC = VTy->getElementCount();
     TypeSize ETS = VTy->getElementType()->getPrimitiveSizeInBits();
     assert(!ETS.isScalable() && "Vector type should have fixed-width elements");
-    return {ETS.getFixedSize() * EC.getKnownMinValue(), EC.isScalable()};
+    return {ETS.getFixedSize() * EC.Min, EC.Scalable};
   }
   default: return TypeSize::Fixed(0);
   }
@@ -598,10 +598,10 @@ VectorType::VectorType(Type *ElType, unsigned EQ, Type::TypeID TID)
 }
 
 VectorType *VectorType::get(Type *ElementType, ElementCount EC) {
-  if (EC.isScalable())
-    return ScalableVectorType::get(ElementType, EC.getKnownMinValue());
+  if (EC.Scalable)
+    return ScalableVectorType::get(ElementType, EC.Min);
   else
-    return FixedVectorType::get(ElementType, EC.getKnownMinValue());
+    return FixedVectorType::get(ElementType, EC.Min);
 }
 
 bool VectorType::isValidElementType(Type *ElemTy) {
@@ -619,7 +619,7 @@ FixedVectorType *FixedVectorType::get(Type *ElementType, unsigned NumElts) {
                                             "be an integer, floating point, or "
                                             "pointer type.");
 
-  auto EC = ElementCount::getFixed(NumElts);
+  ElementCount EC(NumElts, false);
 
   LLVMContextImpl *pImpl = ElementType->getContext().pImpl;
   VectorType *&Entry = ElementType->getContext()
@@ -641,7 +641,7 @@ ScalableVectorType *ScalableVectorType::get(Type *ElementType,
                                             "be an integer, floating point, or "
                                             "pointer type.");
 
-  auto EC = ElementCount::getScalable(MinNumElts);
+  ElementCount EC(MinNumElts, true);
 
   LLVMContextImpl *pImpl = ElementType->getContext().pImpl;
   VectorType *&Entry = ElementType->getContext()

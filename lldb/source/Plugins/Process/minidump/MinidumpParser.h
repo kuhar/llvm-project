@@ -96,9 +96,6 @@ public:
 
   llvm::object::MinidumpFile &GetMinidumpFile() { return *m_file; }
 
-  static MemoryRegionInfo GetMemoryRegionInfo(const MemoryRegionInfos &regions,
-                                              lldb::addr_t load_addr);
-
 private:
   MinidumpParser(lldb::DataBufferSP data_sp,
                  std::unique_ptr<llvm::object::MinidumpFile> file);

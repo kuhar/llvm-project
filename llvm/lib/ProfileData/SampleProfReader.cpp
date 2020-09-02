@@ -1291,22 +1291,18 @@ void SampleProfileReaderItaniumRemapper::applyRemapping(LLVMContext &Ctx) {
   }
 
   assert(Remappings && "should be initialized while creating remapper");
-  for (auto &Sample : Reader.getProfiles()) {
-    DenseSet<StringRef> NamesInSample;
-    Sample.second.findAllNames(NamesInSample);
-    for (auto &Name : NamesInSample)
-      if (auto Key = Remappings->insert(Name))
-        NameMap.insert({Key, Name});
-  }
+  for (auto &Sample : Reader.getProfiles())
+    if (auto Key = Remappings->insert(Sample.first()))
+      SampleMap.insert({Key, &Sample.second});
 
   RemappingApplied = true;
 }
 
-Optional<StringRef>
-SampleProfileReaderItaniumRemapper::lookUpNameInProfile(StringRef Fname) {
+FunctionSamples *
+SampleProfileReaderItaniumRemapper::getSamplesFor(StringRef Fname) {
   if (auto Key = Remappings->lookup(Fname))
-    return NameMap.lookup(Key);
-  return None;
+    return SampleMap.lookup(Key);
+  return nullptr;
 }
 
 /// Prepare a memory buffer for the contents of \p Filename.

@@ -1903,16 +1903,18 @@ void ModuleMapParser::parseModuleDecl() {
         continue;
       }
 
-      Diags.Report(Id[I].second, diag::err_mmap_missing_parent_module)
-          << Id[I].first << (ActiveModule != nullptr)
-          << (ActiveModule
-                  ? ActiveModule->getTopLevelModule()->getFullModuleName()
-                  : "");
+      if (ActiveModule) {
+        Diags.Report(Id[I].second, diag::err_mmap_missing_module_qualified)
+          << Id[I].first
+          << ActiveModule->getTopLevelModule()->getFullModuleName();
+      } else {
+        Diags.Report(Id[I].second, diag::err_mmap_expected_module_name);
+      }
       HadError = true;
+      return;
     }
 
-    if (TopLevelModule &&
-        ModuleMapFile != Map.getContainingModuleMapFile(TopLevelModule)) {
+    if (ModuleMapFile != Map.getContainingModuleMapFile(TopLevelModule)) {
       assert(ModuleMapFile != Map.getModuleMapFileForUniquing(TopLevelModule) &&
              "submodule defined in same file as 'module *' that allowed its "
              "top-level module");

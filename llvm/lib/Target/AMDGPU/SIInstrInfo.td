@@ -433,15 +433,16 @@ def zextloadi16_local_m0 : PatFrag<(ops node:$ptr), (zextloadi16_glue node:$ptr)
 }
 
 def load_align8_local_m0 : PatFrag<(ops node:$ptr),
-                                   (load_local_m0 node:$ptr)>, Aligned<8> {
+                                   (load_local_m0 node:$ptr)> {
   let IsLoad = 1;
   let IsNonExtLoad = 1;
+  let MinAlignment = 8;
 }
-
 def load_align16_local_m0 : PatFrag<(ops node:$ptr),
-                                   (load_local_m0 node:$ptr)>, Aligned<16> {
+                                    (load_local_m0 node:$ptr)> {
   let IsLoad = 1;
   let IsNonExtLoad = 1;
+  let MinAlignment = 16;
 }
 
 } // End IsLoad = 1
@@ -517,18 +518,20 @@ def truncstorei16_local_m0 : PatFrag<(ops node:$val, node:$ptr),
 }
 }
 
-def store_align8_local_m0 : PatFrag <(ops node:$value, node:$ptr),
-                                     (store_local_m0 node:$value, node:$ptr)>,
-                            Aligned<8> {
+def store_align16_local_m0 : PatFrag <
+  (ops node:$value, node:$ptr),
+  (store_local_m0 node:$value, node:$ptr)> {
   let IsStore = 1;
   let IsTruncStore = 0;
+  let MinAlignment = 16;
 }
 
-def store_align16_local_m0 : PatFrag <(ops node:$value, node:$ptr),
-                                     (store_local_m0 node:$value, node:$ptr)>,
-                            Aligned<16> {
+def store_align8_local_m0 : PatFrag <
+  (ops node:$value, node:$ptr),
+  (store_local_m0 node:$value, node:$ptr)> {
   let IsStore = 1;
   let IsTruncStore = 0;
+  let MinAlignment = 8;
 }
 
 let AddressSpaces = StoreAddress_local.AddrSpaces in {
@@ -1293,7 +1296,6 @@ def PackedI16InputMods : PackedIntInputMods<PackedI16InputModsMatchClass>;
 
 def DS1Addr1Offset : ComplexPattern<i32, 2, "SelectDS1Addr1Offset">;
 def DS64Bit4ByteAligned : ComplexPattern<i32, 3, "SelectDS64Bit4ByteAligned">;
-def DS128Bit8ByteAligned : ComplexPattern<i64, 3, "SelectDS128Bit8ByteAligned">;
 
 def MOVRELOffset : ComplexPattern<i32, 2, "SelectMOVRELOffset">;
 

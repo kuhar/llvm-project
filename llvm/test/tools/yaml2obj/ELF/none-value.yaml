@@ -14,9 +14,10 @@
 ## demonstrate the expected use case for the <none> word.
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name:         .bar
     Type:         SHT_PROGBITS
@@ -36,9 +37,10 @@ Sections:
 ## The same document, but all fields that were set to <none> are removed.
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
   - Name: .bar
     Type: SHT_PROGBITS

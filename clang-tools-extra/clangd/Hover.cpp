@@ -339,11 +339,10 @@ llvm::Optional<std::string> printExprValue(const Expr *E,
   }
 
   // Evaluating [[foo]]() as "&foo" isn't useful, and prevents us walking up
-  // to the enclosing call. Evaluating an expression of void type doesn't
-  // produce a meaningful result.
+  // to the enclosing call.
   QualType T = E->getType();
   if (T.isNull() || T->isFunctionType() || T->isFunctionPointerType() ||
-      T->isFunctionReferenceType() || T->isVoidType())
+      T->isFunctionReferenceType())
     return llvm::None;
 
   Expr::EvalResult Constant;
@@ -371,10 +370,6 @@ llvm::Optional<std::string> printExprValue(const SelectionTree::Node *N,
   for (; N; N = N->Parent) {
     // Try to evaluate the first evaluatable enclosing expression.
     if (const Expr *E = N->ASTNode.get<Expr>()) {
-      // Once we cross an expression of type 'cv void', the evaluated result
-      // has nothing to do with our original cursor position.
-      if (!E->getType().isNull() && E->getType()->isVoidType())
-        break;
       if (auto Val = printExprValue(E, Ctx))
         return Val;
     } else if (N->ASTNode.get<Decl>() || N->ASTNode.get<Stmt>()) {

@@ -20,7 +20,9 @@ using namespace mlir::detail;
 
 MLIRContext *AffineExpr::getContext() const { return expr->context; }
 
-AffineExprKind AffineExpr::getKind() const { return expr->kind; }
+AffineExprKind AffineExpr::getKind() const {
+  return static_cast<AffineExprKind>(expr->getKind());
+}
 
 /// Walk all of the AffineExprs in this subgraph in postorder.
 void AffineExpr::walk(std::function<void(AffineExpr)> callback) const {
@@ -447,7 +449,8 @@ static AffineExpr getAffineDimOrSymbol(AffineExprKind kind, unsigned position,
 
   StorageUniquer &uniquer = context->getAffineUniquer();
   return uniquer.get<AffineDimExprStorage>(
-      assignCtx, static_cast<unsigned>(kind), position);
+      TypeID::get<AffineDimExprStorage>(), assignCtx,
+      static_cast<unsigned>(kind), position);
 }
 
 AffineExpr mlir::getAffineDimExpr(unsigned position, MLIRContext *context) {
@@ -481,7 +484,9 @@ AffineExpr mlir::getAffineConstantExpr(int64_t constant, MLIRContext *context) {
   };
 
   StorageUniquer &uniquer = context->getAffineUniquer();
-  return uniquer.get<AffineConstantExprStorage>(assignCtx, constant);
+  return uniquer.get<AffineConstantExprStorage>(
+      TypeID::get<AffineConstantExprStorage>(), assignCtx,
+      static_cast<unsigned>(AffineExprKind::Constant), constant);
 }
 
 /// Simplify add expression. Return nullptr if it can't be simplified.
@@ -589,6 +594,7 @@ AffineExpr AffineExpr::operator+(AffineExpr other) const {
 
   StorageUniquer &uniquer = getContext()->getAffineUniquer();
   return uniquer.get<AffineBinaryOpExprStorage>(
+      TypeID::get<AffineBinaryOpExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(AffineExprKind::Add), *this, other);
 }
 
@@ -649,6 +655,7 @@ AffineExpr AffineExpr::operator*(AffineExpr other) const {
 
   StorageUniquer &uniquer = getContext()->getAffineUniquer();
   return uniquer.get<AffineBinaryOpExprStorage>(
+      TypeID::get<AffineBinaryOpExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(AffineExprKind::Mul), *this, other);
 }
 
@@ -715,6 +722,7 @@ AffineExpr AffineExpr::floorDiv(AffineExpr other) const {
 
   StorageUniquer &uniquer = getContext()->getAffineUniquer();
   return uniquer.get<AffineBinaryOpExprStorage>(
+      TypeID::get<AffineBinaryOpExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(AffineExprKind::FloorDiv), *this,
       other);
 }
@@ -758,6 +766,7 @@ AffineExpr AffineExpr::ceilDiv(AffineExpr other) const {
 
   StorageUniquer &uniquer = getContext()->getAffineUniquer();
   return uniquer.get<AffineBinaryOpExprStorage>(
+      TypeID::get<AffineBinaryOpExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(AffineExprKind::CeilDiv), *this,
       other);
 }
@@ -805,6 +814,7 @@ AffineExpr AffineExpr::operator%(AffineExpr other) const {
 
   StorageUniquer &uniquer = getContext()->getAffineUniquer();
   return uniquer.get<AffineBinaryOpExprStorage>(
+      TypeID::get<AffineBinaryOpExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(AffineExprKind::Mod), *this, other);
 }
 

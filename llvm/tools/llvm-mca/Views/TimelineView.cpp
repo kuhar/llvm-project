@@ -20,10 +20,10 @@ namespace mca {
 TimelineView::TimelineView(const MCSubtargetInfo &sti, MCInstPrinter &Printer,
                            llvm::ArrayRef<llvm::MCInst> S, unsigned Iterations,
                            unsigned Cycles)
-    : InstructionView(sti, Printer, S), CurrentCycle(0),
+    : STI(sti), MCIP(Printer), Source(S), CurrentCycle(0),
       MaxCycle(Cycles == 0 ? 80 : Cycles), LastCycle(0), WaitTime(S.size()),
       UsedBuffer(S.size()) {
-  unsigned NumInstructions = getSource().size();
+  unsigned NumInstructions = Source.size();
   assert(Iterations && "Invalid number of iterations specified!");
   NumInstructions *= Iterations;
   Timeline.resize(NumInstructions);
@@ -40,10 +40,10 @@ TimelineView::TimelineView(const MCSubtargetInfo &sti, MCInstPrinter &Printer,
 
 void TimelineView::onReservedBuffers(const InstRef &IR,
                                      ArrayRef<unsigned> Buffers) {
-  if (IR.getSourceIndex() >= getSource().size())
+  if (IR.getSourceIndex() >= Source.size())
     return;
 
-  const MCSchedModel &SM = getSubTargetInfo().getSchedModel();
+  const MCSchedModel &SM = STI.getSchedModel();
   std::pair<unsigned, int> BufferInfo = {0, -1};
   for (const unsigned Buffer : Buffers) {
     const MCProcResourceDesc &MCDesc = *SM.getProcResource(Buffer);
@@ -70,7 +70,7 @@ void TimelineView::onEvent(const HWInstructionEvent &Event) {
     // Update the WaitTime entry which corresponds to this Index.
     assert(TVEntry.CycleDispatched >= 0 && "Invalid TVEntry found!");
     unsigned CycleDispatched = static_cast<unsigned>(TVEntry.CycleDispatched);
-    WaitTimeEntry &WTEntry = WaitTime[Index % getSource().size()];
+    WaitTimeEntry &WTEntry = WaitTime[Index % Source.size()];
     WTEntry.CyclesSpentInSchedulerQueue +=
         TVEntry.CycleIssued - CycleDispatched;
     assert(CycleDispatched <= TVEntry.CycleReady &&
@@ -133,7 +133,7 @@ void TimelineView::printWaitTimeEntry(formatted_raw_ostream &OS,
                                       const WaitTimeEntry &Entry,
                                       unsigned SourceIndex,
                                       unsigned Executions) const {
-  bool PrintingTotals = SourceIndex == getSource().size();
+  bool PrintingTotals = SourceIndex == Source.size();
   unsigned CumulativeExecutions = PrintingTotals ? Timeline.size() : Executions;
 
   if (!PrintingTotals)
@@ -164,8 +164,7 @@ void TimelineView::printWaitTimeEntry(formatted_raw_ostream &OS,
   OS.PadToColumn(27);
   if (!PrintingTotals)
     tryChangeColor(OS, Entry.CyclesSpentAfterWBAndBeforeRetire,
-                   CumulativeExecutions,
-                   getSubTargetInfo().getSchedModel().MicroOpBufferSize);
+                   CumulativeExecutions, STI.getSchedModel().MicroOpBufferSize);
   OS << format("%.1f", floor((AverageTime3 * 10) + 0.5) / 10);
 
   if (OS.has_colors())
@@ -182,19 +181,33 @@ void TimelineView::printAverageWaitTimes(raw_ostream &OS) const {
       "[3]: Average time elapsed from WB until retire stage\n\n"
       "      [0]    [1]    [2]    [3]\n";
   OS << Header;
+
+  // Use a different string stream for printing instructions.
+  std::string Instruction;
+  raw_string_ostream InstrStream(Instruction);
+
   formatted_raw_ostream FOS(OS);
-  unsigned Executions = Timeline.size() / getSource().size();
+  unsigned Executions = Timeline.size() / Source.size();
   unsigned IID = 0;
-  for (const MCInst &Inst : getSource()) {
+  for (const MCInst &Inst : Source) {
     printWaitTimeEntry(FOS, WaitTime[IID], IID, Executions);
-    FOS << "   " << printInstructionString(Inst) << '\n';
+    // Append the instruction info at the end of the line.
+    MCIP.printInst(&Inst, 0, "", STI, InstrStream);
+    InstrStream.flush();
+
+    // Consume any tabs or spaces at the beginning of the string.
+    StringRef Str(Instruction);
+    Str = Str.ltrim();
+    FOS << "   " << Str << '\n';
     FOS.flush();
+    Instruction = "";
+
     ++IID;
   }
 
   // If the timeline contains more than one instruction,
   // let's also print global averages.
-  if (getSource().size() != 1) {
+  if (Source.size() != 1) {
     WaitTimeEntry TotalWaitTime = std::accumulate(
         WaitTime.begin(), WaitTime.end(), WaitTimeEntry{0, 0, 0},
         [](const WaitTimeEntry &A, const WaitTimeEntry &B) {
@@ -207,7 +220,7 @@ void TimelineView::printAverageWaitTimes(raw_ostream &OS) const {
     printWaitTimeEntry(FOS, TotalWaitTime, IID, Executions);
     FOS << "   "
         << "<total>" << '\n';
-    FOS.flush();
+    InstrStream.flush();
   }
 }
 
@@ -279,8 +292,11 @@ void TimelineView::printTimeline(raw_ostream &OS) const {
   printTimelineHeader(FOS, LastCycle);
   FOS.flush();
 
+  // Use a different string stream for the instruction.
+  std::string Instruction;
+  raw_string_ostream InstrStream(Instruction);
+
   unsigned IID = 0;
-  ArrayRef<llvm::MCInst> Source = getSource();
   const unsigned Iterations = Timeline.size() / Source.size();
   for (unsigned Iteration = 0; Iteration < Iterations; ++Iteration) {
     for (const MCInst &Inst : Source) {
@@ -290,8 +306,16 @@ void TimelineView::printTimeline(raw_ostream &OS) const {
 
       unsigned SourceIndex = IID % Source.size();
       printTimelineViewEntry(FOS, Entry, Iteration, SourceIndex);
-      FOS << "   " << printInstructionString(Inst) << '\n';
+      // Append the instruction info at the end of the line.
+      MCIP.printInst(&Inst, 0, "", STI, InstrStream);
+      InstrStream.flush();
+
+      // Consume any tabs or spaces at the beginning of the string.
+      StringRef Str(Instruction);
+      Str = Str.ltrim();
+      FOS << "   " << Str << '\n';
       FOS.flush();
+      Instruction = "";
 
       ++IID;
     }

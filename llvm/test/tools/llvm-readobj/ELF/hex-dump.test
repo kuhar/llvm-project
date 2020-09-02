@@ -44,9 +44,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_386
 
 ## Test that llvm-readelf emits the correct number of spaces between the hex data
 ## and its ascii representation.
@@ -80,9 +81,10 @@ FileHeader:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_386
 Sections:
   - Name: .sec
     Type: SHT_PROGBITS

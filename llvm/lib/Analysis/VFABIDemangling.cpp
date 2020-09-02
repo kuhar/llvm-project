@@ -310,7 +310,7 @@ ElementCount getECFromSignature(FunctionType *Signature) {
     if (auto *VTy = dyn_cast<VectorType>(Ty))
       return VTy->getElementCount();
 
-  return ElementCount::getFixed(/*Min=*/1);
+  return ElementCount(/*Min=*/1, /*Scalable=*/false);
 }
 } // namespace
 
@@ -442,7 +442,7 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
     if (!F)
       return None;
     const ElementCount EC = getECFromSignature(F->getFunctionType());
-    VF = EC.getKnownMinValue();
+    VF = EC.Min;
   }
 
   // Sanity checks.

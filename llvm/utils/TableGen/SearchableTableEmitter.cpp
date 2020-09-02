@@ -138,8 +138,7 @@ private:
   CodeGenIntrinsic &getIntrinsic(Init *I) {
     std::unique_ptr<CodeGenIntrinsic> &Intr = Intrinsics[I];
     if (!Intr)
-      Intr = std::make_unique<CodeGenIntrinsic>(cast<DefInit>(I)->getDef(),
-                                                std::vector<Record *>());
+      Intr = std::make_unique<CodeGenIntrinsic>(cast<DefInit>(I)->getDef());
     return *Intr;
   }
 

@@ -54,6 +54,14 @@ struct SparseElementsAttributeStorage;
 /// passed by value.
 class Attribute {
 public:
+  /// Integer identifier for all the concrete attribute kinds.
+  enum Kind {
+  // Reserve attribute kinds for dialect specific extensions.
+#define DEFINE_SYM_KIND_RANGE(Dialect)                                         \
+  FIRST_##Dialect##_ATTR, LAST_##Dialect##_ATTR = FIRST_##Dialect##_ATTR + 0xff,
+#include "DialectSymbolRegistry.def"
+  };
+
   /// Utility class for implementing attributes.
   template <typename ConcreteType, typename BaseType, typename StorageType,
             template <typename T> class... Traits>
@@ -85,6 +93,9 @@ public:
 
   // Support dyn_cast'ing Attribute to itself.
   static bool classof(Attribute) { return true; }
+
+  /// Return the classification for this attribute.
+  unsigned getKind() const { return impl->getKind(); }
 
   /// Return a unique identifier for the concrete attribute type. This is used
   /// to support dynamic type casting.
@@ -163,6 +174,54 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// StandardAttributes
+//===----------------------------------------------------------------------===//
+
+namespace StandardAttributes {
+enum Kind {
+  AffineMap = Attribute::FIRST_STANDARD_ATTR,
+  Array,
+  Dictionary,
+  Float,
+  Integer,
+  IntegerSet,
+  Opaque,
+  String,
+  SymbolRef,
+  Type,
+  Unit,
+
+  /// Elements Attributes.
+  DenseIntOrFPElements,
+  DenseStringElements,
+  OpaqueElements,
+  SparseElements,
+  FIRST_ELEMENTS_ATTR = DenseIntOrFPElements,
+  LAST_ELEMENTS_ATTR = SparseElements,
+
+  /// Locations.
+  CallSiteLocation,
+  FileLineColLocation,
+  FusedLocation,
+  NameLocation,
+  OpaqueLocation,
+  UnknownLocation,
+
+  // Represents a location as a 'void*' pointer to a front-end's opaque
+  // location information, which must live longer than the MLIR objects that
+  // refer to it.  OpaqueLocation's are never serialized.
+  //
+  // TODO: OpaqueLocation,
+
+  // Represents a value inlined through a function call.
+  // TODO: InlinedLocation,
+
+  FIRST_LOCATION_ATTR = CallSiteLocation,
+  LAST_LOCATION_ATTR = UnknownLocation,
+};
+} // namespace StandardAttributes
+
+//===----------------------------------------------------------------------===//
 // AffineMapAttr
 //===----------------------------------------------------------------------===//
 
@@ -217,12 +276,12 @@ private:
 
 public:
   template <typename AttrTy>
-  iterator_range<attr_value_iterator<AttrTy>> getAsRange() {
+  llvm::iterator_range<attr_value_iterator<AttrTy>> getAsRange() {
     return llvm::make_range(attr_value_iterator<AttrTy>(begin()),
                             attr_value_iterator<AttrTy>(end()));
   }
-  template <typename AttrTy, typename UnderlyingTy = typename AttrTy::ValueType>
-  auto getAsValueRange() {
+  template <typename AttrTy, typename UnderlyingTy>
+  auto getAsRange() {
     return llvm::map_range(getAsRange<AttrTy>(), [](AttrTy attr) {
       return static_cast<UnderlyingTy>(attr.getValue());
     });
@@ -589,9 +648,6 @@ public:
   /// Returns the number of elements held by this attribute.
   int64_t getNumElements() const;
 
-  /// Returns the number of elements held by this attribute.
-  int64_t size() const { return getNumElements(); }
-
   /// Generates a new ElementsAttr by mapping each int value to a new
   /// underlying APInt. The new values can represent either an integer or float.
   /// This ElementsAttr should contain integers.
@@ -899,7 +955,7 @@ public:
   // Value Querying
   //===--------------------------------------------------------------------===//
 
-  /// Returns true if this attribute corresponds to a splat, i.e. if all element
+  /// Returns if this attribute corresponds to a splat, i.e. if all element
   /// values are the same.
   bool isSplat() const;
 

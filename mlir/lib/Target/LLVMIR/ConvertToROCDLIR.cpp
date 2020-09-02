@@ -103,8 +103,7 @@ mlir::translateModuleToROCDLIR(Operation *m, llvm::LLVMContext &llvmContext,
 namespace mlir {
 void registerToROCDLIRTranslation() {
   TranslateFromMLIRRegistration registration(
-      "mlir-to-rocdlir",
-      [](ModuleOp module, raw_ostream &output) {
+      "mlir-to-rocdlir", [](ModuleOp module, raw_ostream &output) {
         llvm::LLVMContext llvmContext;
         auto llvmModule = mlir::translateModuleToROCDLIR(module, llvmContext);
         if (!llvmModule)
@@ -112,9 +111,6 @@ void registerToROCDLIRTranslation() {
 
         llvmModule->print(output, nullptr);
         return success();
-      },
-      [](DialectRegistry &registry) {
-        registry.insert<ROCDL::ROCDLDialect, LLVM::LLVMDialect>();
       });
 }
 } // namespace mlir

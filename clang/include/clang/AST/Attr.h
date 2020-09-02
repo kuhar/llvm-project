@@ -334,17 +334,11 @@ static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
 struct ParsedTargetAttr {
   std::vector<std::string> Features;
   StringRef Architecture;
-  StringRef Tune;
   StringRef BranchProtection;
   bool DuplicateArchitecture = false;
-  bool DuplicateTune = false;
   bool operator ==(const ParsedTargetAttr &Other) const {
     return DuplicateArchitecture == Other.DuplicateArchitecture &&
-           DuplicateTune == Other.DuplicateTune &&
-           Architecture == Other.Architecture &&
-           Tune == Other.Tune &&
-           BranchProtection == Other.BranchProtection &&
-           Features == Other.Features;
+           Architecture == Other.Architecture && Features == Other.Features;
   }
 };
 

@@ -547,8 +547,7 @@ struct ProgramUnit {
   std::variant<common::Indirection<MainProgram>,
       common::Indirection<FunctionSubprogram>,
       common::Indirection<SubroutineSubprogram>, common::Indirection<Module>,
-      common::Indirection<Submodule>, common::Indirection<BlockData>,
-      common::Indirection<CompilerDirective>>
+      common::Indirection<Submodule>, common::Indirection<BlockData>>
       u;
 };
 
@@ -3841,10 +3840,8 @@ struct AccObjectListWithModifier {
 
 // 2.5.13: + | * | max | min | iand | ior | ieor | .and. | .or. | .eqv. | .neqv.
 struct AccReductionOperator {
-  ENUM_CLASS(
-      Operator, Plus, Multiply, Max, Min, Iand, Ior, Ieor, And, Or, Eqv, Neqv)
-  WRAPPER_CLASS_BOILERPLATE(AccReductionOperator, Operator);
-  CharBlock source;
+  UNION_CLASS_BOILERPLATE(AccReductionOperator);
+  std::variant<DefinedOperator, ProcedureDesignator> u;
 };
 
 struct AccObjectListWithReduction {
@@ -3855,16 +3852,6 @@ struct AccObjectListWithReduction {
 struct AccWaitArgument {
   TUPLE_CLASS_BOILERPLATE(AccWaitArgument);
   std::tuple<std::optional<ScalarIntExpr>, std::list<ScalarIntExpr>> t;
-};
-
-struct AccTileExpr {
-  TUPLE_CLASS_BOILERPLATE(AccTileExpr);
-  CharBlock source;
-  std::tuple<std::optional<ScalarIntConstantExpr>> t; // if null then *
-};
-
-struct AccTileExprList {
-  WRAPPER_CLASS_BOILERPLATE(AccTileExprList, std::list<AccTileExpr>);
 };
 
 struct AccSizeExpr {

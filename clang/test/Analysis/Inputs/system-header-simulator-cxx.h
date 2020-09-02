@@ -970,7 +970,6 @@ public:
   T *operator->() const noexcept;
   operator bool() const noexcept;
   unique_ptr<T> &operator=(unique_ptr<T> &&p) noexcept;
-  unique_ptr<T> &operator=(nullptr_t) noexcept;
 };
 
 // TODO :: Once the deleter parameter is added update with additional template parameter.

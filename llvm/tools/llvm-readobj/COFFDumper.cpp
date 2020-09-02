@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ARMWinEHPrinter.h"
+#include "Error.h"
 #include "ObjDumper.h"
 #include "StackMapPrinter.h"
 #include "Win64EHDumper.h"
@@ -238,9 +239,15 @@ private:
 
 namespace llvm {
 
-std::unique_ptr<ObjDumper> createCOFFDumper(const object::COFFObjectFile &Obj,
-                                            ScopedPrinter &Writer) {
-  return std::make_unique<COFFDumper>(&Obj, Writer);
+std::error_code createCOFFDumper(const object::ObjectFile *Obj,
+                                 ScopedPrinter &Writer,
+                                 std::unique_ptr<ObjDumper> &Result) {
+  const COFFObjectFile *COFFObj = dyn_cast<COFFObjectFile>(Obj);
+  if (!COFFObj)
+    return readobj_error::unsupported_obj_file_format;
+
+  Result.reset(new COFFDumper(COFFObj, Writer));
+  return readobj_error::success;
 }
 
 } // namespace llvm
@@ -261,9 +268,9 @@ std::error_code COFFDumper::resolveSymbol(const coff_section *Section,
     }
   }
   if (SymI == Obj->symbol_end())
-    return inconvertibleErrorCode();
+    return readobj_error::unknown_symbol;
   Sym = *SymI;
-  return std::error_code();
+  return readobj_error::success;
 }
 
 // Given a section and an offset into this section the function returns the name
@@ -577,7 +584,7 @@ static std::error_code getSymbolAuxData(const COFFObjectFile *Obj,
   ArrayRef<uint8_t> AuxData = Obj->getSymbolAuxData(Symbol);
   AuxData = AuxData.slice(AuxSymbolIdx * Obj->getSymbolTableEntrySize());
   Aux = reinterpret_cast<const T*>(AuxData.data());
-  return std::error_code();
+  return readobj_error::success;
 }
 
 void COFFDumper::cacheRelocations() {

@@ -7,10 +7,9 @@ block data foo
   !ERROR: An initialized variable in BLOCK DATA must be in a COMMON block
   integer :: notInCommon = 1
   integer :: uninitialized ! ok
-  !ERROR: 'q' may not appear in a BLOCK DATA subprogram
-  procedure(sin), pointer :: q => cos
-  !ERROR: 'p' may not be a procedure as it is in a COMMON block
+  !ERROR: 'p' may not appear in a BLOCK DATA subprogram
   procedure(sin), pointer :: p => cos
+  !ERROR: 'p' is already declared as a procedure
   common /block/ pi, p
   !ERROR: An initialized variable in BLOCK DATA must be in a COMMON block
   integer :: inDataButNotCommon

@@ -477,7 +477,7 @@ MachineMemOperand *MachineFunction::getMachineMemOperand(
 MachineMemOperand *MachineFunction::getMachineMemOperand(
     const MachineMemOperand *MMO, MachinePointerInfo &PtrInfo, uint64_t Size) {
   return new (Allocator) MachineMemOperand(
-      PtrInfo, MMO->getFlags(), Size, MMO->getBaseAlign(), AAMDNodes(), nullptr,
+      PtrInfo, MMO->getFlags(), Size, Alignment, AAMDNodes(), nullptr,
       MMO->getSyncScopeID(), MMO->getOrdering(), MMO->getFailureOrdering());
 }
 
@@ -492,11 +492,9 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
                         ? commonAlignment(MMO->getBaseAlign(), Offset)
                         : MMO->getBaseAlign();
 
-  // Do not preserve ranges, since we don't necessarily know what the high bits
-  // are anymore.
   return new (Allocator)
       MachineMemOperand(PtrInfo.getWithOffset(Offset), MMO->getFlags(), Size,
-                        Alignment, MMO->getAAInfo(), nullptr, MMO->getSyncScopeID(),
+                        Alignment, AAMDNodes(), nullptr, MMO->getSyncScopeID(),
                         MMO->getOrdering(), MMO->getFailureOrdering());
 }
 

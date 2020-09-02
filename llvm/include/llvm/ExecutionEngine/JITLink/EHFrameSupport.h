@@ -42,11 +42,32 @@ public:
 /// Registers / Deregisters EH-frames in the current process.
 class InProcessEHFrameRegistrar final : public EHFrameRegistrar {
 public:
+  /// Get a reference to the InProcessEHFrameRegistrar singleton.
+  static InProcessEHFrameRegistrar &getInstance();
+
+  InProcessEHFrameRegistrar(const InProcessEHFrameRegistrar &) = delete;
+  InProcessEHFrameRegistrar &
+  operator=(const InProcessEHFrameRegistrar &) = delete;
+
+  InProcessEHFrameRegistrar(InProcessEHFrameRegistrar &&) = delete;
+  InProcessEHFrameRegistrar &operator=(InProcessEHFrameRegistrar &&) = delete;
+
   Error registerEHFrames(JITTargetAddress EHFrameSectionAddr,
-                         size_t EHFrameSectionSize) override;
+                         size_t EHFrameSectionSize) override {
+    return registerEHFrameSection(
+        jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
+        EHFrameSectionSize);
+  }
 
   Error deregisterEHFrames(JITTargetAddress EHFrameSectionAddr,
-                           size_t EHFrameSectionSize) override;
+                           size_t EHFrameSectionSize) override {
+    return deregisterEHFrameSection(
+        jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
+        EHFrameSectionSize);
+  }
+
+private:
+  InProcessEHFrameRegistrar();
 };
 
 using StoreFrameRangeFunction =

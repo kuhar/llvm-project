@@ -102,7 +102,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
                   maybe(parenthesized(scalarLogicalExpr)))) ||
     "SEQ" >> construct<AccClause>(construct<AccClause::Seq>()) ||
     "TILE" >> construct<AccClause>(construct<AccClause::Tile>(
-                  parenthesized(Parser<AccTileExprList>{}))) ||
+                  parenthesized(Parser<AccSizeExprList>{}))) ||
     "USE_DEVICE" >> construct<AccClause>(construct<AccClause::UseDevice>(
                         parenthesized(Parser<AccObjectList>{}))) ||
     "VECTOR_LENGTH" >> construct<AccClause>(construct<AccClause::VectorLength>(
@@ -111,7 +111,7 @@ TYPE_PARSER("AUTO" >> construct<AccClause>(construct<AccClause::Auto>()) ||
         construct<AccClause>(construct<AccClause::Vector>(maybe(
             parenthesized(("LENGTH:" >> scalarIntExpr || scalarIntExpr))))) ||
     "WAIT" >> construct<AccClause>(construct<AccClause::Wait>(
-                  maybe(parenthesized(Parser<AccWaitArgument>{})))) ||
+                  maybe(Parser<AccWaitArgument>{}))) ||
     "WORKER" >>
         construct<AccClause>(construct<AccClause::Worker>(maybe(
             parenthesized(("NUM:" >> scalarIntExpr || scalarIntExpr))))) ||
@@ -125,46 +125,26 @@ TYPE_PARSER(construct<AccObjectList>(nonemptyList(Parser<AccObject>{})))
 TYPE_PARSER(construct<AccObjectListWithModifier>(
     maybe(Parser<AccDataModifier>{}), Parser<AccObjectList>{}))
 
-// 2.16.3 (2485) wait-argument is:
-//   [devnum : int-expr :] [queues :] int-expr-list
-TYPE_PARSER(construct<AccWaitArgument>(maybe("DEVNUM:" >> scalarIntExpr / ":"),
-    "QUEUES:" >> nonemptyList(scalarIntExpr) || nonemptyList(scalarIntExpr)))
+TYPE_PARSER(construct<AccWaitArgument>(
+    maybe("DEVNUM:" >> scalarIntExpr / ":"), nonemptyList(scalarIntExpr)))
 
 // 2.9 (1609) size-expr is one of:
-//   * (represented as an empty std::optional<ScalarIntExpr>)
 //   int-expr
 TYPE_PARSER(construct<AccSizeExpr>(scalarIntExpr) ||
-    construct<AccSizeExpr>("*" >> construct<std::optional<ScalarIntExpr>>()))
+    construct<AccSizeExpr>("*" >> maybe(scalarIntExpr)))
 TYPE_PARSER(construct<AccSizeExprList>(nonemptyList(Parser<AccSizeExpr>{})))
 
-// tile size is one of:
-//   * (represented as an empty std::optional<ScalarIntExpr>)
-//   constant-int-expr
-TYPE_PARSER(construct<AccTileExpr>(scalarIntConstantExpr) ||
-    construct<AccTileExpr>(
-        "*" >> construct<std::optional<ScalarIntConstantExpr>>()))
-TYPE_PARSER(construct<AccTileExprList>(nonemptyList(Parser<AccTileExpr>{})))
-
-// 2.9 (1607) gang-arg is:
-//   [[num:]int-expr][[,]static:size-expr]
-TYPE_PARSER(construct<AccGangArgument>(
-    maybe(("NUM:"_tok >> scalarIntExpr || scalarIntExpr)),
-    maybe(", STATIC:" >> Parser<AccSizeExpr>{})))
+// 2.9 (1607) gang-arg is one of:
+//   [num:]int-expr
+//   static:size-expr
+TYPE_PARSER(construct<AccGangArgument>(maybe(scalarIntExpr),
+                maybe(","_tok / "STATIC:" >> Parser<AccSizeExpr>{})) ||
+    construct<AccGangArgument>(maybe("NUM:" >> scalarIntExpr),
+        maybe(","_tok / "STATIC:" >> Parser<AccSizeExpr>{})))
 
 // 2.5.13 Reduction
-// Operator for reduction
-TYPE_PARSER(sourced(construct<AccReductionOperator>(
-    first("+" >> pure(AccReductionOperator::Operator::Plus),
-        "*" >> pure(AccReductionOperator::Operator::Multiply),
-        "MAX" >> pure(AccReductionOperator::Operator::Max),
-        "MIN" >> pure(AccReductionOperator::Operator::Min),
-        "IAND" >> pure(AccReductionOperator::Operator::Iand),
-        "IOR" >> pure(AccReductionOperator::Operator::Ior),
-        "IEOR" >> pure(AccReductionOperator::Operator::Ieor),
-        ".AND." >> pure(AccReductionOperator::Operator::And),
-        ".OR." >> pure(AccReductionOperator::Operator::Or),
-        ".EQV." >> pure(AccReductionOperator::Operator::Eqv),
-        ".NEQV." >> pure(AccReductionOperator::Operator::Neqv)))))
+TYPE_PARSER(construct<AccReductionOperator>(Parser<DefinedOperator>{}) ||
+    construct<AccReductionOperator>(Parser<ProcedureDesignator>{}))
 
 // 2.5.14 Default clause
 TYPE_PARSER(construct<AccDefaultClause>(

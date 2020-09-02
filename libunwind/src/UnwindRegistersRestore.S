@@ -13,10 +13,14 @@
 #if !defined(__USING_SJLJ_EXCEPTIONS__)
 
 #if defined(__i386__)
-DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_x86_jumpto)
+DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind13Registers_x866jumptoEv)
 #
-# extern "C" void __libunwind_Registers_x86_jumpto(Registers_x86 *);
+# void libunwind::Registers_x86::jumpto()
 #
+#if defined(_WIN32)
+# On windows, the 'this' pointer is passed in ecx instead of on the stack
+  movl   %ecx, %eax
+#else
 # On entry:
 #  +                       +
 #  +-----------------------+
@@ -26,6 +30,7 @@ DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_x86_jumpto)
 #  +-----------------------+   <-- SP
 #  +                       +
   movl   4(%esp), %eax
+#endif
   # set up eax and ret on new stack location
   movl  28(%eax), %edx # edx holds new stack pointer
   subl  $8,%edx
@@ -55,9 +60,9 @@ DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_x86_jumpto)
 
 #elif defined(__x86_64__)
 
-DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_x86_64_jumpto)
+DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind16Registers_x86_646jumptoEv)
 #
-# extern "C" void __libunwind_Registers_x86_64_jumpto(Registers_x86_64 *);
+# void libunwind::Registers_x86_64::jumpto()
 #
 #if defined(_WIN64)
 # On entry, thread_state pointer is in rcx; move it into rdi
@@ -555,13 +560,13 @@ Lnovec:
 #elif defined(__aarch64__)
 
 //
-// extern "C" void __libunwind_Registers_arm64_jumpto(Registers_arm64 *);
+// void libunwind::Registers_arm64::jumpto()
 //
 // On entry:
 //  thread_state pointer is in x0
 //
   .p2align 2
-DEFINE_LIBUNWIND_FUNCTION(__libunwind_Registers_arm64_jumpto)
+DEFINE_LIBUNWIND_FUNCTION(_ZN9libunwind15Registers_arm646jumptoEv)
   // skip restore of x0,x1 for now
   ldp    x2, x3,  [x0, #0x010]
   ldp    x4, x5,  [x0, #0x020]

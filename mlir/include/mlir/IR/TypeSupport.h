@@ -121,23 +121,15 @@ namespace detail {
 /// A utility class to get, or create, unique instances of types within an
 /// MLIRContext. This class manages all creation and uniquing of types.
 struct TypeUniquer {
-  /// Get an uniqued instance of a parametric type T.
+  /// Get an uniqued instance of a type T.
   template <typename T, typename... Args>
-  static typename std::enable_if_t<
-      !std::is_same<typename T::ImplType, TypeStorage>::value, T>
-  get(MLIRContext *ctx, Args &&...args) {
+  static T get(MLIRContext *ctx, unsigned kind, Args &&... args) {
     return ctx->getTypeUniquer().get<typename T::ImplType>(
+        T::getTypeID(),
         [&](TypeStorage *storage) {
           storage->initialize(AbstractType::lookup(T::getTypeID(), ctx));
         },
-        T::getTypeID(), std::forward<Args>(args)...);
-  }
-  /// Get an uniqued instance of a singleton type T.
-  template <typename T>
-  static typename std::enable_if_t<
-      std::is_same<typename T::ImplType, TypeStorage>::value, T>
-  get(MLIRContext *ctx) {
-    return ctx->getTypeUniquer().get<typename T::ImplType>(T::getTypeID());
+        kind, std::forward<Args>(args)...);
   }
 
   /// Change the mutable component of the given type instance in the provided
@@ -148,25 +140,6 @@ struct TypeUniquer {
     assert(impl && "cannot mutate null type");
     return ctx->getTypeUniquer().mutate(T::getTypeID(), impl,
                                         std::forward<Args>(args)...);
-  }
-
-  /// Register a parametric type instance T with the uniquer.
-  template <typename T>
-  static typename std::enable_if_t<
-      !std::is_same<typename T::ImplType, TypeStorage>::value>
-  registerType(MLIRContext *ctx) {
-    ctx->getTypeUniquer().registerParametricStorageType<typename T::ImplType>(
-        T::getTypeID());
-  }
-  /// Register a singleton type instance T with the uniquer.
-  template <typename T>
-  static typename std::enable_if_t<
-      std::is_same<typename T::ImplType, TypeStorage>::value>
-  registerType(MLIRContext *ctx) {
-    ctx->getTypeUniquer().registerSingletonStorageType<TypeStorage>(
-        T::getTypeID(), [&](TypeStorage *storage) {
-          storage->initialize(AbstractType::lookup(T::getTypeID(), ctx));
-        });
   }
 };
 } // namespace detail

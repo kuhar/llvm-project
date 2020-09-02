@@ -76,13 +76,9 @@ OPTIONS
 
   Use actual timestamps and UIDs/GIDs.
 
-.. option:: -V
-
-  Display the version of this program and perform any operation specified.
-
 .. option:: -version
 
-  Display the version of this program and exit immediately.
+  Display the version of this program.
 
 EXIT STATUS
 -----------

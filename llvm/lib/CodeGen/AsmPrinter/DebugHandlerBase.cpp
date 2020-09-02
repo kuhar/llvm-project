@@ -196,9 +196,8 @@ void DebugHandlerBase::beginFunction(const MachineFunction *MF) {
   assert(DbgLabels.empty() && "DbgLabels map wasn't cleaned!");
   calculateDbgEntityHistory(MF, Asm->MF->getSubtarget().getRegisterInfo(),
                             DbgValues, DbgLabels);
-  InstOrdering.initialize(*MF);
   if (TrimVarLocs)
-    DbgValues.trimLocationRanges(*MF, LScopes, InstOrdering);
+    DbgValues.trimLocationRanges(*MF, LScopes);
   LLVM_DEBUG(DbgValues.dump());
 
   // Request labels for the full history.
@@ -334,7 +333,6 @@ void DebugHandlerBase::endFunction(const MachineFunction *MF) {
   DbgLabels.clear();
   LabelsBeforeInsn.clear();
   LabelsAfterInsn.clear();
-  InstOrdering.clear();
 }
 
 void DebugHandlerBase::beginBasicBlock(const MachineBasicBlock &MBB) {

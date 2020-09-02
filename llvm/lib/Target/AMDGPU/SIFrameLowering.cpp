@@ -1090,15 +1090,15 @@ static bool allStackObjectsAreDead(const MachineFrameInfo &MFI) {
 }
 
 #ifndef NDEBUG
-static bool allSGPRSpillsAreDead(const MachineFunction &MF) {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
+static bool allSGPRSpillsAreDead(const MachineFrameInfo &MFI,
+                                 Optional<int> FramePointerSaveIndex,
+                                 Optional<int> BasePointerSaveIndex) {
   for (int I = MFI.getObjectIndexBegin(), E = MFI.getObjectIndexEnd();
        I != E; ++I) {
     if (!MFI.isDeadObjectIndex(I) &&
         MFI.getStackID(I) == TargetStackID::SGPRSpill &&
-        (I != FuncInfo->FramePointerSaveIndex &&
-         I != FuncInfo->BasePointerSaveIndex)) {
+        ((FramePointerSaveIndex && I != FramePointerSaveIndex) ||
+         (BasePointerSaveIndex && I != BasePointerSaveIndex))) {
       return false;
     }
   }
@@ -1125,7 +1125,7 @@ void SIFrameLowering::processFunctionBeforeFrameFinalized(
   SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
 
   FuncInfo->removeDeadFrameIndices(MFI);
-  assert(allSGPRSpillsAreDead(MF) &&
+  assert(allSGPRSpillsAreDead(MFI, None, None) &&
          "SGPR spill should have been removed in SILowerSGPRSpills");
 
   // FIXME: The other checks should be redundant with allStackObjectsAreDead,

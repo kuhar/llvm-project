@@ -39,8 +39,6 @@ enum {
 };
 
 #if defined(_LIBUNWIND_TARGET_I386)
-class _LIBUNWIND_HIDDEN Registers_x86;
-extern "C" void __libunwind_Registers_x86_jumpto(Registers_x86 *);
 /// Registers_x86 holds the register state of a thread in a 32-bit intel
 /// process.
 class _LIBUNWIND_HIDDEN Registers_x86 {
@@ -58,7 +56,7 @@ public:
   v128        getVectorRegister(int num) const;
   void        setVectorRegister(int num, v128 value);
   static const char *getRegisterName(int num);
-  void        jumpto() { __libunwind_Registers_x86_jumpto(this); }
+  void        jumpto();
   static int  lastDwarfRegNum() { return _LIBUNWIND_HIGHEST_DWARF_REGISTER_X86; }
   static int  getArch() { return REGISTERS_X86; }
 
@@ -250,8 +248,6 @@ inline void Registers_x86::setVectorRegister(int, v128) {
 #if defined(_LIBUNWIND_TARGET_X86_64)
 /// Registers_x86_64  holds the register state of a thread in a 64-bit intel
 /// process.
-class _LIBUNWIND_HIDDEN Registers_x86_64;
-extern "C" void __libunwind_Registers_x86_64_jumpto(Registers_x86_64 *);
 class _LIBUNWIND_HIDDEN Registers_x86_64 {
 public:
   Registers_x86_64();
@@ -267,7 +263,7 @@ public:
   v128        getVectorRegister(int num) const;
   void        setVectorRegister(int num, v128 value);
   static const char *getRegisterName(int num);
-  void        jumpto() { __libunwind_Registers_x86_64_jumpto(this); }
+  void        jumpto();
   static int  lastDwarfRegNum() { return _LIBUNWIND_HIGHEST_DWARF_REGISTER_X86_64; }
   static int  getArch() { return REGISTERS_X86_64; }
 
@@ -1775,8 +1771,6 @@ inline const char *Registers_ppc64::getRegisterName(int regNum) {
 #if defined(_LIBUNWIND_TARGET_AARCH64)
 /// Registers_arm64  holds the register state of a thread in a 64-bit arm
 /// process.
-class _LIBUNWIND_HIDDEN Registers_arm64;
-extern "C" void __libunwind_Registers_arm64_jumpto(Registers_arm64 *);
 class _LIBUNWIND_HIDDEN Registers_arm64 {
 public:
   Registers_arm64();
@@ -1792,7 +1786,7 @@ public:
   v128        getVectorRegister(int num) const;
   void        setVectorRegister(int num, v128 value);
   static const char *getRegisterName(int num);
-  void        jumpto() { __libunwind_Registers_arm64_jumpto(this); }
+  void        jumpto();
   static int  lastDwarfRegNum() { return _LIBUNWIND_HIGHEST_DWARF_REGISTER_ARM64; }
   static int  getArch() { return REGISTERS_ARM64; }
 

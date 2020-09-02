@@ -965,7 +965,8 @@ SymbolVector OrderParameterDeclarations(const Symbol &typeSymbol) {
 const DeclTypeSpec &FindOrInstantiateDerivedType(Scope &scope,
     DerivedTypeSpec &&spec, SemanticsContext &semanticsContext,
     DeclTypeSpec::Category category) {
-  spec.EvaluateParameters(semanticsContext);
+  spec.CookParameters(semanticsContext.foldingContext());
+  spec.EvaluateParameters(semanticsContext.foldingContext());
   if (const DeclTypeSpec *
       type{scope.FindInstantiatedDerivedType(spec, category)}) {
     return *type;
@@ -1302,11 +1303,6 @@ bool HasAlternateReturns(const Symbol &subprogram) {
     }
   }
   return false;
-}
-
-bool InCommonBlock(const Symbol &symbol) {
-  const auto *details{symbol.detailsIf<ObjectEntityDetails>()};
-  return details && details->commonBlock();
 }
 
 } // namespace Fortran::semantics

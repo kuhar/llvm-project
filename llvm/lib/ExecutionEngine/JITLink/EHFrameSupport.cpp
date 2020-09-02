@@ -763,19 +763,12 @@ Error deregisterEHFrameSection(const void *EHFrameSectionAddr,
 
 EHFrameRegistrar::~EHFrameRegistrar() {}
 
-Error InProcessEHFrameRegistrar::registerEHFrames(
-    JITTargetAddress EHFrameSectionAddr, size_t EHFrameSectionSize) {
-  return registerEHFrameSection(
-      jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
-      EHFrameSectionSize);
+InProcessEHFrameRegistrar &InProcessEHFrameRegistrar::getInstance() {
+  static InProcessEHFrameRegistrar Instance;
+  return Instance;
 }
 
-Error InProcessEHFrameRegistrar::deregisterEHFrames(
-    JITTargetAddress EHFrameSectionAddr, size_t EHFrameSectionSize) {
-  return deregisterEHFrameSection(
-      jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
-      EHFrameSectionSize);
-}
+InProcessEHFrameRegistrar::InProcessEHFrameRegistrar() {}
 
 LinkGraphPassFunction
 createEHFrameRecorderPass(const Triple &TT,

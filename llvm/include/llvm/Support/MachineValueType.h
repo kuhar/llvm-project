@@ -424,7 +424,7 @@ namespace llvm {
     MVT getHalfNumVectorElementsVT() const {
       MVT EltVT = getVectorElementType();
       auto EltCnt = getVectorElementCount();
-      assert(EltCnt.isKnownEven() && "Splitting vector, but not in half!");
+      assert(!(EltCnt.Min & 1) && "Splitting vector, but not in half!");
       return getVectorVT(EltVT, EltCnt / 2);
     }
 
@@ -737,12 +737,12 @@ namespace llvm {
     }
 
     ElementCount getVectorElementCount() const {
-      return ElementCount::get(getVectorNumElements(), isScalableVector());
+      return { getVectorNumElements(), isScalableVector() };
     }
 
     /// Given a vector type, return the minimum number of elements it contains.
     unsigned getVectorMinNumElements() const {
-      return getVectorElementCount().getKnownMinValue();
+      return getVectorElementCount().Min;
     }
 
     /// Returns the size of the specified MVT in bits.
@@ -1207,9 +1207,9 @@ namespace llvm {
     }
 
     static MVT getVectorVT(MVT VT, ElementCount EC) {
-      if (EC.isScalable())
-        return getScalableVectorVT(VT, EC.getKnownMinValue());
-      return getVectorVT(VT, EC.getKnownMinValue());
+      if (EC.Scalable)
+        return getScalableVectorVT(VT, EC.Min);
+      return getVectorVT(VT, EC.Min);
     }
 
     /// Return the value type corresponding to the specified type.  This returns

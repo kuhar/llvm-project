@@ -268,11 +268,6 @@ public:
   /// Access the dead users for this alloca.
   ArrayRef<Instruction *> getDeadUsers() const { return DeadUsers; }
 
-  /// Access Uses that should be dropped if the alloca is promotable.
-  ArrayRef<Use *> getDeadUsesIfPromotable() const {
-    return DeadUseIfPromotable;
-  }
-
   /// Access the dead operands referring to this alloca.
   ///
   /// These are operands which have cannot actually be used to refer to the
@@ -326,9 +321,6 @@ private:
   /// all these instructions can simply be removed and replaced with undef as
   /// they come from outside of the allocated space.
   SmallVector<Instruction *, 8> DeadUsers;
-
-  /// Uses which will become dead if can promote the alloca.
-  SmallVector<Use *, 8> DeadUseIfPromotable;
 
   /// Operands which will become dead if we rewrite the alloca.
   ///
@@ -934,10 +926,8 @@ private:
   // FIXME: What about debug intrinsics? This matches old behavior, but
   // doesn't make sense.
   void visitIntrinsicInst(IntrinsicInst &II) {
-    if (II.isDroppable()) {
-      AS.DeadUseIfPromotable.push_back(U);
+    if (II.isDroppable())
       return;
-    }
 
     if (!IsOffsetKnown)
       return PI.setAborted(&II);
@@ -4360,13 +4350,6 @@ AllocaInst *SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
     }
 
   if (Promotable) {
-    for (Use *U : AS.getDeadUsesIfPromotable()) {
-      auto *OldInst = dyn_cast<Instruction>(U->get());
-      Value::dropDroppableUse(*U);
-      if (OldInst)
-        if (isInstructionTriviallyDead(OldInst))
-          DeadInsts.insert(OldInst);
-    }
     if (PHIUsers.empty() && SelectUsers.empty()) {
       // Promote the alloca.
       PromotableAllocas.push_back(NewAI);

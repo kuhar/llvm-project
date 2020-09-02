@@ -92,7 +92,7 @@ def FeatureAddNoCarryInsts : SubtargetFeature<"add-no-carry-insts",
 def FeatureUnalignedBufferAccess : SubtargetFeature<"unaligned-buffer-access",
   "UnalignedBufferAccess",
   "true",
-  "Hardware supports unaligned global loads and stores"
+  "Support unaligned global loads and stores"
 >;
 
 def FeatureTrapHandler: SubtargetFeature<"trap-handler",
@@ -105,12 +105,6 @@ def FeatureUnalignedScratchAccess : SubtargetFeature<"unaligned-scratch-access",
   "UnalignedScratchAccess",
   "true",
   "Support unaligned scratch loads and stores"
->;
-
-def FeatureUnalignedDSAccess : SubtargetFeature<"unaligned-ds-access",
-  "UnalignedDSAccess",
-  "true",
-  "Hardware supports unaligned local and region loads and stores"
 >;
 
 def FeatureApertureRegs : SubtargetFeature<"aperture-regs",
@@ -654,15 +648,6 @@ def FeatureTrigReducedRange : SubtargetFeature<"trig-reduced-range",
   "Requires use of fract on arguments to trig instructions"
 >;
 
-// Alignment enforcement is controlled by a configuration register:
-// SH_MEM_CONFIG.alignment_mode
-def FeatureUnalignedAccessMode : SubtargetFeature<"unaligned-access-mode",
-  "UnalignedAccessMode",
-  "true",
-  "Enable unaligned global, local and region loads and stores if the hardware"
-  " supports it"
->;
-
 // Dummy feature used to disable assembler instructions.
 def FeatureDisable : SubtargetFeature<"",
   "FeatureDisable","true",
@@ -689,8 +674,7 @@ def FeatureSeaIslands : GCNSubtargetFeatureGeneration<"SEA_ISLANDS",
   FeatureWavefrontSize64, FeatureFlatAddressSpace,
   FeatureCIInsts, FeatureMovrel, FeatureTrigReducedRange,
   FeatureGFX7GFX8GFX9Insts, FeatureSMemTimeInst, FeatureMadMacF32Insts,
-  FeatureDsSrc2Insts, FeatureDoesNotSupportSRAMECC,
-  FeatureUnalignedBufferAccess]
+  FeatureDsSrc2Insts, FeatureDoesNotSupportSRAMECC]
 >;
 
 def FeatureVolcanicIslands : GCNSubtargetFeatureGeneration<"VOLCANIC_ISLANDS",
@@ -703,8 +687,7 @@ def FeatureVolcanicIslands : GCNSubtargetFeatureGeneration<"VOLCANIC_ISLANDS",
    FeatureSDWA, FeatureSDWAOutModsVOPC, FeatureSDWAMac, FeatureDPP,
    FeatureIntClamp, FeatureTrigReducedRange, FeatureGFX8Insts,
    FeatureGFX7GFX8GFX9Insts, FeatureSMemTimeInst, FeatureMadMacF32Insts,
-   FeatureDsSrc2Insts, FeatureDoesNotSupportSRAMECC, FeatureFastDenormalF32,
-   FeatureUnalignedBufferAccess
+   FeatureDsSrc2Insts, FeatureDoesNotSupportSRAMECC, FeatureFastDenormalF32
   ]
 >;
 
@@ -721,8 +704,7 @@ def FeatureGFX9 : GCNSubtargetFeatureGeneration<"GFX9",
    FeatureAddNoCarryInsts, FeatureGFX8Insts, FeatureGFX7GFX8GFX9Insts,
    FeatureScalarFlatScratchInsts, FeatureScalarAtomics, FeatureR128A16,
    FeatureSMemTimeInst, FeatureMadMacF32Insts, FeatureDsSrc2Insts,
-   FeatureFastDenormalF32, FeatureUnalignedBufferAccess,
-   FeatureUnalignedDSAccess
+   FeatureFastDenormalF32
   ]
 >;
 
@@ -740,8 +722,7 @@ def FeatureGFX10 : GCNSubtargetFeatureGeneration<"GFX10",
    FeatureNoSdstCMPX, FeatureVscnt, FeatureRegisterBanking,
    FeatureVOP3Literal, FeatureDPP8,
    FeatureNoDataDepHazard, FeaturePkFmacF16Inst, FeatureDoesNotSupportSRAMECC,
-   FeatureGFX10A16, FeatureFastDenormalF32, FeatureG16,
-   FeatureUnalignedBufferAccess, FeatureUnalignedDSAccess
+   FeatureGFX10A16, FeatureFastDenormalF32, FeatureG16
   ]
 >;
 
@@ -1080,11 +1061,6 @@ def isGFX7GFX10 :
   Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"
             "Subtarget->getGeneration() == AMDGPUSubtarget::GFX10">,
   AssemblerPredicate<(all_of (not FeatureGCN3Encoding), FeatureCIInsts)>;
-
-def isGFX7GFX8 :
-  Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"
-            "Subtarget->getGeneration() == AMDGPUSubtarget::VOLCANIC_ISLANDS">,
-  AssemblerPredicate<(all_of FeatureSouthernIslands, FeatureCIInsts)>;
 
 def isGFX7GFX8GFX9 :
   Predicate<"Subtarget->getGeneration() == AMDGPUSubtarget::SEA_ISLANDS ||"

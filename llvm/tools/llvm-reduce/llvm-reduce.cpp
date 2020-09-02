@@ -80,22 +80,6 @@ static std::unique_ptr<Module> parseInputFile(StringRef Filename,
   return Result;
 }
 
-void writeOutput(Module *M, StringRef Message) {
-  if (ReplaceInput) // In-place
-    OutputFilename = InputFilename.c_str();
-  else if (OutputFilename.empty() || OutputFilename == "-")
-    OutputFilename = "reduced.ll";
-
-  std::error_code EC;
-  raw_fd_ostream Out(OutputFilename, EC);
-  if (EC) {
-    errs() << "Error opening output file: " << EC.message() << "!\n";
-    exit(1);
-  }
-  M->print(Out, /*AnnotationWriter=*/nullptr);
-  errs() << Message << OutputFilename << "\n";
-}
-
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
@@ -118,8 +102,21 @@ int main(int argc, char **argv) {
     // Print reduced file to STDOUT
     if (OutputFilename == "-")
       Tester.getProgram()->print(outs(), nullptr);
-    else
-      writeOutput(Tester.getProgram(), "\nDone reducing! Reduced testcase: ");
+    else {
+      if (ReplaceInput) // In-place
+        OutputFilename = InputFilename.c_str();
+      else if (OutputFilename.empty())
+        OutputFilename = "reduced.ll";
+
+      std::error_code EC;
+      raw_fd_ostream Out(OutputFilename, EC);
+      if (EC) {
+        errs() << "Error opening output file: " << EC.message() << "!\n";
+        exit(1);
+      }
+      Tester.getProgram()->print(Out, /*AnnotationWriter=*/nullptr);
+      errs() << "\nDone reducing! Reduced testcase: " << OutputFilename << "\n";
+    }
   }
 
   return 0;

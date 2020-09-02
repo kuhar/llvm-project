@@ -11,7 +11,7 @@
 # VALID-NEXT:   Class:   ELFCLASS64
 # VALID-NEXT:   Data:    ELFDATA2LSB
 # VALID-NEXT:   Type:    ET_EXEC
-# VALID-NEXT:   Machine: EM_NONE
+# VALID-NEXT:   Machine: EM_X86_64
 # VALID-NEXT: Sections:
 # VALID-NEXT:   - Name: .stack_sizes
 # VALID-NEXT:     Type: SHT_PROGBITS
@@ -23,9 +23,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -42,7 +43,7 @@ Sections:
 # INVALID-NEXT:   Class:   ELFCLASS64
 # INVALID-NEXT:   Data:    ELFDATA2LSB
 # INVALID-NEXT:   Type:    ET_EXEC
-# INVALID-NEXT:   Machine: EM_NONE
+# INVALID-NEXT:   Machine: EM_X86_64
 # INVALID-NEXT: Sections:
 # INVALID-NEXT:   - Name:    .stack_sizes
 # INVALID-NEXT:     Type:    SHT_PROGBITS
@@ -50,9 +51,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS
@@ -68,7 +70,7 @@ Sections:
 # EMPTY-NEXT:   Class:   ELFCLASS64
 # EMPTY-NEXT:   Data:    ELFDATA2LSB
 # EMPTY-NEXT:   Type:    ET_EXEC
-# EMPTY-NEXT:   Machine: EM_NONE
+# EMPTY-NEXT:   Machine: EM_X86_64
 # EMPTY-NEXT: Sections:
 # EMPTY-NEXT:   - Name:    .stack_sizes
 # EMPTY-NEXT:     Type:    SHT_PROGBITS
@@ -76,9 +78,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .stack_sizes
     Type:    SHT_PROGBITS

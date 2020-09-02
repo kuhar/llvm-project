@@ -539,7 +539,7 @@ static bool tryToFoldACImm(const SIInstrInfo *TII,
     return false;
 
   Register UseReg = OpToFold.getReg();
-  if (!UseReg.isVirtual())
+  if (!Register::isVirtualRegister(UseReg))
     return false;
 
   if (llvm::find_if(FoldList, [UseMI](const FoldCandidate &FC) {
@@ -1006,7 +1006,8 @@ static MachineOperand *getImmOrMaterializedImm(MachineRegisterInfo &MRI,
                                                MachineOperand &Op) {
   if (Op.isReg()) {
     // If this has a subregister, it obviously is a register source.
-    if (Op.getSubReg() != AMDGPU::NoSubRegister || !Op.getReg().isVirtual())
+    if (Op.getSubReg() != AMDGPU::NoSubRegister ||
+        !Register::isVirtualRegister(Op.getReg()))
       return &Op;
 
     MachineInstr *Def = MRI.getVRegDef(Op.getReg());
@@ -1276,7 +1277,7 @@ void SIFoldOperands::foldInstOperand(MachineInstr &MI,
 
   for (FoldCandidate &Fold : FoldList) {
     assert(!Fold.isReg() || Fold.OpToFold);
-    if (Fold.isReg() && Fold.OpToFold->getReg().isVirtual()) {
+    if (Fold.isReg() && Register::isVirtualRegister(Fold.OpToFold->getReg())) {
       Register Reg = Fold.OpToFold->getReg();
       MachineInstr *DefMI = Fold.OpToFold->getParent();
       if (DefMI->readsRegister(AMDGPU::EXEC, TRI) &&
@@ -1571,7 +1572,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       if (!FoldingImm && !OpToFold.isReg())
         continue;
 
-      if (OpToFold.isReg() && !OpToFold.getReg().isVirtual())
+      if (OpToFold.isReg() && !Register::isVirtualRegister(OpToFold.getReg()))
         continue;
 
       // Prevent folding operands backwards in the function. For example,
@@ -1581,7 +1582,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       //    ...
       //    %vgpr0 = V_MOV_B32_e32 1, implicit %exec
       MachineOperand &Dst = MI.getOperand(0);
-      if (Dst.isReg() && !Dst.getReg().isVirtual())
+      if (Dst.isReg() && !Register::isVirtualRegister(Dst.getReg()))
         continue;
 
       foldInstOperand(MI, OpToFold);

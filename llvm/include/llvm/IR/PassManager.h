@@ -519,7 +519,7 @@ public:
 
       // Call onto PassInstrumentation's AfterPass callbacks immediately after
       // running the pass.
-      PI.runAfterPass<IRUnitT>(*P, IR, PassPA);
+      PI.runAfterPass<IRUnitT>(*P, IR);
 
       // Update the analysis manager as each pass runs and potentially
       // invalidates analyses.
@@ -1244,7 +1244,7 @@ public:
         PassPA = Pass.run(F, FAM);
       }
 
-      PI.runAfterPass(Pass, F, PassPA);
+      PI.runAfterPass(Pass, F);
 
       // We know that the function pass couldn't have invalidated any other
       // function's analyses (that's the contract of a function pass), so
@@ -1369,9 +1369,8 @@ public:
       // false).
       if (!PI.runBeforePass<IRUnitT>(P, IR))
         continue;
-      PreservedAnalyses IterPA = P.run(IR, AM, std::forward<Ts>(Args)...);
-      PA.intersect(IterPA);
-      PI.runAfterPass(P, IR, IterPA);
+      PA.intersect(P.run(IR, AM, std::forward<Ts>(Args)...));
+      PI.runAfterPass(P, IR);
     }
     return PA;
   }

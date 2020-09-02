@@ -293,7 +293,8 @@ public:
   static Constant *
   getSafeVectorConstantForBinop(BinaryOperator::BinaryOps Opcode, Constant *In,
                                 bool IsRHSConstant) {
-    auto *InVTy = cast<FixedVectorType>(In->getType());
+    auto *InVTy = dyn_cast<VectorType>(In->getType());
+    assert(InVTy && "Not expecting scalars here");
 
     Type *EltTy = InVTy->getElementType();
     auto *SafeC = ConstantExpr::getBinOpIdentity(Opcode, EltTy, IsRHSConstant);

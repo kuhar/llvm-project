@@ -635,7 +635,9 @@ bool NamedEntity::operator==(const NamedEntity &that) const {
     return !that.IsSymbol() && GetComponent() == that.GetComponent();
   }
 }
-bool TypeParamInquiry::operator==(const TypeParamInquiry &that) const {
+template <int KIND>
+bool TypeParamInquiry<KIND>::operator==(
+    const TypeParamInquiry<KIND> &that) const {
   return &*parameter_ == &*that.parameter_ && base_ == that.base_;
 }
 bool Triplet::operator==(const Triplet &that) const {

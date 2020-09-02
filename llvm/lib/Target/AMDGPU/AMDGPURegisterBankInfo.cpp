@@ -849,18 +849,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
         continue;
       }
 
-      Register OpReg = Op.getReg();
-      LLT OpTy = MRI.getType(OpReg);
-
-      const RegisterBank *OpBank = getRegBank(OpReg, MRI, *TRI);
-      if (OpBank != &AMDGPU::VGPRRegBank) {
-        // Insert copy from AGPR to VGPR before the loop.
-        B.setMBB(MBB);
-        OpReg = B.buildCopy(OpTy, OpReg).getReg(0);
-        MRI.setRegBank(OpReg, AMDGPU::VGPRRegBank);
-        B.setInstr(*I);
-      }
-
+      LLT OpTy = MRI.getType(Op.getReg());
       unsigned OpSize = OpTy.getSizeInBits();
 
       // Can only do a readlane of 32-bit pieces.
@@ -870,11 +859,11 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
           = MRI.createVirtualRegister(&AMDGPU::SReg_32_XM0RegClass);
         MRI.setType(CurrentLaneOpReg, OpTy);
 
-        constrainGenericRegister(OpReg, AMDGPU::VGPR_32RegClass, MRI);
+        constrainGenericRegister(Op.getReg(), AMDGPU::VGPR_32RegClass, MRI);
         // Read the next variant <- also loop target.
         BuildMI(*LoopBB, I, DL, TII->get(AMDGPU::V_READFIRSTLANE_B32),
                 CurrentLaneOpReg)
-          .addReg(OpReg);
+          .addReg(Op.getReg());
 
         Register NewCondReg = MRI.createVirtualRegister(WaveRC);
         bool First = CondReg == AMDGPU::NoRegister;
@@ -885,7 +874,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
         B.buildInstr(AMDGPU::V_CMP_EQ_U32_e64)
           .addDef(NewCondReg)
           .addReg(CurrentLaneOpReg)
-          .addReg(OpReg);
+          .addReg(Op.getReg());
         Op.setReg(CurrentLaneOpReg);
 
         if (!First) {
@@ -917,7 +906,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
         // Insert the unmerge before the loop.
 
         B.setMBB(MBB);
-        auto Unmerge = B.buildUnmerge(UnmergeTy, OpReg);
+        auto Unmerge = B.buildUnmerge(UnmergeTy, Op.getReg());
         B.setInstr(*I);
 
         unsigned NumPieces = Unmerge->getNumOperands() - 1;
@@ -1061,7 +1050,7 @@ bool AMDGPURegisterBankInfo::collectWaterfallOperands(
     assert(MI.getOperand(Op).isUse());
     Register Reg = MI.getOperand(Op).getReg();
     const RegisterBank *OpBank = getRegBank(Reg, MRI, *TRI);
-    if (OpBank->getID() != AMDGPU::SGPRRegBankID)
+    if (OpBank->getID() == AMDGPU::VGPRRegBankID)
       SGPROperandRegs.insert(Reg);
   }
 
@@ -1096,24 +1085,16 @@ void AMDGPURegisterBankInfo::constrainOpWithReadfirstlane(
     MachineInstr &MI, MachineRegisterInfo &MRI, unsigned OpIdx) const {
   Register Reg = MI.getOperand(OpIdx).getReg();
   const RegisterBank *Bank = getRegBank(Reg, MRI, *TRI);
-  if (Bank == &AMDGPU::SGPRRegBank)
+  if (Bank != &AMDGPU::VGPRRegBank)
     return;
 
-  LLT Ty = MRI.getType(Reg);
   MachineIRBuilder B(MI);
-
-  if (Bank != &AMDGPU::VGPRRegBank) {
-    // We need to copy from AGPR to VGPR
-    Reg = B.buildCopy(Ty, Reg).getReg(0);
-    MRI.setRegBank(Reg, AMDGPU::VGPRRegBank);
-  }
-
   Register SGPR = MRI.createVirtualRegister(&AMDGPU::SReg_32RegClass);
   B.buildInstr(AMDGPU::V_READFIRSTLANE_B32)
     .addDef(SGPR)
     .addReg(Reg);
 
-  MRI.setType(SGPR, Ty);
+  MRI.setType(SGPR, MRI.getType(Reg));
 
   const TargetRegisterClass *Constrained =
       constrainGenericRegister(Reg, AMDGPU::VGPR_32RegClass, MRI);
@@ -1943,7 +1924,7 @@ bool AMDGPURegisterBankInfo::foldExtractEltToCmpSelect(
   const RegisterBank &IdxBank =
     *OpdMapper.getInstrMapping().getOperandMapping(2).BreakDown[0].RegBank;
 
-  bool IsDivergentIdx = IdxBank != AMDGPU::SGPRRegBank;
+  bool IsDivergentIdx = IdxBank == AMDGPU::VGPRRegBank;
 
   LLT VecTy = MRI.getType(VecReg);
   unsigned EltSize = VecTy.getScalarSizeInBits();
@@ -2025,7 +2006,7 @@ bool AMDGPURegisterBankInfo::foldInsertEltToCmpSelect(
   const RegisterBank &IdxBank =
     *OpdMapper.getInstrMapping().getOperandMapping(3).BreakDown[0].RegBank;
 
-  bool IsDivergentIdx = IdxBank != AMDGPU::SGPRRegBank;
+  bool IsDivergentIdx = IdxBank == AMDGPU::VGPRRegBank;
 
   LLT VecTy = MRI.getType(VecReg);
   unsigned EltSize = VecTy.getScalarSizeInBits();
@@ -4326,13 +4307,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[3] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, WaveSize);
       break;
     }
-    case Intrinsic::amdgcn_wqm_demote:
     case Intrinsic::amdgcn_kill: {
       OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, 1);
-      break;
-    }
-    case Intrinsic::amdgcn_wqm_helper: {
-      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, 1);
       break;
     }
     case Intrinsic::amdgcn_raw_buffer_load:

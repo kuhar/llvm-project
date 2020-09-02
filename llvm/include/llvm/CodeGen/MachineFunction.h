@@ -494,8 +494,7 @@ public:
   /// Returns true if this function has basic block sections enabled.
   bool hasBBSections() const {
     return (BBSectionsType == BasicBlockSection::All ||
-            BBSectionsType == BasicBlockSection::List ||
-            BBSectionsType == BasicBlockSection::Preset);
+            BBSectionsType == BasicBlockSection::List);
   }
 
   /// Returns true if basic block labels are to be generated for this function.

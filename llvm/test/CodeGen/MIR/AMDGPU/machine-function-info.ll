@@ -11,7 +11,6 @@
 ; CHECK-NEXT: explicitKernArgSize: 128
 ; CHECK-NEXT: maxKernArgAlign: 64
 ; CHECK-NEXT: ldsSize: 0
-; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: true
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
@@ -47,7 +46,6 @@ define amdgpu_kernel void @kernel(i32 %arg0, i64 %arg1, <16 x i32> %arg2) {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
-; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: true
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
@@ -78,7 +76,6 @@ define amdgpu_ps void @ps_shader(i32 %arg0, i32 inreg %arg1) {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
-; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: false
 ; CHECK-NEXT: noSignedZerosFPMath: false
 ; CHECK-NEXT: memoryBound: false
@@ -108,7 +105,6 @@ define void @function() {
 ; CHECK-NEXT: explicitKernArgSize: 0
 ; CHECK-NEXT: maxKernArgAlign: 1
 ; CHECK-NEXT: ldsSize: 0
-; CHECK-NEXT: dynLDSAlign: 1
 ; CHECK-NEXT: isEntryFunction: false
 ; CHECK-NEXT: noSignedZerosFPMath: true
 ; CHECK-NEXT: memoryBound: false

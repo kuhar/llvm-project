@@ -346,11 +346,11 @@ isl_size isl_space_wrapped_dim(__isl_keep isl_space *space,
 	return isl_space_dim(isl_space_peek_nested(space, pos), inner);
 }
 
-unsigned isl_space_offset(__isl_keep isl_space *space, enum isl_dim_type type)
+unsigned isl_space_offset(__isl_keep isl_space *dim, enum isl_dim_type type)
 {
-	if (!space)
+	if (!dim)
 		return 0;
-	return offset(space, type);
+	return offset(dim, type);
 }
 
 static __isl_give isl_space *copy_ids(__isl_take isl_space *dst,
@@ -890,27 +890,27 @@ __isl_give isl_space *isl_space_reset_user(__isl_take isl_space *space)
 	return space;
 }
 
-static __isl_keep isl_id *tuple_id(__isl_keep isl_space *space,
+static __isl_keep isl_id *tuple_id(__isl_keep isl_space *dim,
 	enum isl_dim_type type)
 {
-	if (!space)
+	if (!dim)
 		return NULL;
 	if (type == isl_dim_in)
-		return space->tuple_id[0];
+		return dim->tuple_id[0];
 	if (type == isl_dim_out)
-		return space->tuple_id[1];
+		return dim->tuple_id[1];
 	return NULL;
 }
 
-static __isl_keep isl_space *nested(__isl_keep isl_space *space,
+static __isl_keep isl_space *nested(__isl_keep isl_space *dim,
 	enum isl_dim_type type)
 {
-	if (!space)
+	if (!dim)
 		return NULL;
 	if (type == isl_dim_in)
-		return space->nested[0];
+		return dim->nested[0];
 	if (type == isl_dim_out)
-		return space->nested[1];
+		return dim->nested[1];
 	return NULL;
 }
 
@@ -1043,13 +1043,13 @@ isl_bool isl_space_match(__isl_keep isl_space *space1, enum isl_dim_type type1,
 	return match(space1, type1, space2, type2);
 }
 
-static void get_ids(__isl_keep isl_space *space, enum isl_dim_type type,
+static void get_ids(__isl_keep isl_space *dim, enum isl_dim_type type,
 	unsigned first, unsigned n, __isl_keep isl_id **ids)
 {
 	int i;
 
 	for (i = 0; i < n ; ++i)
-		ids[i] = get_id(space, type, first + i);
+		ids[i] = get_id(dim, type, first + i);
 }
 
 static __isl_give isl_space *space_extend(__isl_take isl_space *space,
@@ -1803,16 +1803,16 @@ error:
 	return NULL;
 }
 
-static __isl_give isl_space *set_ids(__isl_take isl_space *space,
+static __isl_give isl_space *set_ids(__isl_take isl_space *dim,
 	enum isl_dim_type type,
 	unsigned first, unsigned n, __isl_take isl_id **ids)
 {
 	int i;
 
 	for (i = 0; i < n ; ++i)
-		space = set_id(space, type, first + i, ids[i]);
+		dim = set_id(dim, type, first + i, ids[i]);
 
-	return space;
+	return dim;
 }
 
 __isl_give isl_space *isl_space_reverse(__isl_take isl_space *space)
@@ -1961,20 +1961,20 @@ error:
 	return NULL;
 }
 
-__isl_give isl_space *isl_space_drop_inputs(__isl_take isl_space *space,
+__isl_give isl_space *isl_space_drop_inputs(__isl_take isl_space *dim,
 		unsigned first, unsigned n)
 {
-	if (!space)
+	if (!dim)
 		return NULL;
-	return isl_space_drop_dims(space, isl_dim_in, first, n);
+	return isl_space_drop_dims(dim, isl_dim_in, first, n);
 }
 
-__isl_give isl_space *isl_space_drop_outputs(__isl_take isl_space *space,
+__isl_give isl_space *isl_space_drop_outputs(__isl_take isl_space *dim,
 		unsigned first, unsigned n)
 {
-	if (!space)
+	if (!dim)
 		return NULL;
-	return isl_space_drop_dims(space, isl_dim_out, first, n);
+	return isl_space_drop_dims(dim, isl_dim_out, first, n);
 }
 
 /* Remove all parameters from "space".

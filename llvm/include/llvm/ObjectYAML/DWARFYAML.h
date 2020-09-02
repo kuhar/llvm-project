@@ -21,7 +21,6 @@
 #include "llvm/ObjectYAML/YAML.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <cstdint>
-#include <unordered_map>
 #include <vector>
 
 namespace llvm {
@@ -38,11 +37,6 @@ struct Abbrev {
   llvm::dwarf::Tag Tag;
   llvm::dwarf::Constants Children;
   std::vector<AttributeAbbrev> Attributes;
-};
-
-struct AbbrevTable {
-  Optional<uint64_t> ID;
-  std::vector<Abbrev> Table;
 };
 
 struct ARangeDescriptor {
@@ -112,8 +106,7 @@ struct Unit {
   uint16_t Version;
   Optional<uint8_t> AddrSize;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
-  Optional<uint64_t> AbbrevTableID;
-  Optional<yaml::Hex64> AbbrOffset;
+  yaml::Hex64 AbbrOffset;
   std::vector<Entry> Entries;
 };
 
@@ -137,9 +130,9 @@ struct LineTableOpcode {
 
 struct LineTable {
   dwarf::DwarfFormat Format;
-  Optional<uint64_t> Length;
+  uint64_t Length;
   uint16_t Version;
-  Optional<uint64_t> PrologueLength;
+  uint64_t PrologueLength;
   uint8_t MinInstLength;
   uint8_t MaxOpsPerInst;
   uint8_t DefaultIsStmt;
@@ -210,8 +203,8 @@ template <typename EntryType> struct ListTable {
 struct Data {
   bool IsLittleEndian;
   bool Is64BitAddrSize;
-  std::vector<AbbrevTable> DebugAbbrev;
-  Optional<std::vector<StringRef>> DebugStrings;
+  std::vector<Abbrev> AbbrevDecls;
+  std::vector<StringRef> DebugStrings;
   Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
   Optional<std::vector<ARange>> DebugAranges;
   std::vector<Ranges> DebugRanges;
@@ -231,17 +224,6 @@ struct Data {
   bool isEmpty() const;
 
   SetVector<StringRef> getNonEmptySectionNames() const;
-
-  struct AbbrevTableInfo {
-    uint64_t Index;
-    uint64_t Offset;
-  };
-  Expected<AbbrevTableInfo> getAbbrevTableInfoByID(uint64_t ID) const;
-  StringRef getAbbrevTableContentByIndex(uint64_t Index) const;
-
-private:
-  mutable std::unordered_map<uint64_t, AbbrevTableInfo> AbbrevTableInfoMap;
-  mutable std::unordered_map<uint64_t, std::string> AbbrevTableContents;
 };
 
 } // end namespace DWARFYAML
@@ -249,7 +231,6 @@ private:
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AttributeAbbrev)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Abbrev)
-LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AbbrevTable)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARangeDescriptor)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARange)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RangeEntry)
@@ -281,10 +262,6 @@ namespace yaml {
 
 template <> struct MappingTraits<DWARFYAML::Data> {
   static void mapping(IO &IO, DWARFYAML::Data &DWARF);
-};
-
-template <> struct MappingTraits<DWARFYAML::AbbrevTable> {
-  static void mapping(IO &IO, DWARFYAML::AbbrevTable &AbbrevTable);
 };
 
 template <> struct MappingTraits<DWARFYAML::Abbrev> {

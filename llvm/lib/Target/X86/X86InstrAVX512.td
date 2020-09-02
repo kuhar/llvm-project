@@ -2884,8 +2884,6 @@ def : Pat<(v16i1 (bitconvert (i16 GR16:$src))),
           (COPY_TO_REGCLASS (i32 (INSERT_SUBREG (IMPLICIT_DEF), GR16:$src, sub_16bit)), VK16)>;
 def : Pat<(i16 (bitconvert (v16i1 VK16:$src))),
           (EXTRACT_SUBREG (i32 (COPY_TO_REGCLASS VK16:$src, GR32)), sub_16bit)>;
-def : Pat<(i8 (trunc (i16 (bitconvert (v16i1 VK16:$src))))),
-          (EXTRACT_SUBREG (i32 (COPY_TO_REGCLASS VK16:$src, GR32)), sub_8bit)>;
 
 def : Pat<(v8i1 (bitconvert (i8 GR8:$src))),
           (COPY_TO_REGCLASS (i32 (INSERT_SUBREG (IMPLICIT_DEF), GR8:$src, sub_8bit)), VK8)>;
@@ -2969,9 +2967,10 @@ let Predicates = [HasAVX512] in {
 
   def : Pat<(insert_subvector (v16i1 immAllZerosV),
                               (v1i1 (scalar_to_vector GR8:$src)), (iPTR 0)),
-            (KMOVWkr (AND32ri8
-                      (INSERT_SUBREG (i32 (IMPLICIT_DEF)), GR8:$src, sub_8bit),
-                      (i32 1)))>;
+            (COPY_TO_REGCLASS
+             (KMOVWkr (AND32ri8
+                       (INSERT_SUBREG (i32 (IMPLICIT_DEF)), GR8:$src, sub_8bit),
+                       (i32 1))), VK16)>;
 }
 
 // Mask unary operation

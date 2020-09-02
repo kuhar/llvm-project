@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Error.h"
 #include "obj2yaml.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
@@ -230,7 +231,7 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
   Y->Header.OSABI = Obj.getHeader()->e_ident[ELF::EI_OSABI];
   Y->Header.ABIVersion = Obj.getHeader()->e_ident[ELF::EI_ABIVERSION];
   Y->Header.Type = Obj.getHeader()->e_type;
-  Y->Header.Machine = ELFYAML::ELF_EM(Obj.getHeader()->e_machine);
+  Y->Header.Machine = Obj.getHeader()->e_machine;
   Y->Header.Flags = Obj.getHeader()->e_flags;
   Y->Header.Entry = Obj.getHeader()->e_entry;
 
@@ -256,9 +257,8 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
       // ABI allows us to have one SHT_SYMTAB_SHNDX for each symbol table.
       // We only support having the SHT_SYMTAB_SHNDX for SHT_SYMTAB now.
       if (SymTabShndx)
-        return createStringError(
-            errc::not_supported,
-            "multiple SHT_SYMTAB_SHNDX sections are not supported");
+        return createStringError(obj2yaml_error::not_implemented,
+                                 "multiple SHT_SYMTAB_SHNDX sections are not supported");
       SymTabShndx = &Sec;
     }
   }
@@ -269,7 +269,7 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     if (!SymTab ||
         SymTabShndx->sh_link != (unsigned)(SymTab - Sections.begin()))
       return createStringError(
-          errc::not_supported,
+          obj2yaml_error::not_implemented,
           "only SHT_SYMTAB_SHNDX associated with SHT_SYMTAB are supported");
 
     auto TableOrErr = Obj.getSHNDXTable(*SymTabShndx);

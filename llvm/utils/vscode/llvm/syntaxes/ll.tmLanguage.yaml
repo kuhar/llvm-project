@@ -152,7 +152,6 @@ patterns:
             \\bavailable_externally\\b|\
             \\bblockaddress\\b|\
             \\bbuiltin\\b|\
-            \\bbyref\\b|\
             \\bbyval\\b|\
             \\bc\\b|\
             \\bcatch\\b|\

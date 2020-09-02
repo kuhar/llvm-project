@@ -24,9 +24,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2LSB
-  Type:  ET_REL
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2LSB
+  Type:    ET_REL
+  Machine: EM_X86_64
 Sections:
 ## Check default sh_entsize field values.
   - Name: .rela.default

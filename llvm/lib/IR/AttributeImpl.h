@@ -121,10 +121,7 @@ protected:
 
 public:
   EnumAttributeImpl(Attribute::AttrKind Kind)
-      : AttributeImpl(EnumAttrEntry), Kind(Kind) {
-    assert(Kind != Attribute::AttrKind::None &&
-           "Can't create a None attribute!");
-  }
+      : AttributeImpl(EnumAttrEntry), Kind(Kind) {}
 
   Attribute::AttrKind getEnumKind() const { return Kind; }
 };

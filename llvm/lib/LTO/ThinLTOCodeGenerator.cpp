@@ -269,26 +269,16 @@ addUsedSymbolToPreservedGUID(const lto::InputFile &File,
 }
 
 // Convert the PreservedSymbols map from "Name" based to "GUID" based.
-static void computeGUIDPreservedSymbols(const lto::InputFile &File,
-                                        const StringSet<> &PreservedSymbols,
-                                        const Triple &TheTriple,
-                                        DenseSet<GlobalValue::GUID> &GUIDs) {
-  // Iterate the symbols in the input file and if the input has preserved symbol
-  // compute the GUID for the symbol.
-  for (const auto &Sym : File.symbols()) {
-    if (PreservedSymbols.count(Sym.getName()))
-      GUIDs.insert(GlobalValue::getGUID(GlobalValue::getGlobalIdentifier(
-          Sym.getIRName(), GlobalValue::ExternalLinkage, "")));
-  }
-}
-
 static DenseSet<GlobalValue::GUID>
-computeGUIDPreservedSymbols(const lto::InputFile &File,
-                            const StringSet<> &PreservedSymbols,
+computeGUIDPreservedSymbols(const StringSet<> &PreservedSymbols,
                             const Triple &TheTriple) {
   DenseSet<GlobalValue::GUID> GUIDPreservedSymbols(PreservedSymbols.size());
-  computeGUIDPreservedSymbols(File, PreservedSymbols, TheTriple,
-                              GUIDPreservedSymbols);
+  for (auto &Entry : PreservedSymbols) {
+    StringRef Name = Entry.first();
+    if (TheTriple.isOSBinFormatMachO() && Name.size() > 0 && Name[0] == '_')
+      Name = Name.drop_front();
+    GUIDPreservedSymbols.insert(GlobalValue::getGUID(Name));
+  }
   return GUIDPreservedSymbols;
 }
 
@@ -662,7 +652,7 @@ void ThinLTOCodeGenerator::promote(Module &TheModule, ModuleSummaryIndex &Index,
 
   // Convert the preserved symbols set from string to GUID
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
-      File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
+      PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
   // Add used symbol to the preserved symbols.
   addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
@@ -712,7 +702,7 @@ void ThinLTOCodeGenerator::crossModuleImport(Module &TheModule,
 
   // Convert the preserved symbols set from string to GUID
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
-      File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
+      PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
   addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
 
@@ -747,7 +737,7 @@ void ThinLTOCodeGenerator::gatherImportedSummariesForModule(
 
   // Convert the preserved symbols set from string to GUID
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
-      File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
+      PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
   addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
 
@@ -780,7 +770,7 @@ void ThinLTOCodeGenerator::emitImports(Module &TheModule, StringRef OutputName,
 
   // Convert the preserved symbols set from string to GUID
   auto GUIDPreservedSymbols = computeGUIDPreservedSymbols(
-      File, PreservedSymbols, Triple(TheModule.getTargetTriple()));
+      PreservedSymbols, Triple(TheModule.getTargetTriple()));
 
   addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
 
@@ -818,7 +808,7 @@ void ThinLTOCodeGenerator::internalize(Module &TheModule,
 
   // Convert the preserved symbols set from string to GUID
   auto GUIDPreservedSymbols =
-      computeGUIDPreservedSymbols(File, PreservedSymbols, TMBuilder.TheTriple);
+      computeGUIDPreservedSymbols(PreservedSymbols, TMBuilder.TheTriple);
 
   addUsedSymbolToPreservedGUID(File, GUIDPreservedSymbols);
 
@@ -982,10 +972,8 @@ void ThinLTOCodeGenerator::run() {
 
   // Convert the preserved symbols set from string to GUID, this is needed for
   // computing the caching hash and the internalization.
-  DenseSet<GlobalValue::GUID> GUIDPreservedSymbols;
-  for (const auto &M : Modules)
-    computeGUIDPreservedSymbols(*M, PreservedSymbols, TMBuilder.TheTriple,
-                                GUIDPreservedSymbols);
+  auto GUIDPreservedSymbols =
+      computeGUIDPreservedSymbols(PreservedSymbols, TMBuilder.TheTriple);
 
   // Add used symbol from inputs to the preserved symbols.
   for (const auto &M : Modules)

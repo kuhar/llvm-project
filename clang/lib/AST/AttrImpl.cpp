@@ -136,16 +136,8 @@ llvm::Optional<OMPDeclareTargetDeclAttr::MapTypeTy>
 OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(const ValueDecl *VD) {
   if (!VD->hasAttrs())
     return llvm::None;
-  unsigned Level = 0;
-  const OMPDeclareTargetDeclAttr *FoundAttr = nullptr;
-  for (const auto *Attr : VD->specific_attrs<OMPDeclareTargetDeclAttr>()) {
-    if (Level < Attr->getLevel()) {
-      Level = Attr->getLevel();
-      FoundAttr = Attr;
-    }
-  }
-  if (FoundAttr)
-    return FoundAttr->getMapType();
+  if (const auto *Attr = VD->getAttr<OMPDeclareTargetDeclAttr>())
+    return Attr->getMapType();
 
   return llvm::None;
 }
@@ -154,34 +146,8 @@ llvm::Optional<OMPDeclareTargetDeclAttr::DevTypeTy>
 OMPDeclareTargetDeclAttr::getDeviceType(const ValueDecl *VD) {
   if (!VD->hasAttrs())
     return llvm::None;
-  unsigned Level = 0;
-  const OMPDeclareTargetDeclAttr *FoundAttr = nullptr;
-  for (const auto *Attr : VD->specific_attrs<OMPDeclareTargetDeclAttr>()) {
-    if (Level < Attr->getLevel()) {
-      Level = Attr->getLevel();
-      FoundAttr = Attr;
-    }
-  }
-  if (FoundAttr)
-    return FoundAttr->getDevType();
-
-  return llvm::None;
-}
-
-llvm::Optional<SourceLocation>
-OMPDeclareTargetDeclAttr::getLocation(const ValueDecl *VD) {
-  if (!VD->hasAttrs())
-    return llvm::None;
-  unsigned Level = 0;
-  const OMPDeclareTargetDeclAttr *FoundAttr = nullptr;
-  for (const auto *Attr : VD->specific_attrs<OMPDeclareTargetDeclAttr>()) {
-    if (Level < Attr->getLevel()) {
-      Level = Attr->getLevel();
-      FoundAttr = Attr;
-    }
-  }
-  if (FoundAttr)
-    return FoundAttr->getRange().getBegin();
+  if (const auto *Attr = VD->getAttr<OMPDeclareTargetDeclAttr>())
+    return Attr->getDevType();
 
   return llvm::None;
 }

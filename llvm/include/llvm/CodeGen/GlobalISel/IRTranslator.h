@@ -217,7 +217,7 @@ private:
 
   /// Translate an LLVM string intrinsic (memcpy, memset, ...).
   bool translateMemFunc(const CallInst &CI, MachineIRBuilder &MIRBuilder,
-                        unsigned Opcode);
+                        Intrinsic::ID ID);
 
   void getStackGuard(Register DstReg, MachineIRBuilder &MIRBuilder);
 

@@ -63,7 +63,7 @@ public:
     // upon construction. The operation being created through the folder has an
     // in-place folder, and it should be still present in the output.
     // Furthermore, the folder should not crash when attempting to recover the
-    // (unchanged) operation result.
+    // (unchanged) opeation result.
     OperationFolder folder(op->getContext());
     Value result = folder.create<TestOpInPlaceFold>(
         rewriter, op->getLoc(), rewriter.getIntegerType(32), op->getOperand(0),
@@ -254,7 +254,7 @@ struct TestCreateBlock : public RewritePattern {
   }
 };
 
-/// A simple pattern that creates a block containing an invalid operation in
+/// A simple pattern that creates a block containing an invalid operaiton in
 /// order to trigger the block creation undo mechanism.
 struct TestCreateIllegalBlock : public RewritePattern {
   TestCreateIllegalBlock(MLIRContext *ctx)
@@ -768,10 +768,6 @@ struct TestTypeConversionProducer
 
 struct TestTypeConversionDriver
     : public PassWrapper<TestTypeConversionDriver, OperationPass<ModuleOp>> {
-  void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<TestDialect>();
-  }
-
   void runOnOperation() override {
     // Initialize the type converter.
     TypeConverter converter;
@@ -893,12 +889,16 @@ struct TestMergeSingleBlockOps
         op.getParentOfType<SingleBlockImplicitTerminatorOp>();
     if (!parentOp)
       return failure();
+    Block &parentBlock = parentOp.region().front();
     Block &innerBlock = op.region().front();
     TerminatorOp innerTerminator =
         cast<TerminatorOp>(innerBlock.getTerminator());
-    rewriter.mergeBlockBefore(&innerBlock, op);
+    Block *parentPrologue =
+        rewriter.splitBlock(&parentBlock, Block::iterator(op));
     rewriter.eraseOp(innerTerminator);
+    rewriter.mergeBlocks(&innerBlock, &parentBlock, {});
     rewriter.eraseOp(op);
+    rewriter.mergeBlocks(parentPrologue, &parentBlock, {});
     rewriter.updateRootInPlace(op, [] {});
     return success();
   }

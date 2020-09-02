@@ -9,7 +9,6 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
-#include "mlir/IR/Dialect.h"
 #include "mlir/IR/Function.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
@@ -19,8 +18,6 @@
 
 namespace mlir {
 namespace detail {
-class OpToOpPassAdaptor;
-
 /// The state for a single execution of a pass. This provides a unified
 /// interface for accessing and initializing necessary state for pass execution.
 struct PassExecutionState {
@@ -59,13 +56,6 @@ public:
 
   /// Returns the derived pass name.
   virtual StringRef getName() const = 0;
-
-  /// Register dependent dialects for the current pass.
-  /// A pass is expected to register the dialects it will create entities for
-  /// (Operations, Types, Attributes), other than dialect that exists in the
-  /// input. For example, a pass that converts from Linalg to Affine would
-  /// register the Affine dialect but does not need to register Linalg.
-  virtual void getDependentDialects(DialectRegistry &registry) const {}
 
   /// Returns the command line argument used when registering this pass. Return
   /// an empty string if one does not exist.
@@ -251,6 +241,9 @@ protected:
   void copyOptionValuesFrom(const Pass *other);
 
 private:
+  /// Forwarding function to execute this pass on the given operation.
+  LLVM_NODISCARD
+  LogicalResult run(Operation *op, AnalysisManager am);
 
   /// Out of line virtual method to ensure vtables and metadata are emitted to a
   /// single .o file.
@@ -272,11 +265,11 @@ private:
   /// The pass options registered to this pass instance.
   detail::PassOptions passOptions;
 
-  /// Allow access to 'clone'.
+  /// Allow access to 'clone' and 'run'.
   friend class OpPassManager;
 
-  /// Allow access to 'passState'.
-  friend detail::OpToOpPassAdaptor;
+  /// Allow access to 'run'.
+  friend class PassManager;
 
   /// Allow access to 'passOptions'.
   friend class PassInfo;

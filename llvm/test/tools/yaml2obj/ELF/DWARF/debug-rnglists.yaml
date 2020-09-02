@@ -69,9 +69,10 @@
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  [[ENDIAN]]
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    [[ENDIAN]]
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Lists:
@@ -178,9 +179,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  [[ENDIAN]]
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    [[ENDIAN]]
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Format:  DWARF64
@@ -231,9 +233,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Length:              0x1234
@@ -271,9 +274,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS32
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS32
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Lists:
@@ -310,9 +314,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - AddressSize: 4
@@ -342,9 +347,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - AddressSize: 3
@@ -366,9 +372,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - AddressSize: 3
@@ -408,9 +415,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - AddressSize: 3
@@ -434,9 +442,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Lists: []
@@ -453,9 +462,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .debug_rnglists
     Type:    SHT_PROGBITS
@@ -473,9 +483,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .debug_rnglists
     Type: SHT_PROGBITS
@@ -490,9 +501,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name: .debug_rnglists
     Type: SHT_PROGBITS
@@ -508,9 +520,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:    .debug_rnglists
     Type:    SHT_PROGBITS
@@ -531,9 +544,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:         .debug_rnglists
     Type:         SHT_STRTAB  ## SHT_PROGBITS by default.
@@ -556,9 +570,10 @@ Sections:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 Sections:
   - Name:         .debug_rnglists
     Type:         SHT_STRTAB  ## SHT_PROGBITS by default.
@@ -587,9 +602,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists: []
 
@@ -620,9 +636,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Lists:
@@ -643,9 +660,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - Lists:
@@ -672,9 +690,10 @@ DWARF:
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data:  ELFDATA2LSB
-  Type:  ET_EXEC
+  Class:   ELFCLASS64
+  Data:    ELFDATA2LSB
+  Type:    ET_EXEC
+  Machine: EM_X86_64
 DWARF:
   debug_rnglists:
     - OffsetEntryCount: [[ENTRYCOUNT=<none>]]

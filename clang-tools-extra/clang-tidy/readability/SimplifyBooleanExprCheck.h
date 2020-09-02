@@ -51,11 +51,11 @@ private:
 
   void
   replaceWithThenStatement(const ast_matchers::MatchFinder::MatchResult &Result,
-                           const Expr *BoolLiteral);
+                           const CXXBoolLiteralExpr *BoolLiteral);
 
   void
   replaceWithElseStatement(const ast_matchers::MatchFinder::MatchResult &Result,
-                           const Expr *FalseConditionRemoved);
+                           const CXXBoolLiteralExpr *FalseConditionRemoved);
 
   void
   replaceWithCondition(const ast_matchers::MatchFinder::MatchResult &Result,

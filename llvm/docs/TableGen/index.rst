@@ -1,6 +1,6 @@
-=================
-TableGen Overview
-=================
+========
+TableGen
+========
 
 .. contents::
    :local:
@@ -9,7 +9,8 @@ TableGen Overview
    :hidden:
 
    BackEnds
-   ProgRef
+   LangRef
+   LangIntro
    Deficiencies
 
 Introduction
@@ -24,12 +25,10 @@ it easier to structure domain specific information.
 
 The core part of TableGen parses a file, instantiates the declarations, and
 hands the result off to a domain-specific `backend`_ for processing.
-See the :doc:`TableGen Programmer's Reference <./ProgRef>` for an in-depth
-description of TableGen.
 
-The current major users of TableGen are :doc:`The LLVM Target-Independent
-Code Generator <../CodeGenerator>` and the `Clang diagnostics and attributes
-<https://clang.llvm.org/docs/UsersManual.html#controlling-errors-and-warnings>`_.
+The current major users of TableGen are :doc:`../CodeGenerator`
+and the
+`Clang diagnostics and attributes <https://clang.llvm.org/docs/UsersManual.html#controlling-errors-and-warnings>`_.
 
 Note that if you work on TableGen much, and use emacs or vim, that you can find
 an emacs "TableGen mode" and a vim language file in the ``llvm/utils/emacs`` and
@@ -250,9 +249,12 @@ in the current multiclass.
                                  !subst(SHIFT, imm_eq0, decls.pattern)),
                         i8>;
 
-See the :doc:`TableGen Programmer's Reference <./ProgRef>` for an in-depth
-description of TableGen.
 
+
+See the :doc:`TableGen Language Introduction <LangIntro>` for more generic
+information on the usage of the language, and the
+:doc:`TableGen Language Reference <LangRef>` for more in-depth description
+of the formal language specification.
 
 .. _backend:
 .. _backends:
@@ -298,4 +300,5 @@ more powerful DSLs designed with specific purposes, or even re-using existing
 DSLs.
 
 Either way, this is a discussion that will likely span across several years,
-if not decades. You can read more in :doc:`TableGen Deficiencies <./Deficiencies>`.
+if not decades. You can read more in the `TableGen Deficiencies <Deficiencies.html>`_
+document.

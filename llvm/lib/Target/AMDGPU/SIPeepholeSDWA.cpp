@@ -570,7 +570,8 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
 
     MachineOperand *Src1 = TII->getNamedOperand(MI, AMDGPU::OpName::src1);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
-    if (Src1->getReg().isPhysical() || Dst->getReg().isPhysical())
+    if (Register::isPhysicalRegister(Src1->getReg()) ||
+        Register::isPhysicalRegister(Dst->getReg()))
       break;
 
     if (Opcode == AMDGPU::V_LSHLREV_B32_e32 ||
@@ -608,7 +609,8 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     MachineOperand *Src1 = TII->getNamedOperand(MI, AMDGPU::OpName::src1);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (Src1->getReg().isPhysical() || Dst->getReg().isPhysical())
+    if (Register::isPhysicalRegister(Src1->getReg()) ||
+        Register::isPhysicalRegister(Dst->getReg()))
       break;
 
     if (Opcode == AMDGPU::V_LSHLREV_B16_e32 ||
@@ -671,7 +673,8 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
     MachineOperand *Src0 = TII->getNamedOperand(MI, AMDGPU::OpName::src0);
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (Src0->getReg().isPhysical() || Dst->getReg().isPhysical())
+    if (Register::isPhysicalRegister(Src0->getReg()) ||
+        Register::isPhysicalRegister(Dst->getReg()))
       break;
 
     return std::make_unique<SDWASrcOperand>(
@@ -699,7 +702,8 @@ SIPeepholeSDWA::matchSDWAOperand(MachineInstr &MI) {
 
     MachineOperand *Dst = TII->getNamedOperand(MI, AMDGPU::OpName::vdst);
 
-    if (ValSrc->getReg().isPhysical() || Dst->getReg().isPhysical())
+    if (Register::isPhysicalRegister(ValSrc->getReg()) ||
+        Register::isPhysicalRegister(Dst->getReg()))
       break;
 
     return std::make_unique<SDWASrcOperand>(

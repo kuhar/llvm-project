@@ -11,7 +11,6 @@
 #include "CommonArgs.h"
 #include "InputInfo.h"
 #include "clang/Basic/Cuda.h"
-#include "clang/Basic/TargetID.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -69,7 +68,7 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 
   // Extract all the -m options
   std::vector<llvm::StringRef> Features;
-  amdgpu::getAMDGPUTargetFeatures(D, TC.getTriple(), Args, Features);
+  amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
 
   // Add features to mattr such as cumode
   std::string MAttrString = "-plugin-opt=-mattr=";
@@ -233,8 +232,7 @@ void HIPToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
-  // Allow using target ID in --offload-arch.
-  StringRef GpuArch = translateTargetID(DriverArgs, CC1Args);
+  StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
   assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   (void) GpuArch;
   assert(DeviceOffloadingKind == Action::OFK_HIP &&

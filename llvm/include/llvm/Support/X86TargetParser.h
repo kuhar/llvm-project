@@ -100,7 +100,6 @@ enum CPUKind {
   CK_IcelakeClient,
   CK_IcelakeServer,
   CK_Tigerlake,
-  CK_SapphireRapids,
   CK_KNL,
   CK_KNM,
   CK_Lakemont,
@@ -131,7 +130,7 @@ CPUKind parseArchX86(StringRef CPU, bool Only64Bit = false);
 /// Provide a list of valid CPU names. If \p Only64Bit is true, the list will
 /// only contain 64-bit capable CPUs.
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values,
-                          bool Only64Bit = false);
+                          bool ArchIs32Bit);
 
 /// Get the key feature prioritizing target multiversioning.
 ProcessorFeatures getKeyFeature(CPUKind Kind);

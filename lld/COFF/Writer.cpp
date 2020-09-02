@@ -601,9 +601,6 @@ void Writer::finalizeAddresses() {
 void Writer::run() {
   ScopedTimer t1(codeLayoutTimer);
 
-  // First, clear the output sections from previous runs
-  outputSections.clear();
-
   createImportTables();
   createSections();
   createMiscChunks();

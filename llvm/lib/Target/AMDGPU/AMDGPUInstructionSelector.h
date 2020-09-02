@@ -110,7 +110,6 @@ private:
   bool selectIntrinsicIcmp(MachineInstr &MI) const;
   bool selectBallot(MachineInstr &I) const;
   bool selectRelocConstant(MachineInstr &I) const;
-  bool selectGroupStaticSize(MachineInstr &I) const;
   bool selectReturnAddress(MachineInstr &I) const;
   bool selectG_INTRINSIC(MachineInstr &I) const;
 
@@ -118,7 +117,6 @@ private:
   bool selectDSOrderedIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSGWSIntrinsic(MachineInstr &MI, Intrinsic::ID IID) const;
   bool selectDSAppendConsume(MachineInstr &MI, bool IsAppend) const;
-  bool selectSBarrier(MachineInstr &MI) const;
 
   bool selectImageIntrinsic(MachineInstr &MI,
                             const AMDGPU::ImageDimIntrinsicInfo *Intr) const;
@@ -203,16 +201,10 @@ private:
   InstructionSelector::ComplexRendererFns
   selectDS1Addr1Offset(MachineOperand &Root) const;
 
+  std::pair<Register, unsigned>
+  selectDS64Bit4ByteAlignedImpl(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectDS64Bit4ByteAligned(MachineOperand &Root) const;
-
-  InstructionSelector::ComplexRendererFns
-  selectDS128Bit8ByteAligned(MachineOperand &Root) const;
-
-  std::pair<Register, unsigned>
-  selectDSReadWrite2Impl(MachineOperand &Root, bool IsDS128) const;
-  InstructionSelector::ComplexRendererFns
-  selectDSReadWrite2(MachineOperand &Root, bool IsDS128) const;
 
   std::pair<Register, int64_t>
   getPtrBaseWithConstantOffset(Register Root,

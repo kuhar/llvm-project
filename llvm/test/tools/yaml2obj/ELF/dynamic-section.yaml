@@ -7,9 +7,10 @@
 
 !ELF
 FileHeader:
-  Class: ELFCLASS[[BITS]]
-  Data:  ELFDATA2LSB
-  Type:  ET_DYN
+  Class:   ELFCLASS[[BITS]]
+  Data:    ELFDATA2LSB
+  Type:    ET_DYN
+  Machine: EM_X86_64
 Sections:
 ## Test default values set by yaml2obj.
   - Name:  .dynamic

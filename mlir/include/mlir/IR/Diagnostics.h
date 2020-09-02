@@ -361,11 +361,10 @@ private:
   InFlightDiagnostic(DiagnosticEngine *owner, Diagnostic &&rhs)
       : owner(owner), impl(std::move(rhs)) {}
 
-  /// Returns true if the diagnostic is still active, i.e. it has a live
-  /// diagnostic.
+  /// Returns if the diagnostic is still active, i.e. it has a live diagnostic.
   bool isActive() const { return impl.hasValue(); }
 
-  /// Returns true if the diagnostic is still in flight to be reported.
+  /// Returns if the diagnostic is still in flight to be reported.
   bool isInFlight() const { return owner; }
 
   // Allow access to the constructor.

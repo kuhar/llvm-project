@@ -246,6 +246,7 @@ SDBMSumExpr SDBMSumExpr::get(SDBMTermExpr lhs, SDBMConstantExpr rhs) {
 
   StorageUniquer &uniquer = lhs.getDialect()->getUniquer();
   return uniquer.get<detail::SDBMBinaryExprStorage>(
+      TypeID::get<detail::SDBMBinaryExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(SDBMExprKind::Add), lhs, rhs);
 }
 
@@ -516,7 +517,7 @@ Optional<SDBMExpr> SDBMExpr::tryConvertAffineExpr(AffineExpr affine) {
 
     SDBMDialect *dialect;
   } converter;
-  converter.dialect = affine.getContext()->getOrLoadDialect<SDBMDialect>();
+  converter.dialect = affine.getContext()->getRegisteredDialect<SDBMDialect>();
 
   if (auto result = converter.visit(affine))
     return result;
@@ -532,7 +533,9 @@ SDBMDiffExpr SDBMDiffExpr::get(SDBMDirectExpr lhs, SDBMTermExpr rhs) {
   assert(rhs && "expected SDBM dimension");
 
   StorageUniquer &uniquer = lhs.getDialect()->getUniquer();
-  return uniquer.get<detail::SDBMDiffExprStorage>(/*initFn=*/{}, lhs, rhs);
+  return uniquer.get<detail::SDBMDiffExprStorage>(
+      TypeID::get<detail::SDBMDiffExprStorage>(),
+      /*initFn=*/{}, static_cast<unsigned>(SDBMExprKind::Diff), lhs, rhs);
 }
 
 SDBMDirectExpr SDBMDiffExpr::getLHS() const {
@@ -572,6 +575,7 @@ SDBMStripeExpr SDBMStripeExpr::get(SDBMDirectExpr var,
 
   StorageUniquer &uniquer = var.getDialect()->getUniquer();
   return uniquer.get<detail::SDBMBinaryExprStorage>(
+      TypeID::get<detail::SDBMBinaryExprStorage>(),
       /*initFn=*/{}, static_cast<unsigned>(SDBMExprKind::Stripe), var,
       stripeFactor);
 }
@@ -607,7 +611,8 @@ SDBMDimExpr SDBMDimExpr::get(SDBMDialect *dialect, unsigned position) {
 
   StorageUniquer &uniquer = dialect->getUniquer();
   return uniquer.get<detail::SDBMTermExprStorage>(
-      assignDialect, static_cast<unsigned>(SDBMExprKind::DimId), position);
+      TypeID::get<detail::SDBMTermExprStorage>(), assignDialect,
+      static_cast<unsigned>(SDBMExprKind::DimId), position);
 }
 
 //===----------------------------------------------------------------------===//
@@ -623,7 +628,8 @@ SDBMSymbolExpr SDBMSymbolExpr::get(SDBMDialect *dialect, unsigned position) {
 
   StorageUniquer &uniquer = dialect->getUniquer();
   return uniquer.get<detail::SDBMTermExprStorage>(
-      assignDialect, static_cast<unsigned>(SDBMExprKind::SymbolId), position);
+      TypeID::get<detail::SDBMTermExprStorage>(), assignDialect,
+      static_cast<unsigned>(SDBMExprKind::SymbolId), position);
 }
 
 //===----------------------------------------------------------------------===//
@@ -638,7 +644,9 @@ SDBMConstantExpr SDBMConstantExpr::get(SDBMDialect *dialect, int64_t value) {
   };
 
   StorageUniquer &uniquer = dialect->getUniquer();
-  return uniquer.get<detail::SDBMConstantExprStorage>(assignCtx, value);
+  return uniquer.get<detail::SDBMConstantExprStorage>(
+      TypeID::get<detail::SDBMConstantExprStorage>(), assignCtx,
+      static_cast<unsigned>(SDBMExprKind::Constant), value);
 }
 
 int64_t SDBMConstantExpr::getValue() const {
@@ -653,7 +661,9 @@ SDBMNegExpr SDBMNegExpr::get(SDBMDirectExpr var) {
   assert(var && "expected non-null SDBM direct expression");
 
   StorageUniquer &uniquer = var.getDialect()->getUniquer();
-  return uniquer.get<detail::SDBMNegExprStorage>(/*initFn=*/{}, var);
+  return uniquer.get<detail::SDBMNegExprStorage>(
+      TypeID::get<detail::SDBMNegExprStorage>(),
+      /*initFn=*/{}, static_cast<unsigned>(SDBMExprKind::Neg), var);
 }
 
 SDBMDirectExpr SDBMNegExpr::getVar() const {

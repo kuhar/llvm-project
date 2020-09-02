@@ -510,9 +510,10 @@ def skipIfNoSBHeaders(func):
         if lldb.remote_platform:
             return "skip because SBHeaders tests make no sense remotely"
 
-        if lldbplatformutil.getHostPlatform() == 'darwin' and configuration.lldb_framework_path:
+        if lldbplatformutil.getHostPlatform() == 'darwin':
             header = os.path.join(
-                configuration.lldb_framework_path,
+                os.environ["LLDB_LIB_DIR"],
+                'LLDB.framework',
                 'Versions',
                 'Current',
                 'Headers',

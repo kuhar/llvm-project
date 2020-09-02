@@ -1760,10 +1760,12 @@ Sema::ActOnCXXNew(SourceLocation StartLoc, bool UseGlobal,
             // C++1y [expr.new]p6: Every constant-expression in a noptr-new-declarator
             //   shall be a converted constant expression (5.19) of type std::size_t
             //   and shall evaluate to a strictly positive value.
-            llvm::APSInt Value(Context.getIntWidth(Context.getSizeType()));
+            unsigned IntWidth = Context.getTargetInfo().getIntWidth();
+            assert(IntWidth && "Builtin type of size 0?");
+            llvm::APSInt Value(IntWidth);
             Array.NumElts
              = CheckConvertedConstantExpression(NumElts, Context.getSizeType(), Value,
-                                                CCEK_ArrayBound)
+                                                CCEK_NewExpr)
                  .get();
           } else {
             Array.NumElts
@@ -4321,12 +4323,6 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
   case ICK_Vector_Conversion:
     From = ImpCastExprToType(From, ToType, CK_BitCast,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
-    break;
-
-  case ICK_SVE_Vector_Conversion:
-    From = ImpCastExprToType(From, ToType, CK_BitCast, VK_RValue,
-                             /*BasePath=*/nullptr, CCK)
-               .get();
     break;
 
   case ICK_Vector_Splat: {

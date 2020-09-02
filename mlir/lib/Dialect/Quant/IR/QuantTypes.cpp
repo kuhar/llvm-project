@@ -204,8 +204,8 @@ AnyQuantizedType AnyQuantizedType::get(unsigned flags, Type storageType,
                                        Type expressedType,
                                        int64_t storageTypeMin,
                                        int64_t storageTypeMax) {
-  return Base::get(storageType.getContext(), flags, storageType, expressedType,
-                   storageTypeMin, storageTypeMax);
+  return Base::get(storageType.getContext(), QuantizationTypes::Any, flags,
+                   storageType, expressedType, storageTypeMin, storageTypeMax);
 }
 
 AnyQuantizedType AnyQuantizedType::getChecked(unsigned flags, Type storageType,
@@ -213,8 +213,8 @@ AnyQuantizedType AnyQuantizedType::getChecked(unsigned flags, Type storageType,
                                               int64_t storageTypeMin,
                                               int64_t storageTypeMax,
                                               Location location) {
-  return Base::getChecked(location, flags, storageType, expressedType,
-                          storageTypeMin, storageTypeMax);
+  return Base::getChecked(location, QuantizationTypes::Any, flags, storageType,
+                          expressedType, storageTypeMin, storageTypeMax);
 }
 
 LogicalResult AnyQuantizedType::verifyConstructionInvariants(
@@ -240,8 +240,10 @@ UniformQuantizedType UniformQuantizedType::get(unsigned flags, Type storageType,
                                                int64_t zeroPoint,
                                                int64_t storageTypeMin,
                                                int64_t storageTypeMax) {
-  return Base::get(storageType.getContext(), flags, storageType, expressedType,
-                   scale, zeroPoint, storageTypeMin, storageTypeMax);
+  return Base::get(storageType.getContext(),
+                   QuantizationTypes::UniformQuantized, flags, storageType,
+                   expressedType, scale, zeroPoint, storageTypeMin,
+                   storageTypeMax);
 }
 
 UniformQuantizedType
@@ -249,8 +251,9 @@ UniformQuantizedType::getChecked(unsigned flags, Type storageType,
                                  Type expressedType, double scale,
                                  int64_t zeroPoint, int64_t storageTypeMin,
                                  int64_t storageTypeMax, Location location) {
-  return Base::getChecked(location, flags, storageType, expressedType, scale,
-                          zeroPoint, storageTypeMin, storageTypeMax);
+  return Base::getChecked(location, QuantizationTypes::UniformQuantized, flags,
+                          storageType, expressedType, scale, zeroPoint,
+                          storageTypeMin, storageTypeMax);
 }
 
 LogicalResult UniformQuantizedType::verifyConstructionInvariants(
@@ -292,9 +295,10 @@ UniformQuantizedPerAxisType UniformQuantizedPerAxisType::get(
     ArrayRef<double> scales, ArrayRef<int64_t> zeroPoints,
     int32_t quantizedDimension, int64_t storageTypeMin,
     int64_t storageTypeMax) {
-  return Base::get(storageType.getContext(), flags, storageType, expressedType,
-                   scales, zeroPoints, quantizedDimension, storageTypeMin,
-                   storageTypeMax);
+  return Base::get(storageType.getContext(),
+                   QuantizationTypes::UniformQuantizedPerAxis, flags,
+                   storageType, expressedType, scales, zeroPoints,
+                   quantizedDimension, storageTypeMin, storageTypeMax);
 }
 
 UniformQuantizedPerAxisType UniformQuantizedPerAxisType::getChecked(
@@ -302,9 +306,9 @@ UniformQuantizedPerAxisType UniformQuantizedPerAxisType::getChecked(
     ArrayRef<double> scales, ArrayRef<int64_t> zeroPoints,
     int32_t quantizedDimension, int64_t storageTypeMin, int64_t storageTypeMax,
     Location location) {
-  return Base::getChecked(location, flags, storageType, expressedType, scales,
-                          zeroPoints, quantizedDimension, storageTypeMin,
-                          storageTypeMax);
+  return Base::getChecked(location, QuantizationTypes::UniformQuantizedPerAxis,
+                          flags, storageType, expressedType, scales, zeroPoints,
+                          quantizedDimension, storageTypeMin, storageTypeMax);
 }
 
 LogicalResult UniformQuantizedPerAxisType::verifyConstructionInvariants(
