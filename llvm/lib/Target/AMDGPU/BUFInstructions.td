@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 
@@ -1096,14 +1094,12 @@ def BUFFER_WBINVL1 : MUBUF_Invalidate <"buffer_wbinvl1",
                                        int_amdgcn_buffer_wbinvl1>;
 
 let SubtargetPredicate = HasAtomicFaddInsts in {
-
 defm BUFFER_ATOMIC_ADD_F32 : MUBUF_Pseudo_Atomics_NO_RTN <
-  "buffer_atomic_add_f32", VGPR_32, f32, atomic_fadd_global_noret
+  "buffer_atomic_add_f32", VGPR_32, f32, atomic_load_fadd_global_noret_32
 >;
 defm BUFFER_ATOMIC_PK_ADD_F16 : MUBUF_Pseudo_Atomics_NO_RTN <
-  "buffer_atomic_pk_add_f16", VGPR_32, v2f16, atomic_fadd_global_noret
+  "buffer_atomic_pk_add_f16", VGPR_32, v2f16, atomic_load_fadd_v2f16_global_noret_32
 >;
-
 } // End SubtargetPredicate = HasAtomicFaddInsts
 
 //===----------------------------------------------------------------------===//
@@ -1245,8 +1241,6 @@ defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_byte, i32, "BUFFER_LOAD_SBYTE">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_short, i32, "BUFFER_LOAD_SSHORT">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ubyte, i32, "BUFFER_LOAD_UBYTE">;
 defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ushort,  i32, "BUFFER_LOAD_USHORT">;
-defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ubyte, f32, "BUFFER_LOAD_UBYTE">;
-defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ushort, f32, "BUFFER_LOAD_USHORT">;
 
 multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                    string opcode> {
@@ -1329,8 +1323,6 @@ defm : MUBUF_StoreIntrinsicPat<SIbuffer_store, v4f32, "BUFFER_STORE_DWORDX4">;
 defm : MUBUF_StoreIntrinsicPat<SIbuffer_store, v4i32, "BUFFER_STORE_DWORDX4">;
 defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_byte, i32, "BUFFER_STORE_BYTE">;
 defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_short, i32, "BUFFER_STORE_SHORT">;
-defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_byte, f32, "BUFFER_STORE_BYTE">;
-defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_short, f32, "BUFFER_STORE_SHORT">;
 
 //===----------------------------------------------------------------------===//
 // buffer_atomic patterns
@@ -1400,36 +1392,46 @@ defm : BufferAtomicPatterns<SIbuffer_atomic_xor, i64, "BUFFER_ATOMIC_XOR_X2">;
 defm : BufferAtomicPatterns<SIbuffer_atomic_inc, i64, "BUFFER_ATOMIC_INC_X2">;
 defm : BufferAtomicPatterns<SIbuffer_atomic_dec, i64, "BUFFER_ATOMIC_DEC_X2">;
 
+class NoUseBufferAtomic<SDPatternOperator Op, ValueType vt> : PatFrag <
+  (ops node:$src0, node:$src1, node:$src2, node:$src3, node:$src4, node:$src5, node:$src6, node:$src7),
+  (vt (Op $src0, $src1, $src2, $src3, $src4, $src5, $src6, $src7)),
+  [{ return SDValue(N, 0).use_empty(); }]> {
+
+  let GISelPredicateCode = [{
+    return MRI.use_nodbg_empty(MI.getOperand(0).getReg());
+  }];
+}
+
 multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
                                        string opcode> {
   def : GCNPat<
-    (name vt:$vdata_in, v4i32:$rsrc, 0,
-          0, i32:$soffset, timm:$offset,
-          timm:$cachepolicy, 0),
+    (NoUseBufferAtomic<name, vt> vt:$vdata_in, v4i32:$rsrc, 0,
+                                 0, i32:$soffset, timm:$offset,
+                                 timm:$cachepolicy, 0),
     (!cast<MUBUF_Pseudo>(opcode # _OFFSET) getVregSrcForVT<vt>.ret:$vdata_in, SReg_128:$rsrc, SCSrc_b32:$soffset,
-                                        (as_i16timm $offset), (extract_slc $cachepolicy))
+                                          (as_i16timm $offset), (extract_slc $cachepolicy))
   >;
 
   def : GCNPat<
-    (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
-          0, i32:$soffset, timm:$offset,
-          timm:$cachepolicy, timm),
+    (NoUseBufferAtomic<name, vt> vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
+                                 0, i32:$soffset, timm:$offset,
+                                 timm:$cachepolicy, timm),
     (!cast<MUBUF_Pseudo>(opcode # _IDXEN) getVregSrcForVT<vt>.ret:$vdata_in, VGPR_32:$vindex, SReg_128:$rsrc, SCSrc_b32:$soffset,
-                                       (as_i16timm $offset), (extract_slc $cachepolicy))
+                                          (as_i16timm $offset), (extract_slc $cachepolicy))
   >;
 
   def : GCNPat<
-    (name vt:$vdata_in, v4i32:$rsrc, 0,
-          i32:$voffset, i32:$soffset, timm:$offset,
-          timm:$cachepolicy, 0),
+    (NoUseBufferAtomic<name, vt> vt:$vdata_in, v4i32:$rsrc, 0,
+                                 i32:$voffset, i32:$soffset, timm:$offset,
+                                 timm:$cachepolicy, 0),
     (!cast<MUBUF_Pseudo>(opcode # _OFFEN) getVregSrcForVT<vt>.ret:$vdata_in, VGPR_32:$voffset, SReg_128:$rsrc, SCSrc_b32:$soffset,
-                                       (as_i16timm $offset), (extract_slc $cachepolicy))
+                                          (as_i16timm $offset), (extract_slc $cachepolicy))
   >;
 
   def : GCNPat<
-    (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
-          i32:$voffset, i32:$soffset, timm:$offset,
-          timm:$cachepolicy, timm),
+    (NoUseBufferAtomic<name, vt> vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
+                                 i32:$voffset, i32:$soffset, timm:$offset,
+                                 timm:$cachepolicy, timm),
     (!cast<MUBUF_Pseudo>(opcode # _BOTHEN)
       getVregSrcForVT<vt>.ret:$vdata_in,
       (REG_SEQUENCE VReg_64, VGPR_32:$vindex, sub0, VGPR_32:$voffset, sub1),
