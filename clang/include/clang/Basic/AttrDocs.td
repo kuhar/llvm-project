@@ -3476,6 +3476,30 @@ Swift.
   }];
 }
 
+def SwiftBridgeDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_bridge";
+  let Content = [{
+The ``swift_bridge`` attribute indicates that the declaration to which the
+attribute appertains is bridged to the named Swift type.
+
+  .. code-block:: c
+
+    __attribute__((__objc_root__))
+    @interface Base
+    - (instancetype)init;
+    @end
+
+    __attribute__((__swift_bridge__("BridgedI")))
+    @interface I : Base
+    @end
+
+In this example, the Objective-C interface ``I`` will be made available to Swift
+with the name ``BridgedI``.  It would be possible for the compiler to refer to
+``I`` still in order to bridge the type back to Objective-C.
+  }];
+}
+
 def SwiftBridgedTypedefDocs : Documentation {
   let Category = SwiftDocs;
   let Heading = "swift_bridged";
@@ -3545,6 +3569,30 @@ it is instead imported as ``Void``.
 considered to have thrown if they leave a non-null error in the error parameter.
 The return type is left unmodified.
 
+  }];
+}
+
+def SwiftNameDocs : Documentation {
+  let Category = SwiftDocs;
+  let Heading = "swift_name";
+  let Content = [{
+The ``swift_name`` attribute provides the name of the declaration in Swift. If
+this attribute is absent, the name is transformed according to the algorithm
+built into the Swift compiler.
+
+The argument is a string literal that contains the Swift name of the function,
+variable, or type. When renaming a function, the name may be a compound Swift
+name.  For a type, enum constant, property, or variable declaration, the name
+must be a simple or qualified identifier.
+
+  .. code-block:: c
+
+    @interface URL
+    - (void) initWithString:(NSString *)s __attribute__((__swift_name__("URL.init(_:)")))
+    @end
+
+    void __attribute__((__swift_name__("squareRoot()"))) sqrt(double v) {
+    }
   }];
 }
 
@@ -3654,12 +3702,24 @@ Clang provides the following context selector extensions, used via
     match_all
     match_any
     match_none
+    disable_implicit_base
+    allow_templates
 
 The match extensions change when the *entire* context selector is considered a
 match for an OpenMP context. The default is ``all``, with ``none`` no trait in the
 selector is allowed to be in the OpenMP context, with ``any`` a single trait in
 both the selector and OpenMP context is sufficient. Only a single match
 extension trait is allowed per context selector.
+The disable extensions remove default effects of the ``begin declare variant``
+applied to a definition. If ``disable_implicit_base`` is given, we will not
+introduce an implicit base function for a variant if no base function was
+found. The variant is still generated but will never be called, due to the
+absence of a base function and consequently calls to a base function.
+The allow extensions change when the ``begin declare variant`` effect is
+applied to a definition. If ``allow_templates`` is given, template function
+definitions are considered as specializations of existing or assumed template
+declarations with the same name. The template parameters for the base functions
+are used to instantiate the specialization.
 
   }];
 }

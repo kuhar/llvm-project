@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -345,10 +347,17 @@ private:
     return LICalc[SpillMode != SM_Partition && RegIdx != 0];
   }
 
-  /// Find a subrange corresponding to the lane mask @p LM in the live
+  /// Find a subrange corresponding to the exact lane mask @p LM in the live
   /// interval @p LI. The interval @p LI is assumed to contain such a subrange.
   /// This function is used to find corresponding subranges between the
   /// original interval and the new intervals.
+  LiveInterval::SubRange &getSubRangeForMaskExact(LaneBitmask LM,
+                                                  LiveInterval &LI);
+
+  /// Find a subrange corresponding to the lane mask @p LM, or a superset of it,
+  /// in the live interval @p LI. The interval @p LI is assumed to contain such
+  /// a subrange.  This function is used to find corresponding subranges between
+  /// the original interval and the new intervals.
   LiveInterval::SubRange &getSubRangeForMask(LaneBitmask LM, LiveInterval &LI);
 
   /// Add a segment to the interval LI for the value number VNI. If LI has

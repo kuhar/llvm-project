@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: opt -S -instcombine -mtriple=amdgcn-amd-amdhsa %s | FileCheck %s
 
 ; --------------------------------------------------------------------
