@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -957,11 +955,12 @@ bool DAGTypeLegalizer::CustomWidenLowerNode(SDNode *N, EVT VT) {
   assert(Results.size() == N->getNumValues() &&
          "Custom lowering returned the wrong number of results!");
   for (unsigned i = 0, e = Results.size(); i != e; ++i) {
-    // If this is a chain output just replace it.
-    if (Results[i].getValueType() == MVT::Other)
-      ReplaceValueWith(SDValue(N, i), Results[i]);
-    else
+    // If this is a chain output or already widened just replace it.
+    bool WasWidened = SDValue(N, i).getValueType() != Results[i].getValueType();
+    if (WasWidened)
       SetWidenedVector(SDValue(N, i), Results[i]);
+    else
+      ReplaceValueWith(SDValue(N, i), Results[i]);
   }
   return true;
 }

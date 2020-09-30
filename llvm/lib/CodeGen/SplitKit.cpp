@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -665,13 +663,19 @@ VNInfo *SplitEditor::defFromParent(unsigned RegIdx,
         if (S.liveAt(UseIdx))
           LaneMask |= S.LaneMask;
       }
-      assert(LaneMask.any() && "Interval has no live subranges");
     } else {
       LaneMask = LaneBitmask::getAll();
     }
 
-    ++NumCopies;
-    Def = buildCopy(Edit->getReg(), Reg, LaneMask, MBB, I, Late, RegIdx);
+    if (LaneMask.none()) {
+      const MCInstrDesc &Desc = TII.get(TargetOpcode::IMPLICIT_DEF);
+      MachineInstr *ImplicitDef = BuildMI(MBB, I, DebugLoc(), Desc, Reg);
+      SlotIndexes &Indexes = *LIS.getSlotIndexes();
+      Def = Indexes.insertMachineInstrInMaps(*ImplicitDef, Late).getRegSlot();
+    } else {
+      ++NumCopies;
+      Def = buildCopy(Edit->getReg(), Reg, LaneMask, MBB, I, Late, RegIdx);
+    }
   }
 
   // Define the value in Reg.

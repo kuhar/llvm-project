@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,7 +28,6 @@ def SIEncodingFamily {
   int GFX9 = 5;
   int GFX10 = 6;
   int SDWA10 = 7;
-  int GFX10_B = 8;
 }
 
 //===----------------------------------------------------------------------===//
@@ -539,6 +536,48 @@ def si_setcc_uniform : PatFrag <
   }
   return true;
 }]>;
+
+//===----------------------------------------------------------------------===//
+// SDNodes PatFrags for a16 loads and stores with 3 components.
+// v3f16/v3i16 is widened to v4f16/v4i16, so we need to match on the memory
+// load/store size.
+//===----------------------------------------------------------------------===//
+
+class mubuf_intrinsic_load<SDPatternOperator name, ValueType vt> : PatFrag <
+  (ops node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$auxiliary, node:$idxen),
+  (name node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$auxiliary, node:$idxen)> {
+  let IsLoad = 1;
+  let MemoryVT = vt;
+}
+
+class mubuf_intrinsic_store<SDPatternOperator name, ValueType vt> : PatFrag <
+  (ops node:$vdata, node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$auxiliary, node:$idxen),
+  (name node:$vdata, node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$auxiliary, node:$idxen)> {
+  let IsStore = 1;
+  let MemoryVT = vt;
+}
+
+class mtbuf_intrinsic_load<SDPatternOperator name, ValueType vt> : PatFrag <
+  (ops node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$format, node:$auxiliary, node:$idxen),
+  (name node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$format, node:$auxiliary, node:$idxen)> {
+  let IsLoad = 1;
+  let MemoryVT = vt;
+}
+
+class mtbuf_intrinsic_store<SDPatternOperator name, ValueType vt> : PatFrag <
+  (ops node:$vdata, node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$format, node:$auxiliary, node:$idxen),
+  (name node:$vdata, node:$rsrc, node:$vindex, node:$voffset, node:$soffset, node:$offset,
+            node:$format, node:$auxiliary, node:$idxen)> {
+  let IsStore = 1;
+  let MemoryVT = vt;
+}
 
 //===----------------------------------------------------------------------===//
 // SDNodes PatFrags for d16 loads
@@ -2460,8 +2499,7 @@ def getMCOpcodeGen : InstrMapping {
                    [!cast<string>(SIEncodingFamily.GFX80)],
                    [!cast<string>(SIEncodingFamily.GFX9)],
                    [!cast<string>(SIEncodingFamily.GFX10)],
-                   [!cast<string>(SIEncodingFamily.SDWA10)],
-                   [!cast<string>(SIEncodingFamily.GFX10_B)]];
+                   [!cast<string>(SIEncodingFamily.SDWA10)]];
 }
 
 // Get equivalent SOPK instruction.

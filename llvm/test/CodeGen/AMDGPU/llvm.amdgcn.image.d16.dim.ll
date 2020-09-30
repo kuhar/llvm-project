@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc < %s -march=amdgcn -mcpu=tonga -verify-machineinstrs | FileCheck -check-prefixes=GCN,UNPACKED,GFX89 %s
 ; RUN: llc < %s -march=amdgcn -mcpu=gfx810 -verify-machineinstrs | FileCheck -check-prefixes=GCN,PACKED,GFX81,GFX89 %s
 ; RUN: llc < %s -march=amdgcn -mcpu=gfx900 -verify-machineinstrs | FileCheck -check-prefixes=GCN,PACKED,GFX9,GFX89 %s
@@ -23,6 +21,18 @@ main_body:
   %tex = call <2 x half> @llvm.amdgcn.image.load.2d.v2f16.i32(i32 3, i32 %s, i32 %t, <8 x i32> %rsrc, i32 0, i32 0)
   %r = bitcast <2 x half> %tex to float
   ret float %r
+}
+
+; GCN-LABEL: {{^}}image_load_v3f16:
+; UNPACKED: image_load v[0:2], v[0:1], s[0:7] dmask:0x7 unorm d16{{$}}
+; PACKED: image_load v[0:1], v[0:1], s[0:7] dmask:0x7 unorm d16{{$}}
+; GFX10: image_load v[0:1], v[0:1], s[0:7] dmask:0x7 dim:SQ_RSRC_IMG_2D unorm d16{{$}}
+define amdgpu_ps <2 x float> @image_load_v3f16(<8 x i32> inreg %rsrc, i32 %s, i32 %t) {
+main_body:
+  %tex = call <3 x half> @llvm.amdgcn.image.load.2d.v3f16.i32(i32 7, i32 %s, i32 %t, <8 x i32> %rsrc, i32 0, i32 0)
+  %ext = shufflevector <3 x half> %tex, <3 x half> undef, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %r = bitcast <4 x half> %ext to <2 x float>
+  ret <2 x float> %r
 }
 
 ; GCN-LABEL: {{^}}image_load_v4f16:
@@ -58,6 +68,14 @@ main_body:
   ret float %x
 }
 
+define amdgpu_ps <2 x float> @image_load_3d_v3f16(<8 x i32> inreg %rsrc, i32 %s, i32 %t, i32 %r) {
+main_body:
+  %tex = call <3 x half> @llvm.amdgcn.image.load.3d.v3f16.i32(i32 7, i32 %s, i32 %t, i32 %r, <8 x i32> %rsrc, i32 0, i32 0)
+  %ext = shufflevector <3 x half> %tex, <3 x half> undef, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %res = bitcast <4 x half> %ext to <2 x float>
+  ret <2 x float> %res
+}
+
 ; GCN-LABEL: {{^}}image_store_f16
 ; GFX89: image_store v2, v[0:1], s[0:7] dmask:0x1 unorm d16{{$}}
 ; GFX10: image_store v2, v[0:1], s[0:7] dmask:0x1 dim:SQ_RSRC_IMG_2D unorm d16{{$}}
@@ -77,6 +95,14 @@ define amdgpu_ps void @image_store_v2f16(<8 x i32> inreg %rsrc, i32 %s, i32 %t, 
 main_body:
   %data = bitcast float %in to <2 x half>
   call void @llvm.amdgcn.image.store.2d.v2f16.i32(<2 x half> %data, i32 3, i32 %s, i32 %t, <8 x i32> %rsrc, i32 0, i32 0)
+  ret void
+}
+
+define amdgpu_ps void @image_store_v3f16(<8 x i32> inreg %rsrc, i32 %s, i32 %t, <2 x float> %in) {
+main_body:
+  %r = bitcast <2 x float> %in to <4 x half>
+  %data = shufflevector <4 x half> %r, <4 x half> undef, <3 x i32> <i32 0, i32 1, i32 2>
+  call void @llvm.amdgcn.image.store.2d.v3f16.i32(<3 x half> %data, i32 7, i32 %s, i32 %t, <8 x i32> %rsrc, i32 0, i32 0)
   ret void
 }
 
@@ -112,15 +138,19 @@ main_body:
 
 declare half @llvm.amdgcn.image.load.2d.f16.i32(i32, i32, i32, <8 x i32>, i32, i32) #1
 declare <2 x half> @llvm.amdgcn.image.load.2d.v2f16.i32(i32, i32, i32, <8 x i32>, i32, i32) #1
+declare <3 x half> @llvm.amdgcn.image.load.2d.v3f16.i32(i32, i32, i32, <8 x i32>, i32, i32) #1
 declare <4 x half> @llvm.amdgcn.image.load.2d.v4f16.i32(i32, i32, i32, <8 x i32>, i32, i32) #1
 declare <4 x half> @llvm.amdgcn.image.load.mip.2d.v4f16.i32(i32, i32, i32, i32, <8 x i32>, i32, i32) #1
 declare <2 x half> @llvm.amdgcn.image.load.3d.v2f16.i32(i32, i32, i32, i32, <8 x i32>, i32, i32) #1
+declare <3 x half> @llvm.amdgcn.image.load.3d.v3f16.i32(i32, i32, i32, i32, <8 x i32>, i32, i32) #1
 
 declare void @llvm.amdgcn.image.store.2d.f16.i32(half, i32, i32, i32, <8 x i32>, i32, i32) #0
 declare void @llvm.amdgcn.image.store.2d.v2f16.i32(<2 x half>, i32, i32, i32, <8 x i32>, i32, i32) #0
+declare void @llvm.amdgcn.image.store.2d.v3f16.i32(<3 x half>, i32, i32, i32, <8 x i32>, i32, i32) #0
 declare void @llvm.amdgcn.image.store.2d.v4f16.i32(<4 x half>, i32, i32, i32, <8 x i32>, i32, i32) #0
 declare void @llvm.amdgcn.image.store.mip.1d.v4f16.i32(<4 x half>, i32, i32, i32, <8 x i32>, i32, i32) #0
 declare void @llvm.amdgcn.image.store.3d.v2f16.i32(<2 x half>, i32, i32, i32, i32, <8 x i32>, i32, i32) #0
+declare void @llvm.amdgcn.image.store.3d.v3f16.i32(<3 x half>, i32, i32, i32, i32, <8 x i32>, i32, i32) #0
 
 attributes #0 = { nounwind }
 attributes #1 = { nounwind readonly }
