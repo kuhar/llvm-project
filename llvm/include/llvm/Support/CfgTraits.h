@@ -3,6 +3,8 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -350,7 +352,7 @@ protected:
 public:
   virtual ~CfgPrinter() {}
 
-  const CfgInterface &interface() const { return m_iface; }
+  const CfgInterface &getInterface() const { return m_iface; }
 
   virtual void printBlockName(raw_ostream &out, CfgBlockRef block) const = 0;
   virtual void printValue(raw_ostream &out, CfgValueRef value) const = 0;
