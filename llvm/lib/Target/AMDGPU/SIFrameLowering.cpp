@@ -74,10 +74,8 @@ static void getVGPRSpillLaneOrTempRegister(MachineFunction &MF,
   SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
   MachineFrameInfo &FrameInfo = MF.getFrameInfo();
 
-#ifndef NDEBUG
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   const SIRegisterInfo *TRI = ST.getRegisterInfo();
-#endif
 
   // We need to save and restore the current FP/BP.
 
@@ -107,7 +105,7 @@ static void getVGPRSpillLaneOrTempRegister(MachineFunction &MF,
     int NewFI = FrameInfo.CreateStackObject(4, Align(4), true, nullptr,
                                             TargetStackID::SGPRSpill);
 
-    if (MFI->allocateSGPRSpillToVGPR(MF, NewFI)) {
+    if (TRI->spillSGPRToVGPR() && MFI->allocateSGPRSpillToVGPR(MF, NewFI)) {
       // 3: There's no free lane to spill, and no free register to save FP/BP,
       // so we're forced to spill another VGPR to use for the spill.
       FrameIndex = NewFI;
@@ -1139,13 +1137,13 @@ void SIFrameLowering::emitEpilogue(MachineFunction &MF,
   if (FuncInfo->SGPRForFPSaveRestoreCopy) {
     BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::COPY), FramePtrReg)
         .addReg(FuncInfo->SGPRForFPSaveRestoreCopy)
-        .setMIFlag(MachineInstr::FrameSetup);
+        .setMIFlag(MachineInstr::FrameDestroy);
   }
 
   if (FuncInfo->SGPRForBPSaveRestoreCopy) {
     BuildMI(MBB, MBBI, DL, TII->get(AMDGPU::COPY), BasePtrReg)
         .addReg(FuncInfo->SGPRForBPSaveRestoreCopy)
-        .setMIFlag(MachineInstr::FrameSetup);
+        .setMIFlag(MachineInstr::FrameDestroy);
   }
 
   Register ScratchExecCopy;
