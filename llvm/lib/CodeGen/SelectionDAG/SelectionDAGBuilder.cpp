@@ -6664,9 +6664,8 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     SmallVector<const Value *, 4> Allocas;
     getUnderlyingObjects(ObjectPtr, Allocas);
 
-    for (SmallVectorImpl<const Value*>::iterator Object = Allocas.begin(),
-           E = Allocas.end(); Object != E; ++Object) {
-      const AllocaInst *LifetimeObject = dyn_cast_or_null<AllocaInst>(*Object);
+    for (const Value *Alloca : Allocas) {
+      const AllocaInst *LifetimeObject = dyn_cast_or_null<AllocaInst>(Alloca);
 
       // Could not find an Alloca.
       if (!LifetimeObject)
@@ -9682,8 +9681,9 @@ findArgumentCopyElisionCandidates(const DataLayout &DL,
       // We will look through cast uses, so ignore them completely.
       if (I.isCast())
         continue;
-      // Ignore debug info intrinsics, they don't escape or store to allocas.
-      if (isa<DbgInfoIntrinsic>(I))
+      // Ignore debug info and pseudo op intrinsics, they don't escape or store
+      // to allocas.
+      if (I.isDebugOrPseudoInst())
         continue;
       // This is an unknown instruction. Assume it escapes or writes to all
       // static alloca operands.

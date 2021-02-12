@@ -77,8 +77,7 @@ static Instruction *getBranchTerminator(const PredicateBase *PB) {
 
 // Given a predicate info that is a type of branching terminator, get the
 // edge this predicate info represents
-const std::pair<BasicBlock *, BasicBlock *>
-getBlockEdge(const PredicateBase *PB) {
+std::pair<BasicBlock *, BasicBlock *> getBlockEdge(const PredicateBase *PB) {
   assert(isa<PredicateWithEdge>(PB) &&
          "Not a predicate info type we know how to get an edge from.");
   const auto *PEdge = cast<PredicateWithEdge>(PB);
@@ -158,8 +157,7 @@ struct ValueDFS_Compare {
   }
 
   // For a phi use, or a non-materialized def, return the edge it represents.
-  const std::pair<BasicBlock *, BasicBlock *>
-  getBlockEdge(const ValueDFS &VD) const {
+  std::pair<BasicBlock *, BasicBlock *> getBlockEdge(const ValueDFS &VD) const {
     if (!VD.Def && VD.U) {
       auto *PHI = cast<PHINode>(VD.U->getUser());
       return std::make_pair(PHI->getIncomingBlock(*VD.U), PHI->getParent());
@@ -532,10 +530,11 @@ void PredicateInfoBuilder::buildPredicateInfo() {
       processSwitch(SI, BranchBB, OpsToRename);
     }
   }
-  for (auto &Assume : AC.assumptions()) {
-    if (auto *II = dyn_cast_or_null<IntrinsicInst>(Assume))
-      if (DT.isReachableFromEntry(II->getParent()))
-        processAssume(II, II->getParent(), OpsToRename);
+  for (auto &AssumeVH : AC.assumptions()) {
+    CallInst *AssumeCI = AssumeVH.getAssumeCI();
+    if (DT.isReachableFromEntry(AssumeCI->getParent()))
+      processAssume(cast<IntrinsicInst>(AssumeCI), AssumeCI->getParent(),
+                    OpsToRename);
   }
   // Now rename all our operations.
   renameUses(OpsToRename);
