@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=CHECK %s
 ; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -check-prefix=CHECK %s
 
@@ -859,6 +861,10 @@ main_body:
 ; CHECK-NEXT: ; %entry
 ; CHECK-NEXT: s_mov_b64 [[LIVE:s\[[0-9]+:[0-9]+\]]], exec
 ; CHECK: s_wqm_b64 exec, exec
+; CHECK: v_mov
+; CHECK: v_mov
+; CHECK: v_mov
+; CHECK: v_mov
 ; CHECK: s_and_b64 exec, exec, [[LIVE]]
 ; CHECK: image_store
 ; CHECK: s_wqm_b64 exec, exec
