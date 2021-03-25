@@ -70,6 +70,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPULowerIntrinsics.cpp
   AMDGPULowerKernelArguments.cpp
   AMDGPULowerKernelAttributes.cpp
+  AMDGPULowerModuleLDSPass.cpp
   AMDGPUMachineCFGStructurizer.cpp
   AMDGPUMachineFunction.cpp
   AMDGPUMachineModuleInfo.cpp
@@ -124,7 +125,7 @@ add_llvm_target(AMDGPUCodeGen
   SIFrameLowering.cpp
   SIInsertScratchBounds.cpp
   SIInsertHardClauses.cpp
-  SIInsertSkips.cpp
+  SILateBranchLowering.cpp
   SIInsertWaitcnts.cpp
   SIInsertWaterfall.cpp
   SIInstrInfo.cpp
@@ -144,7 +145,6 @@ add_llvm_target(AMDGPUCodeGen
   SIPreEmitPeephole.cpp
   SIProgramInfo.cpp
   SIRegisterInfo.cpp
-  SIRemoveShortExecBranches.cpp
   SIShrinkInstructions.cpp
   SIWholeQuadMode.cpp
   GCNILPSched.cpp
