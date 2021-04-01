@@ -50,9 +50,9 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUArgumentUsageInfo.cpp
   AMDGPUAsmPrinter.cpp
   AMDGPUAtomicOptimizer.cpp
-  AMDGPUConditionalDiscard.cpp
   AMDGPUCallLowering.cpp
   AMDGPUCodeGenPrepare.cpp
+  AMDGPUConditionalDiscard.cpp
   AMDGPUExportClustering.cpp
   AMDGPUFixFunctionBitcasts.cpp
   AMDGPUFrameLowering.cpp
@@ -116,6 +116,7 @@ add_llvm_target(AMDGPUCodeGen
   R600RegisterInfo.cpp
   SIAddIMGInit.cpp
   SIAnnotateControlFlow.cpp
+  SIBufMemMerge.cpp
   SIFixScratchSize.cpp
   SIFixSGPRCopies.cpp
   SIFixVGPRCopies.cpp
@@ -123,8 +124,8 @@ add_llvm_target(AMDGPUCodeGen
   SIFoldOperands.cpp
   SIFormMemoryClauses.cpp
   SIFrameLowering.cpp
-  SIInsertScratchBounds.cpp
   SIInsertHardClauses.cpp
+  SIInsertScratchBounds.cpp
   SILateBranchLowering.cpp
   SIInsertWaitcnts.cpp
   SIInsertWaterfall.cpp
@@ -136,7 +137,6 @@ add_llvm_target(AMDGPUCodeGen
   SILowerSGPRSpills.cpp
   SIMachineFunctionInfo.cpp
   SIMachineScheduler.cpp
-  SIBufMemMerge.cpp
   SIMemoryLegalizer.cpp
   SIOptimizeExecMasking.cpp
   SIOptimizeExecMaskingPreRA.cpp
