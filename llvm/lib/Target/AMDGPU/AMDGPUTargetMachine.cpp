@@ -394,10 +394,6 @@ AMDGPUTargetMachine::AMDGPUTargetMachine(const Target &T, const Triple &TT,
     else if (getMCSubtargetInfo()->checkFeatures("+wavefrontsize32"))
       MRI.reset(llvm::createGCNMCRegisterInfo(AMDGPUDwarfFlavour::Wave32));
   }
-  // Set -fixed-function-abi to true if not provided..
-  if (TT.getOS() == Triple::AMDHSA &&
-      EnableAMDGPUFixedFunctionABIOpt.getNumOccurrences() == 0)
-    EnableFixedFunctionABI = true;
 }
 
 bool AMDGPUTargetMachine::EnableLateStructurizeCFG = false;
@@ -911,8 +907,9 @@ void AMDGPUPassConfig::addIRPasses() {
 
     if (EnableSROA)
       addPass(createSROAPass());
-
-    if (EnableScalarIRPasses)
+    if (EnableScalarIRPasses.getNumOccurrences()
+            ? EnableScalarIRPasses
+            : TM.getOptLevel() > CodeGenOpt::Less)
       addStraightLineScalarOptimizationPasses();
 
     if (EnableAMDGPUAliasAnalysis) {
@@ -944,7 +941,9 @@ void AMDGPUPassConfig::addIRPasses() {
   //   %1 = shl %a, 2
   //
   // but EarlyCSE can do neither of them.
-  if (getOptLevel() != CodeGenOpt::None && EnableScalarIRPasses)
+  if (EnableScalarIRPasses.getNumOccurrences()
+          ? EnableScalarIRPasses
+          : TM.getOptLevel() > CodeGenOpt::Less)
     addEarlyCSEOrGVNPass();
 }
 
@@ -960,7 +959,9 @@ void AMDGPUPassConfig::addCodeGenPrepare() {
 
   TargetPassConfig::addCodeGenPrepare();
 
-  if (EnableLoadStoreVectorizer)
+  if (EnableLoadStoreVectorizer.getNumOccurrences()
+          ? EnableLoadStoreVectorizer
+          : TM->getOptLevel() > CodeGenOpt::Less)
     addPass(createLoadStoreVectorizerPass());
 
   // LowerSwitch pass may introduce unreachable blocks that can
@@ -1097,7 +1098,9 @@ void GCNPassConfig::addMachineSSAOptimization() {
     addPass(&GCNDPPCombineID);
   addPass(&SILoadStoreOptimizerID);
   addPass(&SIBufMemMergeID);
-  if (EnableSDWAPeephole) {
+  if (EnableSDWAPeephole.getNumOccurrences()
+          ? EnableSDWAPeephole
+          : TM->getOptLevel() > CodeGenOpt::Less) {
     addPass(&SIPeepholeSDWAID);
     addPass(&EarlyMachineLICMID);
     addPass(&MachineCSEID);
