@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMScalarOpts
   EarlyCSE.cpp
   FlattenCFGPass.cpp
   Float2Int.cpp
+  FunctionSpecialization.cpp
   GuardWidening.cpp
   GVN.cpp
   GVNHoist.cpp
@@ -25,6 +26,7 @@ add_llvm_component_library(LLVMScalarOpts
   JumpThreading.cpp
   LICM.cpp
   LoopAccessAnalysisPrinter.cpp
+  LoopBoundSplit.cpp
   LoopSink.cpp
   LoopDeletion.cpp
   LoopDataPrefetch.cpp
