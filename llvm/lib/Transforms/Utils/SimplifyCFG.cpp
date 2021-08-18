@@ -6394,6 +6394,11 @@ static BasicBlock *allPredecessorsComeFromSameSource(BasicBlock *BB) {
 }
 
 bool SimplifyCFGOpt::simplifyCondBranch(BranchInst *BI, IRBuilder<> &Builder) {
+  assert(
+      !isa<ConstantInt>(BI->getCondition()) &&
+      BI->getSuccessor(0) != BI->getSuccessor(1) &&
+      "Tautological conditional branch should have been eliminated already.");
+
   BasicBlock *BB = BI->getParent();
   if (!Options.SimplifyCondBranch)
     return false;
@@ -6634,7 +6639,8 @@ bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
   Changed |= EliminateDuplicatePHINodes(BB);
 
   // Check for and remove branches that will always cause undefined behavior.
-  Changed |= removeUndefIntroducingPredecessor(BB, DTU);
+  if (removeUndefIntroducingPredecessor(BB, DTU))
+    return requestResimplify();
 
   // Merge basic blocks into their predecessor if there is only one distinct
   // pred, and if there is only one distinct successor of the predecessor, and
@@ -6659,7 +6665,8 @@ bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
     // eliminate it, do so now.
     if (auto *PN = dyn_cast<PHINode>(BB->begin()))
       if (PN->getNumIncomingValues() == 2)
-        Changed |= FoldTwoEntryPHINode(PN, TTI, DTU, DL);
+        if (FoldTwoEntryPHINode(PN, TTI, DTU, DL))
+          return true;
   }
 
   Instruction *Terminator = BB->getTerminator();
