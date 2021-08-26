@@ -100,7 +100,9 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
-- ...
+- Wide multi-characters literals such as ``L'ab'`` that would previously be interpreted as ``L'b'``
+  are now ill-formed in all language modes. The motivation for this change is outlined in
+  `P2362 <wg21.link/P2362>`_.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -114,6 +116,12 @@ C++20 Feature Support
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 ...
+
+CUDA Language Changes in Clang
+------------------------------
+
+- Clang now supports CUDA versions up to 11.4.
+- Default GPU architecture has been changed from sm_20 to sm_35.
 
 Objective-C Language Changes in Clang
 -------------------------------------
