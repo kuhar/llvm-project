@@ -472,6 +472,10 @@ public:
   clearFlags(SCEV::NoWrapFlags Flags, SCEV::NoWrapFlags OffFlags) {
     return (SCEV::NoWrapFlags)(Flags & ~OffFlags);
   }
+  LLVM_NODISCARD static bool hasFlags(SCEV::NoWrapFlags Flags,
+                                      SCEV::NoWrapFlags TestFlags) {
+    return TestFlags == maskFlags(Flags, TestFlags);
+  };
 
   ScalarEvolution(Function &F, TargetLibraryInfo &TLI, AssumptionCache &AC,
                   DominatorTree &DT, LoopInfo &LI);
@@ -699,6 +703,9 @@ public:
   /// SCEVUnknown pointer for well-formed pointer-type expressions, but corner
   /// cases do exist.
   const SCEV *getPointerBase(const SCEV *V);
+
+  /// Compute an expression equivalent to S - getPointerBase(S).
+  const SCEV *removePointerBase(const SCEV *S);
 
   /// Return a SCEV expression for the specified value at the specified scope
   /// in the program.  The L value specifies a loop nest to evaluate the

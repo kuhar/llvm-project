@@ -1,3 +1,5 @@
+; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
+; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=-promote-alloca -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-ALLOCA %s
 ; RUN: llc -march=amdgcn -mtriple=amdgcn-- -mcpu=tonga -mattr=+promote-alloca -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-PROMOTE %s
 ; RUN: opt -S -mtriple=amdgcn-- -amdgpu-promote-alloca -sroa -instcombine < %s | FileCheck -check-prefix=OPT %s
