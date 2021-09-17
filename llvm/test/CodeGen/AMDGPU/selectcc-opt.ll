@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 ; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 ; RUN: llc -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
@@ -70,7 +68,7 @@ entry:
 }
 
 ; FUNC-LABEL: {{^}}selectcc_bool:
-; SI: v_cmp_ne_u32
+; SI: s_cmp_lg_u32
 ; SI: v_cndmask_b32_e64
 ; SI-NOT: cmp
 ; SI-NOT: cndmask

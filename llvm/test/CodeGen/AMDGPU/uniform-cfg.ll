@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=verde -amdgpu-early-ifcvt=0 -machine-sink-split-probability-threshold=0 -structurizecfg-skip-uniform-regions -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=SI %s
 ; RUN: llc -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -amdgpu-early-ifcvt=0 -machine-sink-split-probability-threshold=0 -structurizecfg-skip-uniform-regions -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefix=GCN -check-prefix=VI %s
 
@@ -253,7 +251,7 @@ ENDIF:                                            ; preds = %IF, %main_body
 ; GCN: s_load_dwordx2 s{{\[}}[[COND0:[0-9]+]]:[[COND1:[0-9]+]]{{\]}}
 ; GCN: s_cmp_lt_i32 s[[COND0]], 1
 ; GCN: s_cbranch_scc1 [[EXIT:[A-Za-z0-9_]+]]
-; GCN: v_cmp_gt_i32_e64 {{[^,]*}}, s[[COND1]], 0{{$}}
+; GCN: s_cmp_gt_i32 s[[COND1]], 0{{$}}
 ; GCN: s_cbranch_vccz [[BODY:[A-Za-z0-9_]+]]
 ; GCN: {{^}}[[EXIT]]:
 ; GCN: s_endpgm

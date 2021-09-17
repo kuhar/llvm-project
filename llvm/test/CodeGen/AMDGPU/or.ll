@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=tonga -mattr=-flat-for-global -verify-machineinstrs < %s | FileCheck -check-prefix=SI -check-prefix=FUNC %s
 ; RUN:  llc -amdgpu-scalarize-global-loads=false  -march=r600 -mcpu=redwood < %s | FileCheck -check-prefix=EG -check-prefix=FUNC %s
@@ -264,7 +262,11 @@ define amdgpu_kernel void @or_i1(i32 addrspace(1)* %out, float addrspace(1)* %in
 }
 
 ; FUNC-LABEL: {{^}}s_or_i1:
-; SI: s_or_b64 s[{{[0-9]+:[0-9]+}}], vcc, s[{{[0-9]+:[0-9]+}}]
+; SI: s_cmp_eq_u32
+; SI: s_cselect_b64 [[C1:[^,]+]], -1, 0
+; SI: s_cmp_eq_u32
+; SI: s_cselect_b64 [[C2:[^,]+]], -1, 0
+; SI: s_or_b64 s[{{[0-9]+:[0-9]+}}], [[C1]], [[C2]]
 define amdgpu_kernel void @s_or_i1(i1 addrspace(1)* %out, i32 %a, i32 %b, i32 %c, i32 %d) {
   %cmp0 = icmp eq i32 %a, %b
   %cmp1 = icmp eq i32 %c, %d

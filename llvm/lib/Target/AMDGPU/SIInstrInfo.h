@@ -3,8 +3,6 @@
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-// Notified per clause 4(b) of the license.
 //
 //===----------------------------------------------------------------------===//
 //
@@ -80,8 +78,11 @@ private:
   moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                    MachineDominatorTree *MDT = nullptr) const;
 
-  void lowerSelect(SetVectorType &Worklist, MachineInstr &Inst,
-                   MachineDominatorTree *MDT = nullptr) const;
+  void lowerSelect32(SetVectorType &Worklist, MachineInstr &Inst,
+                     MachineDominatorTree *MDT = nullptr) const;
+
+  void splitSelect64(SetVectorType &Worklist, MachineInstr &Inst,
+                     MachineDominatorTree *MDT = nullptr) const;
 
   void lowerScalarAbs(SetVectorType &Worklist,
                       MachineInstr &Inst) const;
@@ -124,7 +125,8 @@ private:
 
   void addSCCDefUsersToVALUWorklist(MachineOperand &Op,
                                     MachineInstr &SCCDefInst,
-                                    SetVectorType &Worklist) const;
+                                    SetVectorType &Worklist,
+                                    Register NewCond = Register()) const;
   void addSCCDefsToVALUWorklist(MachineOperand &Op,
                                 SetVectorType &Worklist) const;
 
@@ -1045,6 +1047,10 @@ public:
 
   ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const MachineFunction &MF) const override;
+
+  ScheduleHazardRecognizer *
+  CreateTargetMIHazardRecognizer(const InstrItineraryData *II,
+                                 const ScheduleDAGMI *DAG) const override;
 
   bool isBasicBlockPrologue(const MachineInstr &MI) const override;
 

@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=tahiti -verify-machineinstrs -amdgpu-s-branch-bits=4 -simplifycfg-require-and-preserve-domtree=1 < %s | FileCheck -enable-var-scope -check-prefix=GCN %s
 
 
@@ -322,7 +320,8 @@ loop:
 
 ; GCN: s_load_dword
 ; GCN-NEXT: s_waitcnt lgkmcnt(0)
-; GCN-NEXT: v_cmp_{{eq|ne}}_u32_e64
+; GCN-NEXT: s_cmp_lg_u32
+; GCN-NEXT: s_cselect_b64
 ; GCN: s_cbranch_vccz [[BB2:BB[0-9]_[0-9]+]]
 
 ; GCN-NEXT: {{BB[0-9]+_[0-9]+}}:
@@ -498,8 +497,8 @@ ret:
 
 ; GCN: [[LONG_BR_DEST0]]:
 
-; GCN-DAG: v_cmp_lt_i32
-; GCN-DAG: v_cmp_ge_i32
+; GCN-DAG: s_cmp_lt_i32
+; GCN-DAG: s_cmp_ge_i32
 
 ; GCN: s_cbranch_vccz
 ; GCN: s_setpc_b64

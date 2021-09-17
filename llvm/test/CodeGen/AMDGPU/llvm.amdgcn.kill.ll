@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -march=amdgcn -mcpu=verde -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
 ; RUN: llc -march=amdgcn -mcpu=tonga -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,SI %s
 ; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-wavefrontsize32,+wavefrontsize64 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX10 %s
@@ -267,7 +265,7 @@ define amdgpu_ps void @test_non_inline_imm_sgpr(float inreg %a) #0 {
 }
 
 ; GCN-LABEL: {{^}}test_scc_liveness:
-; GCN: v_cmp
+; GCN: s_cmp
 ; GCN: s_and_b64 exec
 ; GCN: s_cmp
 ; GCN: s_cbranch_scc

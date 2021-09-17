@@ -534,10 +534,11 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     // Full set of gfx9 features.
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32, S16, V2S16})
-      .clampScalar(0, S16, S32)
+      .minScalar(0, S16)
       .clampMaxNumElements(0, S16, 2)
-      .scalarize(0)
-      .widenScalarToNextPow2(0, 32);
+      .widenScalarToNextMultipleOf(0, 32)
+      .maxScalar(0, S32)
+      .scalarize(0);
 
     getActionDefinitionsBuilder({G_UADDSAT, G_USUBSAT, G_SADDSAT, G_SSUBSAT})
       .legalFor({S32, S16, V2S16}) // Clamp modifier
@@ -549,9 +550,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   } else if (ST.has16BitInsts()) {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32, S16})
-      .clampScalar(0, S16, S32)
-      .scalarize(0)
-      .widenScalarToNextPow2(0, 32); // FIXME: min should be 16
+      .minScalar(0, S16)
+      .widenScalarToNextMultipleOf(0, 32)
+      .maxScalar(0, S32)
+      .scalarize(0);
 
     // Technically the saturating operations require clamp bit support, but this
     // was introduced at the same time as 16-bit operations.
@@ -571,6 +573,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   } else {
     getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
       .legalFor({S32})
+      .widenScalarToNextMultipleOf(0, 32)
       .clampScalar(0, S32, S32)
       .scalarize(0);
 
@@ -1628,6 +1631,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .clampScalar(0, S32, S64)
     .lower();
 
+  getActionDefinitionsBuilder({G_ROTR, G_ROTL})
+    .scalarize(0)
+    .lower();
+
   // TODO: Only Try to form v2s16 with legal packed instructions.
   getActionDefinitionsBuilder(G_FSHR)
     .legalFor({{S32, S32}})
@@ -1680,6 +1687,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
        // TODO: Implement
       G_FMINIMUM, G_FMAXIMUM}).lower();
+
+  getActionDefinitionsBuilder({G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE, G_MEMSET})
+      .lower();
 
   getActionDefinitionsBuilder({G_VASTART, G_VAARG, G_BRJT, G_JUMP_TABLE,
         G_INDEXED_LOAD, G_INDEXED_SEXTLOAD,
@@ -2891,10 +2901,16 @@ bool AMDGPULegalizerInfo::loadInputValue(
   std::tie(Arg, ArgRC, ArgTy) = MFI->getPreloadedValue(ArgType);
 
   if (!Arg) {
-    assert(ArgType == AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR);
-    // The intrinsic may appear when we have a 0 sized kernarg segment, in which
-    // case the pointer argument may be missing and we use null.
-    B.buildConstant(DstReg, 0);
+    if (ArgType == AMDGPUFunctionArgInfo::KERNARG_SEGMENT_PTR) {
+      // The intrinsic may appear when we have a 0 sized kernarg segment, in which
+      // case the pointer argument may be missing and we use null.
+      B.buildConstant(DstReg, 0);
+      return true;
+    }
+
+    // It's undefined behavior if a function marked with the amdgpu-no-*
+    // attributes uses the corresponding intrinsic.
+    B.buildUndef(DstReg);
     return true;
   }
 

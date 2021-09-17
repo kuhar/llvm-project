@@ -1,5 +1,3 @@
-; Modifications Copyright (c) 2020 Advanced Micro Devices, Inc. All rights reserved.
-; Notified per clause 4(b) of the license.
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
 ; optnone disables AMDGPUAnnotateUniformValues, so no branch is known
@@ -12,7 +10,7 @@
 ; GCN: s_branch
 
 ; GCN-DAG: v_cmp_lt_i32
-; GCN-DAG: v_cmp_gt_i32
+; GCN-DAG: s_cmp_gt_i32
 ; GCN: s_and_b64
 ; GCN: s_mov_b64 exec
 
