@@ -18,7 +18,6 @@
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
 
@@ -54,6 +53,10 @@ public:
   /// Print the given attribute without its type. The corresponding parser must
   /// provide a valid type for the attribute.
   virtual void printAttributeWithoutType(Attribute attr);
+
+  /// Print the given string as a keyword, or a quoted and escaped string if it
+  /// has any special or non-printable characters in it.
+  virtual void printKeywordOrString(StringRef keyword);
 
   /// Print the given string as a symbol reference, i.e. a form representable by
   /// a SymbolRefAttr. A symbol reference is represented as a string prefixed
@@ -323,6 +326,8 @@ public:
   AsmParser() = default;
   virtual ~AsmParser();
 
+  MLIRContext *getContext() const;
+
   /// Return the location of the original name token.
   virtual llvm::SMLoc getNameLoc() const = 0;
 
@@ -459,6 +464,17 @@ public:
   virtual ParseResult
   parseOptionalKeyword(StringRef *keyword,
                        ArrayRef<StringRef> allowedValues) = 0;
+
+  /// Parse a keyword or a quoted string.
+  ParseResult parseKeywordOrString(std::string *result) {
+    if (failed(parseOptionalKeywordOrString(result)))
+      return emitError(getCurrentLocation())
+             << "expected valid keyword or string";
+    return success();
+  }
+
+  /// Parse an optional keyword or string.
+  virtual ParseResult parseOptionalKeywordOrString(std::string *result) = 0;
 
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;

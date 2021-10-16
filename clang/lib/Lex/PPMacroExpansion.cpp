@@ -426,7 +426,7 @@ static bool isTrivialSingleTokenExpansion(const MacroInfo *MI,
 
   // If this is a function-like macro invocation, it's safe to trivially expand
   // as long as the identifier is not a macro argument.
-  return std::find(MI->param_begin(), MI->param_end(), II) == MI->param_end();
+  return !llvm::is_contained(MI->params(), II);
 }
 
 /// isNextPPTokenLParen - Determine whether the next preprocessor token to be
@@ -988,7 +988,11 @@ MacroArgs *Preprocessor::ReadMacroCallArgumentList(Token &MacroName,
       // If the macro contains the comma pasting extension, the diagnostic
       // is suppressed; we know we'll get another diagnostic later.
       if (!MI->hasCommaPasting()) {
-        Diag(Tok, diag::ext_missing_varargs_arg);
+        // C++20 allows this construct, but standards before C++20 and all C
+        // standards do not allow the construct (we allow it as an extension).
+        Diag(Tok, getLangOpts().CPlusPlus20
+                      ? diag::warn_cxx17_compat_missing_varargs_arg
+                      : diag::ext_missing_varargs_arg);
         Diag(MI->getDefinitionLoc(), diag::note_macro_here)
           << MacroName.getIdentifierInfo();
       }

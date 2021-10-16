@@ -735,10 +735,11 @@ int main(int argc, char **argv, char * const *envp) {
     // Grab the target address of the JIT'd main function on the remote and call
     // it.
     // FIXME: argv and envp handling.
-    JITTargetAddress Entry = EE->getFunctionAddress(EntryFn->getName().str());
+    auto Entry =
+        orc::ExecutorAddr(EE->getFunctionAddress(EntryFn->getName().str()));
     EE->finalizeObject();
     LLVM_DEBUG(dbgs() << "Executing '" << EntryFn->getName() << "' at 0x"
-                      << format("%llx", Entry) << "\n");
+                      << format("%llx", Entry.getValue()) << "\n");
     Result = ExitOnErr(EPC->runAsMain(Entry, {}));
 
     // Like static constructors, the remote target MCJIT support doesn't handle
@@ -1060,7 +1061,8 @@ int runOrcJIT(const char *ProgName) {
 
   if (EPC) {
     // ExecutorProcessControl-based execution with JITLink.
-    Result = ExitOnErr(EPC->runAsMain(MainSym.getAddress(), InputArgv));
+    Result = ExitOnErr(
+        EPC->runAsMain(orc::ExecutorAddr(MainSym.getAddress()), InputArgv));
   } else {
     // Manual in-process execution with RuntimeDyld.
     using MainFnTy = int(int, char *[]);
@@ -1148,6 +1150,7 @@ Expected<std::unique_ptr<orc::ExecutorProcessControl>> launchRemote() {
 
   // Return a SimpleRemoteEPC instance connected to our end of the pipes.
   return orc::SimpleRemoteEPC::Create<orc::FDSimpleRemoteEPCTransport>(
-      PipeFD[1][0], PipeFD[0][1]);
+      std::make_unique<llvm::orc::InPlaceTaskDispatcher>(),
+      llvm::orc::SimpleRemoteEPC::Setup(), PipeFD[1][0], PipeFD[0][1]);
 #endif
 }
