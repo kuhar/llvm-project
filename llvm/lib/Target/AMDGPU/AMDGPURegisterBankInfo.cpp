@@ -2955,7 +2955,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     break;
   }
   case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD:
-  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE: {
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD_D16:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE_D16: {
     const AMDGPU::RsrcIntrinsic *RSrcIntrin
       = AMDGPU::lookupRsrcIntrinsic(MI.getIntrinsicID());
     assert(RSrcIntrin && RSrcIntrin->IsImage);
@@ -4278,7 +4280,9 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     break;
   }
   case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD:
-  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE: {
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_LOAD_D16:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE:
+  case AMDGPU::G_AMDGPU_INTRIN_IMAGE_STORE_D16: {
     auto IntrID = MI.getIntrinsicID();
     const AMDGPU::RsrcIntrinsic *RSrcIntrin = AMDGPU::lookupRsrcIntrinsic(IntrID);
     assert(RSrcIntrin && "missing RsrcIntrinsic for image intrinsic");
