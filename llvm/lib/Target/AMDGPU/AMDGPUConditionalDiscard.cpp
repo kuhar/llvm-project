@@ -70,19 +70,25 @@
 using namespace llvm;
 using namespace llvm::AMDGPU;
 
+namespace llvm {
+namespace cl {
+
 // Enable conditional discard transformations
-static cl::opt<bool> EnableConditionalDiscardTransformations(
+opt<bool> EnableConditionalDiscardTransformations(
   "amdgpu-conditional-discard-transformations",
-  cl::desc("Enable conditional discard transformations"),
-  cl::init(false),
-  cl::Hidden);
+  desc("Enable conditional discard transformations"),
+  init(false),
+  Hidden);
 
 // Enable conditional discard to demote transformations
-static cl::opt<bool> EnableTransformDiscardToDemote(
+opt<bool> EnableTransformDiscardToDemote(
   "amdgpu-transform-discard-to-demote",
-  cl::desc("Enable transformation of optimized discards to demotes"),
-  cl::init(false),
-  cl::Hidden);
+  desc("Enable transformation of optimized discards to demotes"),
+  init(false),
+  Hidden);
+
+} // namespace cl
+} // namespace llvm
 
 namespace {
 
@@ -227,12 +233,12 @@ bool AMDGPUConditionalDiscard::runOnFunction(Function &F) {
   if (skipFunction(F))
     return false;
 
-  if (!(EnableConditionalDiscardTransformations ||
+  if (!(cl::EnableConditionalDiscardTransformations ||
         F.hasFnAttribute("amdgpu-conditional-discard-transformations")))
     return false;
 
   bool ConvertToDemote =
-      (EnableTransformDiscardToDemote ||
+      (cl::EnableTransformDiscardToDemote ||
        F.hasFnAttribute("amdgpu-transform-discard-to-demote"));
 
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
