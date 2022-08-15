@@ -12,6 +12,9 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+
+class TypeConverter;
+
 namespace arith {
 
 #define GEN_PASS_DECL_ARITHMETICBUFFERIZE
@@ -24,6 +27,15 @@ std::unique_ptr<Pass> createArithmeticBufferizePass();
 
 /// Create a pass to bufferize arith.constant ops.
 std::unique_ptr<Pass> createConstantBufferizePass(uint64_t alignment = 0);
+
+/// Creates a pass to emulate 64-bit integer operations with 32-bit operations.
+std::unique_ptr<Pass> createEmulateI64Pass();
+
+std::unique_ptr<TypeConverter>
+createI64EmulationTypeConverter(unsigned maxIntegerWidthSupported);
+
+void populateI64EmulationPatterns(TypeConverter &typeConverter,
+                                  RewritePatternSet &patterns);
 
 /// Add patterns to expand Arithmetic ops for LLVM lowering.
 void populateArithmeticExpandOpsPatterns(RewritePatternSet &patterns);

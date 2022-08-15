@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRArithmeticTransforms
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
+  EmulateI64.cpp
   ExpandOps.cpp
   UnsignedWhenEquivalent.cpp
 

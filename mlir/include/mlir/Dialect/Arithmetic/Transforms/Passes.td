@@ -49,4 +49,13 @@ def ArithmeticUnsignedWhenEquivalent : Pass<"arith-unsigned-when-equivalent"> {
   let constructor = "mlir::arith::createArithmeticUnsignedWhenEquivalentPass()";
 }
 
+def ArithmeticEmulateI64 : Pass<"arith-emulate-i64"> {
+  let summary = "Emulate 64-bit integer operations using 32-bit operations";
+  let description = [{
+    TBD
+  }];
+  let constructor = "mlir::arith::createEmulateI64Pass()";
+  let dependentDialects = ["vector::VectorDialect"];
+}
+
 #endif // MLIR_DIALECT_ARITHMETIC_TRANSFORMS_PASSES
