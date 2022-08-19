@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
@@ -23,8 +24,10 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include <algorithm>
 #include <cassert>
 
@@ -125,7 +128,6 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
   LogicalResult
   matchAndRewrite(AddIOp op, AddIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    MLIRContext *ctx = op->getContext();
     Location loc = op->getLoc();
     Value lhs = adaptor.getLhs();
     Value rhs = adaptor.getRhs();
@@ -146,8 +148,8 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
     Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, idx1);
 
     Type booleanTy = getI1SameShape(newElemTy);
-    auto lowSum = rewriter.create<arith::AddICarryOp>(
-        loc, newElemTy, booleanTy, lhsElem0, rhsElem0);
+    auto lowSum = rewriter.create<arith::AddICarryOp>(loc, newElemTy, booleanTy,
+                                                      lhsElem0, rhsElem0);
     Value carryVal =
         rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
 
@@ -165,12 +167,77 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
   }
 };
 
+struct ConvertConstant : OpConversionPattern<ConstantOp> {
+  using OpConversionPattern<ConstantOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ConstantOp op, ConstantOpAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter &typeConverter = *getTypeConverter();
+
+    Type oldType = op.getType();
+    ShapedType newType = typeConverter.convertType(oldType).cast<ShapedType>();
+    const unsigned newBitWidth = newType.getElementTypeBitWidth();
+    Attribute oldValue = op.getValueAttr();
+
+    if (auto intAttr = oldValue.dyn_cast<IntegerAttr>()) {
+      auto [low, high] = getHalves(intAttr.getValue(), newBitWidth);
+      auto newAttr = DenseElementsAttr::get(newType, {low, high});
+      rewriter.replaceOpWithNewOp<ConstantOp>(op, newAttr);
+      return success();
+    }
+
+    if (auto splatAttr = oldValue.dyn_cast<SplatElementsAttr>()) {
+      auto [low, high] =
+          getHalves(splatAttr.getSplatValue<APInt>(), newBitWidth);
+      const auto numSplatElems =
+          static_cast<size_t>(splatAttr.getNumElements());
+      auto values = llvm::to_vector(
+          llvm::concat<APInt>(SmallVector<APInt>(numSplatElems, low),
+                              SmallVector<APInt>(numSplatElems, high)));
+
+      auto attr = DenseElementsAttr::get(newType, values);
+      rewriter.replaceOpWithNewOp<ConstantOp>(op, attr);
+      return success();
+    }
+
+    if (auto elemsAttr = oldValue.dyn_cast<DenseElementsAttr>()) {
+      const auto numElems = static_cast<size_t>(elemsAttr.getNumElements());
+      SmallVector<APInt> lowVals;
+      lowVals.reserve(numElems);
+      SmallVector<APInt> highVals;
+      highVals.reserve(numElems);
+
+      for (const APInt &origVal : elemsAttr.getValues<APInt>()) {
+        auto [low, high] = getHalves(origVal, newBitWidth);
+        lowVals.push_back(std::move(low));
+        highVals.push_back(std::move(high));
+      }
+      auto values = llvm::to_vector(
+          llvm::concat<APInt>(std::move(lowVals), std::move(highVals)));
+
+      auto attr = DenseElementsAttr::get(newType, values);
+      rewriter.replaceOpWithNewOp<ConstantOp>(op, attr);
+      return success();
+    }
+
+    return failure();
+  }
+
+private:
+  static std::pair<APInt, APInt> getHalves(const APInt &value,
+                                           unsigned newBitWidth) {
+    APInt low = value.extractBits(newBitWidth, 0);
+    APInt high = value.extractBits(newBitWidth, newBitWidth);
+    return {std::move(low), std::move(high)};
+  }
+};
+
 struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
   /// Implementation structure: first find all equivalent ops and collect them,
   /// then perform all the rewrites in a second pass over the target op. This
   /// ensures that analysis results are not invalidated during rewriting.
   void runOnOperation() override {
-    llvm::errs() << "JAKUB: " << __PRETTY_FUNCTION__ << "\n";
     Operation *op = getOperation();
     MLIRContext *ctx = op->getContext();
 
@@ -189,9 +256,9 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
-      arith::AddIOp
+      arith::AddIOp, arith::ConstantOp
     >(
-    // clang-format on
+        // clang-format on
         [&typeConverter](Operation *op) {
           return isLegalOp(op, typeConverter);
         });
@@ -214,7 +281,7 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    ConvertAddI
+    ConvertAddI, ConvertConstant
    >(typeConverter, patterns.getContext());
   // clang-format on
 

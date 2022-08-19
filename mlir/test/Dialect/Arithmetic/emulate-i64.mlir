@@ -70,7 +70,26 @@ func.func @call(%a : vector<4xi64>) -> vector<4xi64> {
     return %res : vector<4xi64>
 }
 
-func.func @constant() -> i64 {
-    %c = arith.constant 0 : i64
-    return %c : i64
+// CHECK-LABEL: func @constant_scalar
+// CHECK-SAME:     () -> vector<2xi32>
+// CHECK-NEXT:     [[C0:%.+]] = arith.constant dense<0> : vector<2xi32>
+// CHECK-NEXT:     [[C1:%.+]] = arith.constant dense<[0, 1]> : vector<2xi32>
+// CHECK-NEXT:     [[C2:%.+]] = arith.constant dense<[-7, -1]> : vector<2xi32>
+// CHECK-NEXT:     return [[C0]] : vector<2xi32>
+func.func @constant_scalar() -> i64 {
+    %c0 = arith.constant 0 : i64
+    %c1 = arith.constant 4294967296 : i64
+    %c2 = arith.constant -7 : i64
+    return %c0 : i64
+}
+
+// CHECK-LABEL: func @constant_vector
+// CHECK-SAME:     () -> vector<2x3xi32>
+// CHECK-NEXT:     [[C0:%.+]] = arith.constant dense<{{\[\[0, 0, 0\], \[1, 1, 1\]\]}}> : vector<2x3xi32>
+// CHECK-NEXT:     [[C1:%.+]] = arith.constant dense<{{\[\[0, 1, -2\], \[0, 0, -1\]\]}}> : vector<2x3xi32>
+// CHECK-NEXT:     return [[C0]] : vector<2x3xi32>
+func.func @constant_vector() -> vector<3xi64> {
+    %c0 = arith.constant dense<4294967296> : vector<3xi64>
+    %c1 = arith.constant dense<[0, 1, -2]> : vector<3xi64>
+    return %c0 : vector<3xi64>
 }
