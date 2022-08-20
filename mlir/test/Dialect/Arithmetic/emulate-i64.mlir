@@ -93,3 +93,12 @@ func.func @constant_vector() -> vector<3xi64> {
     %c1 = arith.constant dense<[0, 1, -2]> : vector<3xi64>
     return %c0 : vector<3xi64>
 }
+
+// CHECK-LABEL: func @casts_scalar
+// CHECK-SAME:     ([[ARG:%.+]]: vector<2xi32>) -> vector<2xi32>
+// CHECK-NEXT:     [[B:%.+]] = vector.extract [[ARG]][0] : vector<2xi32>
+func.func @casts_scalar(%a : i64) -> i64 {
+    %b = arith.trunci %a : i64 to i32
+    %c = arith.extui %b : i32 to i64
+    return %c : i64
+}

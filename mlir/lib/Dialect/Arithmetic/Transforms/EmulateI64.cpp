@@ -176,7 +176,7 @@ struct ConvertConstant : OpConversionPattern<ConstantOp> {
     TypeConverter &typeConverter = *getTypeConverter();
 
     Type oldType = op.getType();
-    ShapedType newType = typeConverter.convertType(oldType).cast<ShapedType>();
+    auto newType = typeConverter.convertType(oldType).cast<ShapedType>();
     const unsigned newBitWidth = newType.getElementTypeBitWidth();
     Attribute oldValue = op.getValueAttr();
 
@@ -233,6 +233,31 @@ private:
   }
 };
 
+struct ConvertTruncI : OpConversionPattern<TruncIOp> {
+  using OpConversionPattern<TruncIOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(TruncIOp op, TruncIOpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    if (!typeConverter.isLegalType(op.getType()))
+      return failure();
+
+    Type oldTy = op.getIn().getType();
+    auto newTy = typeConverter.convertType(oldTy).cast<ShapedType>();
+    Type newElemTy = peelOutermostDim(newTy);
+    assert(newTy == adaptor.getIn().getType());
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+    if (newBitWidth == typeConverter.getMaxIntegerWidth()) {
+      rewriter.replaceOpWithNewOp<vector::ExtractOp>(
+          op, adaptor.getIn(), llvm::makeArrayRef(int64_t(0)));
+      return success();
+    }
+
+    return failure();
+  }
+};
+
 struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
   /// Implementation structure: first find all equivalent ops and collect them,
   /// then perform all the rewrites in a second pass over the target op. This
@@ -256,7 +281,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
-      arith::AddIOp, arith::ConstantOp
+      arith::AddIOp, arith::ConstantOp, arith::TruncIOp
     >(
         // clang-format on
         [&typeConverter](Operation *op) {
@@ -281,7 +306,7 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    ConvertAddI, ConvertConstant
+    ConvertAddI, ConvertConstant, ConvertTruncI
    >(typeConverter, patterns.getContext());
   // clang-format on
 
