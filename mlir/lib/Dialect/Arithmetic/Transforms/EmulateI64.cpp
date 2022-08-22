@@ -40,9 +40,14 @@ public:
     // Scalar case.
     addConversion([widestInt = maxIntegerWidthSupported](
                       IntegerType ty) -> Optional<Type> {
-      if (ty.getWidth() == 2 * widestInt)
+      const unsigned width = ty.getWidth();
+      if (width <= widestInt)
+        return ty;
+
+      if (width == 2 * widestInt)
         return VectorType::get({2},
                                IntegerType::get(ty.getContext(), widestInt));
+
       return None;
     });
 
@@ -50,55 +55,41 @@ public:
     addConversion([widestInt = maxIntegerWidthSupported](
                       VectorType ty) -> Optional<Type> {
       if (auto intTy = ty.getElementType().dyn_cast<IntegerType>()) {
-        if (intTy.getWidth() == 2 * widestInt) {
+        const unsigned width = intTy.getWidth();
+        if (width <= widestInt)
+          return ty;
+
+        if (width == 2 * widestInt) {
           SmallVector<int64_t> newShape = {2};
           llvm::append_range(newShape, ty.getShape());
           return VectorType::get(newShape,
                                  IntegerType::get(ty.getContext(), widestInt));
         }
+
+        return None;
       }
-      return None;
+      return ty;
+    });
+
+    // Function case.
+    addConversion([this](FunctionType ty) -> Optional<Type> {
+      SmallVector<Type> inputs;
+      if (failed(convertTypes(ty.getInputs(), inputs)))
+        return None;
+
+      SmallVector<Type> results;
+      if (failed(convertTypes(ty.getResults(), results)))
+        return None;
+
+      return FunctionType::get(ty.getContext(), inputs, results);
     });
   }
 
   unsigned getMaxIntegerWidth() const { return maxIntWidth; }
 
-  bool isLegalType(Type ty) const {
-    if (auto intTy = ty.dyn_cast<IntegerType>())
-      return intTy.getWidth() <= getMaxIntegerWidth();
-
-    if (auto vecTy = ty.dyn_cast<VectorType>())
-      return isLegalType(vecTy.getElementType());
-
-    if (auto funcTy = ty.dyn_cast<FunctionType>()) {
-      if (!isLegalTypeRange(funcTy.getInputs()))
-        return false;
-
-      return isLegalTypeRange(funcTy.getResults());
-    }
-
-    return true;
-  }
-
-  bool isLegalTypeRange(const TypeRange &types) const {
-    return llvm::all_of(types, [this](Type ty) { return isLegalType(ty); });
-  }
-
 private:
   unsigned maxIntWidth;
 };
-
-bool isLegalOp(Operation *op, const I64EmulationConverter &typeConverter) {
-  if (!typeConverter.isLegalTypeRange(op->getOperandTypes()))
-    return false;
-  if (!typeConverter.isLegalTypeRange(op->getResultTypes()))
-    return false;
-
-  if (auto func = dyn_cast<func::FuncOp>(op))
-    return typeConverter.isLegalType(func.getFunctionType());
-
-  return true;
-}
 
 Type getI1SameShape(Type type) {
   auto i1Type = IntegerType::get(type.getContext(), 1);
@@ -233,6 +224,32 @@ private:
   }
 };
 
+struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
+  using OpConversionPattern<ExtUIOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ExtUIOp op, ExtUIOpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    if (!typeConverter.isLegal(op.getIn().getType()))
+      return failure();
+
+    Type oldTy = op.getType();
+    auto newTy = typeConverter.convertType(oldTy).cast<ShapedType>();
+    Type newOperandType = peelOutermostDim(newTy);
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+
+    Value extended = rewriter.createOrFold<ExtUIOp>(
+        op->getLoc(), newOperandType, adaptor.getIn());
+    Attribute zeroAttr =
+        DenseElementsAttr::get(newTy, APInt::getZero(newBitWidth));
+    Value zeroCst = rewriter.create<ConstantOp>(op->getLoc(), zeroAttr);
+    rewriter.replaceOpWithNewOp<vector::InsertOp>(
+        op, extended, zeroCst, llvm::makeArrayRef(int64_t(0)));
+    return success();
+  }
+};
+
 struct ConvertTruncI : OpConversionPattern<TruncIOp> {
   using OpConversionPattern<TruncIOp>::OpConversionPattern;
 
@@ -240,21 +257,15 @@ struct ConvertTruncI : OpConversionPattern<TruncIOp> {
   matchAndRewrite(TruncIOp op, TruncIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
-    if (!typeConverter.isLegalType(op.getType()))
+    if (!typeConverter.isLegal(op.getType()))
       return failure();
 
-    Type oldTy = op.getIn().getType();
-    auto newTy = typeConverter.convertType(oldTy).cast<ShapedType>();
-    Type newElemTy = peelOutermostDim(newTy);
-    assert(newTy == adaptor.getIn().getType());
-    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
-    if (newBitWidth == typeConverter.getMaxIntegerWidth()) {
-      rewriter.replaceOpWithNewOp<vector::ExtractOp>(
-          op, adaptor.getIn(), llvm::makeArrayRef(int64_t(0)));
-      return success();
-    }
-
-    return failure();
+    Value extracted = rewriter.create<vector::ExtractOp>(
+        op->getLoc(), adaptor.getIn(), llvm::makeArrayRef(int64_t(0)));
+    Value truncated =
+        rewriter.createOrFold<TruncIOp>(op->getLoc(), op.getType(), extracted);
+    rewriter.replaceOp(op, truncated);
+    return success();
   }
 };
 
@@ -281,11 +292,14 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
-      arith::AddIOp, arith::ConstantOp, arith::TruncIOp
+      arith::AddIOp, arith::ConstantOp, arith::ExtUIOp, arith::TruncIOp
     >(
         // clang-format on
         [&typeConverter](Operation *op) {
-          return isLegalOp(op, typeConverter);
+          if (auto func = dyn_cast<func::FuncOp>(op))
+            return typeConverter.isLegal(func.getFunctionType());
+
+          return typeConverter.isLegal(op);
         });
     target.addLegalOp<UnrealizedConversionCastOp>();
     target.addLegalDialect<arith::ArithmeticDialect>();
@@ -306,7 +320,7 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    ConvertAddI, ConvertConstant, ConvertTruncI
+    ConvertAddI, ConvertConstant, ConvertExtUI, ConvertTruncI
    >(typeConverter, patterns.getContext());
   // clang-format on
 

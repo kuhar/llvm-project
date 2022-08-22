@@ -102,3 +102,43 @@ func.func @casts_scalar(%a : i64) -> i64 {
     %c = arith.extui %b : i32 to i64
     return %c : i64
 }
+
+// CHECK-LABEL: func @trunci_extui_scalar1
+// CHECK-SAME:     ([[ARG:%.+]]: vector<2xi32>) -> vector<2xi32>
+// CHECK-NEXT:     [[EXT:%.+]] = vector.extract [[ARG]][0] : vector<2xi32>
+// CHECK-NEXT:     [[CST:%.+]] = arith.constant dense<0> : vector<2xi32>
+// CHECK-NEXT:     [[INS:%.+]] = vector.insert [[EXT]], [[CST]] [0] : i32 into vector<2xi32>
+// CHECK-NEXT:     return [[INS]] : vector<2xi32>
+func.func @trunci_extui_scalar1(%a : i64) -> i64 {
+    %b = arith.trunci %a : i64 to i32
+    %c = arith.extui %b : i32 to i64
+    return %c : i64
+}
+
+// CHECK-LABEL: func @trunci_extui_scalar2
+// CHECK-SAME:     ([[ARG:%.+]]: vector<2xi32>) -> vector<2xi32>
+// CHECK-NEXT:     [[EXTR:%.+]] = vector.extract [[ARG]][0] : vector<2xi32>
+// CHECK-NEXT:     [[TRUN:%.+]] = arith.trunci [[EXTR]] : i32 to i16
+// CHECK-NEXT:     [[EXTU:%.+]] = arith.extui [[TRUN]] : i16 to i32
+// CHECK-NEXT:     [[CST:%.+]]  = arith.constant dense<0> : vector<2xi32>
+// CHECK-NEXT:     [[INS:%.+]]  = vector.insert [[EXTU]], [[CST]] [0] : i32 into vector<2xi32>
+// CHECK-NEXT:     return [[INS]] : vector<2xi32>
+func.func @trunci_extui_scalar2(%a : i64) -> i64 {
+    %b = arith.trunci %a : i64 to i16
+    %c = arith.extui %b : i16 to i64
+    return %c : i64
+}
+
+// CHECK-LABEL: func @trunci_extui_vector
+// CHECK-SAME:     ([[ARG:%.+]]: vector<2x3xi32>) -> vector<2x3xi32>
+// CHECK-NEXT:     [[EXTR:%.+]] = vector.extract [[ARG]][0] : vector<2x3xi32>
+// CHECK-NEXT:     [[TRUN:%.+]] = arith.trunci [[EXTR]] : vector<3xi32> to vector<3xi16>
+// CHECK-NEXT:     [[EXTU:%.+]] = arith.extui [[TRUN]] : vector<3xi16> to vector<3xi32>
+// CHECK-NEXT:     [[CST:%.+]]  = arith.constant dense<0> : vector<2x3xi32>
+// CHECK-NEXT:     [[INS:%.+]]  = vector.insert [[EXTU]], [[CST]] [0] : vector<3xi32> into vector<2x3xi32>
+// CHECK-NEXT:     return [[INS]] : vector<2x3xi32>
+func.func @trunci_extui_vector(%a : vector<3xi64>) -> vector<3xi64> {
+    %b = arith.trunci %a : vector<3xi64> to vector<3xi16>
+    %c = arith.extui %b : vector<3xi16> to vector<3xi64>
+    return %c : vector<3xi64>
+}
