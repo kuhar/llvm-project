@@ -139,8 +139,8 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
     Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, idx1);
 
     Type booleanTy = getI1SameShape(newElemTy);
-    auto lowSum = rewriter.create<arith::AddICarryOp>(loc, newElemTy, booleanTy,
-                                                      lhsElem0, rhsElem0);
+    auto lowSum = rewriter.create<arith::AddUICarryOp>(
+        loc, newElemTy, booleanTy, lhsElem0, rhsElem0);
     Value carryVal =
         rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
 
@@ -224,6 +224,48 @@ private:
   }
 };
 
+struct ConvertExtSI : OpConversionPattern<ExtSIOp> {
+  using OpConversionPattern<ExtSIOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ExtSIOp op, ExtSIOpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    if (!typeConverter.isLegal(op.getIn().getType()))
+      return failure();
+
+    Location loc = op->getLoc();
+
+    Type oldTy = op.getType();
+    auto newTy = typeConverter.convertType(oldTy).cast<ShapedType>();
+    Type newOperandTy = peelOutermostDim(newTy);
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+
+    Value extended =
+        rewriter.createOrFold<ExtSIOp>(loc, newOperandTy, adaptor.getIn());
+    Attribute operandZeroAttr;
+    if (newOperandTy.isa<IntegerType>())
+      operandZeroAttr =
+          IntegerAttr::get(newOperandTy, APInt::getZero(newBitWidth));
+    else
+      operandZeroAttr =
+          DenseElementsAttr::get(newOperandTy, APInt::getZero(newBitWidth));
+
+    Value operandZeroCst = rewriter.create<ConstantOp>(loc, operandZeroAttr);
+    Value signBit = rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, extended,
+                                            operandZeroCst);
+    Value signValue = rewriter.create<ExtSIOp>(loc, newOperandTy, signBit);
+
+    Value vecZeroCst = rewriter.create<ConstantOp>(
+        loc, DenseElementsAttr::get(newTy, APInt::getZero(newBitWidth)));
+    Value ins0 = rewriter.create<vector::InsertOp>(
+        loc, extended, vecZeroCst, llvm::makeArrayRef(int64_t(0)));
+    rewriter.replaceOpWithNewOp<vector::InsertOp>(
+        op, signValue, ins0, llvm::makeArrayRef(int64_t(1)));
+    return success();
+  }
+};
+
 struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
   using OpConversionPattern<ExtUIOp>::OpConversionPattern;
 
@@ -236,11 +278,11 @@ struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
 
     Type oldTy = op.getType();
     auto newTy = typeConverter.convertType(oldTy).cast<ShapedType>();
-    Type newOperandType = peelOutermostDim(newTy);
+    Type newOperandTy = peelOutermostDim(newTy);
     const unsigned newBitWidth = newTy.getElementTypeBitWidth();
 
-    Value extended = rewriter.createOrFold<ExtUIOp>(
-        op->getLoc(), newOperandType, adaptor.getIn());
+    Value extended = rewriter.createOrFold<ExtUIOp>(op->getLoc(), newOperandTy,
+                                                    adaptor.getIn());
     Attribute zeroAttr =
         DenseElementsAttr::get(newTy, APInt::getZero(newBitWidth));
     Value zeroCst = rewriter.create<ConstantOp>(op->getLoc(), zeroAttr);
@@ -292,7 +334,9 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
-      arith::AddIOp, arith::ConstantOp, arith::ExtUIOp, arith::TruncIOp
+      arith::ConstantOp,
+      arith::AddIOp,
+      arith::ExtSIOp, arith::ExtUIOp, arith::TruncIOp
     >(
         // clang-format on
         [&typeConverter](Operation *op) {
@@ -320,7 +364,7 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    ConvertAddI, ConvertConstant, ConvertExtUI, ConvertTruncI
+    ConvertAddI, ConvertConstant, ConvertExtSI, ConvertExtUI, ConvertTruncI
    >(typeConverter, patterns.getContext());
   // clang-format on
 
