@@ -91,18 +91,6 @@ private:
   unsigned maxIntWidth;
 };
 
-Type getI1SameShape(Type type) {
-  auto i1Type = IntegerType::get(type.getContext(), 1);
-  if (auto tensorType = type.dyn_cast<RankedTensorType>())
-    return RankedTensorType::get(tensorType.getShape(), i1Type);
-  if (type.isa<UnrankedTensorType>())
-    return UnrankedTensorType::get(i1Type);
-  if (auto vectorType = type.dyn_cast<VectorType>())
-    return VectorType::get(vectorType.getShape(), i1Type,
-                           vectorType.getNumScalableDims());
-  return i1Type;
-}
-
 Type peelOutermostDim(ShapedType integerLike) {
   if (auto ty = integerLike.dyn_cast<VectorType>()) {
     if (ty.getShape().size() == 1)
@@ -138,9 +126,7 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
     Value rhsElem0 = rewriter.create<vector::ExtractOp>(loc, rhs, idx0);
     Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, idx1);
 
-    Type booleanTy = getI1SameShape(newElemTy);
-    auto lowSum = rewriter.create<arith::AddUICarryOp>(
-        loc, newElemTy, booleanTy, lhsElem0, rhsElem0);
+    auto lowSum = rewriter.create<arith::AddUICarryOp>(loc, lhsElem0, rhsElem0);
     Value carryVal =
         rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
 
