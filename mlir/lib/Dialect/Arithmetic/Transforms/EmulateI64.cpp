@@ -108,10 +108,11 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
   matchAndRewrite(AddIOp op, AddIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
+    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+
     Value lhs = adaptor.getLhs();
     Value rhs = adaptor.getRhs();
-    auto newTy = getTypeConverter()
-                     ->convertType(op.getResult().getType())
+    auto newTy = typeConverter.convertType(op.getResult().getType())
                      .dyn_cast_or_null<VectorType>();
     assert(lhs.getType() == newTy);
     assert(rhs.getType() == newTy);
@@ -133,7 +134,8 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
     Value high0 = rewriter.create<arith::AddIOp>(loc, carryVal, lhsElem1);
     Value high = rewriter.create<arith::AddIOp>(loc, high0, rhsElem1);
 
-    Attribute zeroAttr = SplatElementsAttr::get(newTy, APInt::getZero(32));
+    Attribute zeroAttr = SplatElementsAttr::get(
+        newTy, APInt::getZero(typeConverter.getMaxIntegerWidth()));
     Value zeroVec = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
     Value vecLow =
         rewriter.create<vector::InsertOp>(loc, lowSum.getSum(), zeroVec, idx0);
@@ -305,7 +307,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
     Operation *op = getOperation();
     MLIRContext *ctx = op->getContext();
 
-    I64EmulationConverter typeConverter(32);
+    I64EmulationConverter typeConverter(8);
     auto addUnrealizedCast = [](OpBuilder &builder, Type type,
                                 ValueRange inputs, Location loc) {
       auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
