@@ -21,14 +21,22 @@ void fatal(const std::string &msg) {
 }
 
 int64_t parseNum(std::string_view num) {
-  if (num == "i8_min") return std::numeric_limits<int8_t>::min();
-  if (num == "i8_max") return std::numeric_limits<int8_t>::max();
-  if (num == "u8_min") return 0;
-  if (num == "u8_max") return std::numeric_limits<uint8_t>::max();
-  if (num == "i16_min") return std::numeric_limits<int16_t>::min();
-  if (num == "i16_max") return std::numeric_limits<int16_t>::max();
-  if (num == "u16_min") return 0;
-  if (num == "u16_max") return std::numeric_limits<uint16_t>::max();
+  if (num == "i8_min")
+    return std::numeric_limits<int8_t>::min();
+  if (num == "i8_max")
+    return std::numeric_limits<int8_t>::max();
+  if (num == "u8_min")
+    return 0;
+  if (num == "u8_max")
+    return std::numeric_limits<uint8_t>::max();
+  if (num == "i16_min")
+    return std::numeric_limits<int16_t>::min();
+  if (num == "i16_max")
+    return std::numeric_limits<int16_t>::max();
+  if (num == "u16_min")
+    return 0;
+  if (num == "u16_max")
+    return std::numeric_limits<uint16_t>::max();
 
   std::string buf(num);
   std::istringstream ss(buf);
@@ -63,7 +71,8 @@ std::pair<int64_t, int64_t> parseInterval(std::string_view interval) {
 }
 
 int main(int argc, char **argv) {
-  if (argc < 3) fatal("Not enough args\n");
+  if (argc < 3)
+    fatal("Not enough args\n");
 
   auto [outerLow, outerHigh] = parseInterval(argv[1]);
   auto [innerLow, innerHigh] = parseInterval(argv[2]);
@@ -92,7 +101,8 @@ int main(int argc, char **argv) {
       const long_t argB(y);
       const long_t res_wide = emulate_op(argA, argB, 0);
       const long_t res_emulated = emulate_op(argA, argB, 1);
-      if (res_wide == res_emulated) continue;
+      if (res_wide == res_emulated)
+        continue;
 
       printf("\n=========== Op %ld, %ld\n", x, y);
       printf("wide:     %ld\n", int64_t(res_wide));
