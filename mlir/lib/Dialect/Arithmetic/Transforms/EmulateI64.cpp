@@ -28,6 +28,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/MathExtras.h"
 #include <algorithm>
 #include <cassert>
 
@@ -280,6 +281,17 @@ struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
   }
 };
 
+Attribute getScalarOrSplatIntegerAttr(Type type, int64_t value) {
+  if (auto intTy = type.dyn_cast<IntegerType>())
+    return IntegerAttr::get(intTy, APInt(intTy.getWidth(), value));
+
+  if (auto vecTy = type.dyn_cast<VectorType>())
+    return SplatElementsAttr::get(vecTy,
+                                  APInt(vecTy.getElementTypeBitWidth(), value));
+
+  return nullptr;
+}
+
 struct ConvertMulI : OpConversionPattern<MulIOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -297,6 +309,10 @@ struct ConvertMulI : OpConversionPattern<MulIOp> {
     assert(rhs.getType() == newTy);
     Type newElemTy = peelOutermostDim(newTy);
 
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+    assert(llvm::isPowerOf2_32(newBitWidth) && "Illegal integer bitwidth");
+    const unsigned halfBitWidth = newBitWidth / 2;
+
     const int64_t idx0[1] = {0};
     const int64_t idx1[1] = {1};
 
@@ -306,21 +322,55 @@ struct ConvertMulI : OpConversionPattern<MulIOp> {
     Value rhsElem0 = rewriter.create<vector::ExtractOp>(loc, rhs, idx0);
     Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, idx1);
 
-    auto lowSum = rewriter.create<arith::AddUICarryOp>(loc, lhsElem0, rhsElem0);
-    Value carryVal =
-        rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
+    Attribute lowMaskAttr = getScalarOrSplatIntegerAttr(
+        newElemTy, (int64_t(1) << halfBitWidth) - 1);
+    Value lowMask = rewriter.create<ConstantOp>(loc, lowMaskAttr);
+    auto getLow = [lowMask, newElemTy, &loc, &rewriter](Value v) {
+      return rewriter.create<AndIOp>(loc, newElemTy, v, lowMask);
+    };
 
-    Value high0 = rewriter.create<arith::AddIOp>(loc, carryVal, lhsElem1);
-    Value high = rewriter.create<arith::AddIOp>(loc, high0, rhsElem1);
+    Attribute shiftValAttr =
+        getScalarOrSplatIntegerAttr(newElemTy, halfBitWidth);
+    Value shiftVal = rewriter.create<ConstantOp>(loc, shiftValAttr);
+    auto getHigh = [shiftVal, &loc, &rewriter](Value v) {
+      return rewriter.create<ShRUIOp>(loc, v, shiftVal);
+    };
 
-    Attribute zeroAttr = SplatElementsAttr::get(
-        newTy, APInt::getZero(typeConverter.getMaxIntegerWidth()));
-    Value zeroVec = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
-    Value vecLow =
-        rewriter.create<vector::InsertOp>(loc, lowSum.getSum(), zeroVec, idx0);
-    Value vecLowHigh =
-        rewriter.create<vector::InsertOp>(loc, high, vecLow, idx1);
-    rewriter.replaceOp(op, vecLowHigh);
+    Attribute zeroAttr = getScalarOrSplatIntegerAttr(newElemTy, 0);
+    Value zeroCst = rewriter.create<ConstantOp>(loc, zeroAttr);
+    std::array<Value, 4> resultDigits = {zeroCst, zeroCst, zeroCst, zeroCst};
+
+    std::array<Value, 4> lhsDigits = {getLow(lhsElem0), getHigh(lhsElem0),
+                                      getLow(lhsElem1), getHigh(lhsElem1)};
+    std::array<Value, 4> rhsDigits = {getLow(rhsElem0), getHigh(rhsElem0),
+                                      getLow(rhsElem1), getHigh(rhsElem1)};
+
+    auto combineDigits = [shiftVal, &loc, &rewriter](Value low, Value high) {
+      Value highBits = rewriter.create<ShLIOp>(loc, high, shiftVal);
+      return rewriter.create<OrIOp>(loc, low, highBits);
+    };
+
+    for (unsigned i = 0, e = lhsDigits.size(); i != e; ++i) {
+      for (unsigned j = 0; i + j != e; ++j) {
+        Value mul = rewriter.create<MulIOp>(loc, lhsDigits[i], rhsDigits[j]);
+        Value current =
+            rewriter.createOrFold<AddIOp>(loc, resultDigits[i + j], mul);
+        resultDigits[i + j] = getLow(current);
+        if (i + j + 1 != e) {
+          Value overflow = rewriter.createOrFold<AddIOp>(
+              loc, resultDigits[i + j + 1], getHigh(current));
+          resultDigits[i + j + 1] = overflow;
+        }
+      }
+    }
+
+    Value resultElem0 = combineDigits(resultDigits[0], resultDigits[1]);
+    Value resultElem1 = combineDigits(resultDigits[2], resultDigits[3]);
+    Value vecZeroCst =
+        rewriter.create<ConstantOp>(loc, getScalarOrSplatIntegerAttr(newTy, 0));
+    Value ins0 =
+        rewriter.create<vector::InsertOp>(loc, resultElem0, vecZeroCst, idx0);
+    rewriter.replaceOpWithNewOp<vector::InsertOp>(op, resultElem1, ins0, idx1);
     return success();
   }
 };
