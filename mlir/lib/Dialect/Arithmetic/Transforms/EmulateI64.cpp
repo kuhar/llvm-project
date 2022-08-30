@@ -102,7 +102,7 @@ Type peelOutermostDim(ShapedType integerLike) {
 }
 
 struct ConvertAddI : OpConversionPattern<AddIOp> {
-  using OpConversionPattern<AddIOp>::OpConversionPattern;
+  using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(AddIOp op, AddIOpAdaptor adaptor,
@@ -147,7 +147,7 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
 };
 
 struct ConvertConstant : OpConversionPattern<ConstantOp> {
-  using OpConversionPattern<ConstantOp>::OpConversionPattern;
+  using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(ConstantOp op, ConstantOpAdaptor,
@@ -213,7 +213,7 @@ private:
 };
 
 struct ConvertExtSI : OpConversionPattern<ExtSIOp> {
-  using OpConversionPattern<ExtSIOp>::OpConversionPattern;
+  using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(ExtSIOp op, ExtSIOpAdaptor adaptor,
@@ -255,7 +255,7 @@ struct ConvertExtSI : OpConversionPattern<ExtSIOp> {
 };
 
 struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
-  using OpConversionPattern<ExtUIOp>::OpConversionPattern;
+  using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(ExtUIOp op, ExtUIOpAdaptor adaptor,
@@ -280,8 +280,53 @@ struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
   }
 };
 
+struct ConvertMulI : OpConversionPattern<MulIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(MulIOp op, MulIOpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+    auto newTy = typeConverter.convertType(op.getResult().getType())
+                     .dyn_cast_or_null<VectorType>();
+    assert(lhs.getType() == newTy);
+    assert(rhs.getType() == newTy);
+    Type newElemTy = peelOutermostDim(newTy);
+
+    const int64_t idx0[1] = {0};
+    const int64_t idx1[1] = {1};
+
+    Value lhsElem0 = rewriter.create<vector::ExtractOp>(loc, lhs, idx0);
+    Value lhsElem1 = rewriter.create<vector::ExtractOp>(loc, lhs, idx1);
+
+    Value rhsElem0 = rewriter.create<vector::ExtractOp>(loc, rhs, idx0);
+    Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, idx1);
+
+    auto lowSum = rewriter.create<arith::AddUICarryOp>(loc, lhsElem0, rhsElem0);
+    Value carryVal =
+        rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
+
+    Value high0 = rewriter.create<arith::AddIOp>(loc, carryVal, lhsElem1);
+    Value high = rewriter.create<arith::AddIOp>(loc, high0, rhsElem1);
+
+    Attribute zeroAttr = SplatElementsAttr::get(
+        newTy, APInt::getZero(typeConverter.getMaxIntegerWidth()));
+    Value zeroVec = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
+    Value vecLow =
+        rewriter.create<vector::InsertOp>(loc, lowSum.getSum(), zeroVec, idx0);
+    Value vecLowHigh =
+        rewriter.create<vector::InsertOp>(loc, high, vecLow, idx1);
+    rewriter.replaceOp(op, vecLowHigh);
+    return success();
+  }
+};
+
 struct ConvertTruncI : OpConversionPattern<TruncIOp> {
-  using OpConversionPattern<TruncIOp>::OpConversionPattern;
+  using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(TruncIOp op, TruncIOpAdaptor adaptor,
@@ -307,7 +352,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
     Operation *op = getOperation();
     MLIRContext *ctx = op->getContext();
 
-    I64EmulationConverter typeConverter(8);
+    I64EmulationConverter typeConverter(32);
     auto addUnrealizedCast = [](OpBuilder &builder, Type type,
                                 ValueRange inputs, Location loc) {
       auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
@@ -323,7 +368,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
       arith::ConstantOp,
-      arith::AddIOp,
+      arith::AddIOp, arith::MulIOp,
       arith::ExtSIOp, arith::ExtUIOp, arith::TruncIOp
     >(
         // clang-format on
@@ -352,7 +397,9 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
                                   RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
-    ConvertAddI, ConvertConstant, ConvertExtSI, ConvertExtUI, ConvertTruncI
+    ConvertConstant,
+    ConvertAddI, ConvertMulI,
+    ConvertExtSI, ConvertExtUI, ConvertTruncI
    >(typeConverter, patterns.getContext());
   // clang-format on
 

@@ -103,7 +103,7 @@ func.func @casts_scalar(%a : i64) -> i64 {
     return %c : i64
 }
 
-// CHECK-LABEL: func @trunci_extsi
+// CHECK-LABEL: func @extsi
 // CHECK-SAME:    ([[ARG:%.+]]: i16) -> vector<2xi32>
 // CHECK-NEXT:    [[EXT:%.+]]  = arith.extsi [[ARG]] : i16 to i32
 // CHECK-NEXT:    [[SZ:%.+]]   = arith.constant 0 : i32
@@ -113,7 +113,7 @@ func.func @casts_scalar(%a : i64) -> i64 {
 // CHECK-NEXT:    [[INS0:%.+]] = vector.insert [[EXT]], [[VZ]] [0] : i32 into vector<2xi32>
 // CHECK-NEXT:    [[INS1:%.+]] = vector.insert [[SV]], [[INS0]] [1] : i32 into vector<2xi32>
 // CHECK:         return [[INS1]] : vector<2xi32>
-func.func @trunci_extsi_scalar(%a : i16) -> i64 {
+func.func @extsi_scalar(%a : i16) -> i64 {
     %r = arith.extsi %a : i16 to i64
     return %r : i64
 }
