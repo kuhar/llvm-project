@@ -31,6 +31,7 @@
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 
 namespace mlir::arith {
 namespace {
@@ -375,6 +376,64 @@ struct ConvertMulI : OpConversionPattern<MulIOp> {
   }
 };
 
+struct ConvertShRUI : OpConversionPattern<ShRUIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ShRUIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+
+    Type oldTy = op.getType();
+    auto newTy = getTypeConverter()->convertType(oldTy).cast<ShapedType>();
+    Type newOperandTy = peelOutermostDim(newTy);
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+    Value lhsElem0 = rewriter.create<vector::ExtractOp>(loc, lhs, 0);
+    Value lhsElem1 = rewriter.create<vector::ExtractOp>(loc, lhs, 1);
+    Value rhsElem0 = rewriter.create<vector::ExtractOp>(loc, rhs, 0);
+
+    // Assume that the shift is < newBitWidth.
+    Value zeroCst = rewriter.create<ConstantOp>(
+        loc, getScalarOrSplatIntegerAttr(newOperandTy, 0));
+    Value elemBitWidth = rewriter.create<ConstantOp>(
+        loc, getScalarOrSplatIntegerAttr(newOperandTy, newBitWidth));
+
+    Value illegalElemShift = rewriter.createOrFold<CmpIOp>(
+        loc, CmpIPredicate::uge, rhsElem0, elemBitWidth);
+
+    Value shiftedElem0 = rewriter.create<ShRUIOp>(loc, lhsElem0, rhsElem0);
+    Value resElem0Low = rewriter.createOrFold<SelectOp>(loc, illegalElemShift,
+                                                        zeroCst, shiftedElem0);
+    Value shiftedElem1 = rewriter.create<ShRUIOp>(loc, lhsElem1, rhsElem0);
+    Value resElem1 = rewriter.createOrFold<SelectOp>(loc, illegalElemShift,
+                                                     zeroCst, shiftedElem1);
+
+    Value cappedShiftAmount = rewriter.createOrFold<SelectOp>(
+        loc, illegalElemShift, elemBitWidth, rhsElem0);
+    Value leftShiftAmount =
+        rewriter.createOrFold<SubIOp>(loc, elemBitWidth, cappedShiftAmount);
+    Value shiftedLeft = rewriter.create<ShLIOp>(loc, lhsElem1, leftShiftAmount);
+    Value overshotShiftAmount =
+        rewriter.createOrFold<SubIOp>(loc, rhsElem0, elemBitWidth);
+    Value shiftedRight =
+        rewriter.create<ShRUIOp>(loc, lhsElem1, overshotShiftAmount);
+
+    Value resElem0High = rewriter.createOrFold<SelectOp>(
+        loc, illegalElemShift, shiftedRight, shiftedLeft);
+    Value resElem0 = rewriter.create<OrIOp>(loc, resElem0Low, resElem0High);
+
+    Value vecZeroCst =
+        rewriter.create<ConstantOp>(loc, getScalarOrSplatIntegerAttr(newTy, 0));
+    Value ins0 =
+        rewriter.create<vector::InsertOp>(loc, resElem0, vecZeroCst, 0);
+    rewriter.replaceOpWithNewOp<vector::InsertOp>(op, resElem1, ins0, 1);
+    return success();
+  }
+};
+
 struct ConvertTruncI : OpConversionPattern<TruncIOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -402,7 +461,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
     Operation *op = getOperation();
     MLIRContext *ctx = op->getContext();
 
-    I64EmulationConverter typeConverter(32);
+    I64EmulationConverter typeConverter(8);
     auto addUnrealizedCast = [](OpBuilder &builder, Type type,
                                 ValueRange inputs, Location loc) {
       auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
@@ -418,7 +477,7 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
       func::FuncOp, func::CallOp, func::ReturnOp,
       // arith ops
       arith::ConstantOp,
-      arith::AddIOp, arith::MulIOp,
+      arith::AddIOp, arith::MulIOp, arith::ShRUIOp,
       arith::ExtSIOp, arith::ExtUIOp, arith::TruncIOp
     >(
         // clang-format on
@@ -448,7 +507,7 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
   // clang-format off
   patterns.add<
     ConvertConstant,
-    ConvertAddI, ConvertMulI,
+    ConvertAddI, ConvertMulI, ConvertShRUI,
     ConvertExtSI, ConvertExtUI, ConvertTruncI
    >(typeConverter, patterns.getContext());
   // clang-format on
