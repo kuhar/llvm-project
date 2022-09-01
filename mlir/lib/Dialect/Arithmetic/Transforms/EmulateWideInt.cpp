@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeRange.h"
@@ -35,13 +36,13 @@
 
 namespace mlir::arith {
 namespace {
-class I64EmulationConverter : public TypeConverter {
+class WideIntEmulationConverter final : public TypeConverter {
 public:
-  explicit I64EmulationConverter(unsigned maxIntegerWidthSupported)
-      : maxIntWidth(maxIntegerWidthSupported) {
+  explicit WideIntEmulationConverter(unsigned widestIntSupported)
+      : maxIntWidth(widestIntSupported) {
     // Scalar case.
-    addConversion([widestInt = maxIntegerWidthSupported](
-                      IntegerType ty) -> Optional<Type> {
+    addConversion([widestInt =
+                       widestIntSupported](IntegerType ty) -> Optional<Type> {
       const unsigned width = ty.getWidth();
       if (width <= widestInt)
         return ty;
@@ -54,8 +55,8 @@ public:
     });
 
     // Vector case.
-    addConversion([widestInt = maxIntegerWidthSupported](
-                      VectorType ty) -> Optional<Type> {
+    addConversion([widestInt =
+                       widestIntSupported](VectorType ty) -> Optional<Type> {
       if (auto intTy = ty.getElementType().dyn_cast<IntegerType>()) {
         const unsigned width = intTy.getWidth();
         if (width <= widestInt)
@@ -103,14 +104,14 @@ Type peelOutermostDim(ShapedType integerLike) {
   return nullptr;
 }
 
-struct ConvertAddI : OpConversionPattern<AddIOp> {
+struct ConvertAddI final : OpConversionPattern<AddIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(AddIOp op, AddIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    auto &typeConverter = *getTypeConverter<WideIntEmulationConverter>();
 
     Value lhs = adaptor.getLhs();
     Value rhs = adaptor.getRhs();
@@ -148,7 +149,7 @@ struct ConvertAddI : OpConversionPattern<AddIOp> {
   }
 };
 
-struct ConvertConstant : OpConversionPattern<ConstantOp> {
+struct ConvertConstant final : OpConversionPattern<ConstantOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
@@ -214,13 +215,13 @@ private:
   }
 };
 
-struct ConvertExtSI : OpConversionPattern<ExtSIOp> {
+struct ConvertExtSI final : OpConversionPattern<ExtSIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(ExtSIOp op, ExtSIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    auto &typeConverter = *getTypeConverter<WideIntEmulationConverter>();
     if (!typeConverter.isLegal(op.getIn().getType()))
       return failure();
 
@@ -256,13 +257,13 @@ struct ConvertExtSI : OpConversionPattern<ExtSIOp> {
   }
 };
 
-struct ConvertExtUI : OpConversionPattern<ExtUIOp> {
+struct ConvertExtUI final : OpConversionPattern<ExtUIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(ExtUIOp op, ExtUIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    auto &typeConverter = *getTypeConverter<WideIntEmulationConverter>();
     if (!typeConverter.isLegal(op.getIn().getType()))
       return failure();
 
@@ -293,14 +294,14 @@ Attribute getScalarOrSplatIntegerAttr(Type type, int64_t value) {
   return nullptr;
 }
 
-struct ConvertMulI : OpConversionPattern<MulIOp> {
+struct ConvertMulI final : OpConversionPattern<MulIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(MulIOp op, MulIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    auto &typeConverter = *getTypeConverter<WideIntEmulationConverter>();
 
     Value lhs = adaptor.getLhs();
     Value rhs = adaptor.getRhs();
@@ -376,7 +377,7 @@ struct ConvertMulI : OpConversionPattern<MulIOp> {
   }
 };
 
-struct ConvertShRUI : OpConversionPattern<ShRUIOp> {
+struct ConvertShRUI final : OpConversionPattern<ShRUIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
@@ -401,28 +402,28 @@ struct ConvertShRUI : OpConversionPattern<ShRUIOp> {
     Value elemBitWidth = rewriter.create<ConstantOp>(
         loc, getScalarOrSplatIntegerAttr(newOperandTy, newBitWidth));
 
-    Value illegalElemShift = rewriter.createOrFold<CmpIOp>(
-        loc, CmpIPredicate::uge, rhsElem0, elemBitWidth);
+    Value illegalElemShift = rewriter.create<CmpIOp>(loc, CmpIPredicate::uge,
+                                                     rhsElem0, elemBitWidth);
 
     Value shiftedElem0 = rewriter.create<ShRUIOp>(loc, lhsElem0, rhsElem0);
-    Value resElem0Low = rewriter.createOrFold<SelectOp>(loc, illegalElemShift,
-                                                        zeroCst, shiftedElem0);
+    Value resElem0Low =
+        rewriter.create<SelectOp>(loc, illegalElemShift, zeroCst, shiftedElem0);
     Value shiftedElem1 = rewriter.create<ShRUIOp>(loc, lhsElem1, rhsElem0);
-    Value resElem1 = rewriter.createOrFold<SelectOp>(loc, illegalElemShift,
-                                                     zeroCst, shiftedElem1);
+    Value resElem1 =
+        rewriter.create<SelectOp>(loc, illegalElemShift, zeroCst, shiftedElem1);
 
-    Value cappedShiftAmount = rewriter.createOrFold<SelectOp>(
-        loc, illegalElemShift, elemBitWidth, rhsElem0);
+    Value cappedShiftAmount = rewriter.create<SelectOp>(loc, illegalElemShift,
+                                                        elemBitWidth, rhsElem0);
     Value leftShiftAmount =
-        rewriter.createOrFold<SubIOp>(loc, elemBitWidth, cappedShiftAmount);
+        rewriter.create<SubIOp>(loc, elemBitWidth, cappedShiftAmount);
     Value shiftedLeft = rewriter.create<ShLIOp>(loc, lhsElem1, leftShiftAmount);
     Value overshotShiftAmount =
-        rewriter.createOrFold<SubIOp>(loc, rhsElem0, elemBitWidth);
+        rewriter.create<SubIOp>(loc, rhsElem0, elemBitWidth);
     Value shiftedRight =
         rewriter.create<ShRUIOp>(loc, lhsElem1, overshotShiftAmount);
 
-    Value resElem0High = rewriter.createOrFold<SelectOp>(
-        loc, illegalElemShift, shiftedRight, shiftedLeft);
+    Value resElem0High = rewriter.create<SelectOp>(loc, illegalElemShift,
+                                                   shiftedRight, shiftedLeft);
     Value resElem0 = rewriter.create<OrIOp>(loc, resElem0Low, resElem0High);
 
     Value vecZeroCst =
@@ -434,13 +435,13 @@ struct ConvertShRUI : OpConversionPattern<ShRUIOp> {
   }
 };
 
-struct ConvertTruncI : OpConversionPattern<TruncIOp> {
+struct ConvertTruncI final : OpConversionPattern<TruncIOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult
   matchAndRewrite(TruncIOp op, TruncIOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto &typeConverter = *getTypeConverter<I64EmulationConverter>();
+    auto &typeConverter = *getTypeConverter<WideIntEmulationConverter>();
     if (!typeConverter.isLegal(op.getType()))
       return failure();
 
@@ -453,15 +454,27 @@ struct ConvertTruncI : OpConversionPattern<TruncIOp> {
   }
 };
 
-struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
+class EmulateWideIntPass final
+    : public ArithmeticEmulateWideIntBase<EmulateWideIntPass> {
+public:
+  EmulateWideIntPass(unsigned widestIntSupported) {
+    this->widestIntSupported.setValue(widestIntSupported);
+  }
+
   /// Implementation structure: first find all equivalent ops and collect them,
   /// then perform all the rewrites in a second pass over the target op. This
   /// ensures that analysis results are not invalidated during rewriting.
   void runOnOperation() override {
+    if (!llvm::isPowerOf2_32(widestIntSupported)) {
+      assert(false && "Widest int supported is not a power of two");
+      signalPassFailure();
+      return;
+    }
+
     Operation *op = getOperation();
     MLIRContext *ctx = op->getContext();
 
-    I64EmulationConverter typeConverter(8);
+    WideIntEmulationConverter typeConverter(widestIntSupported);
     auto addUnrealizedCast = [](OpBuilder &builder, Type type,
                                 ValueRange inputs, Location loc) {
       auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
@@ -493,17 +506,16 @@ struct EmulateI64Pass : public ArithmeticEmulateI64Base<EmulateI64Pass> {
     target.addLegalDialect<vector::VectorDialect>();
 
     RewritePatternSet patterns(ctx);
-    populateI64EmulationPatterns(typeConverter, patterns);
+    populateWideIntEmulationPatterns(typeConverter, patterns);
 
-    if (failed(applyPartialConversion(op, target, std::move(patterns)))) {
+    if (failed(applyPartialConversion(op, target, std::move(patterns))))
       signalPassFailure();
-    }
   }
 };
 } // end anonymous namespace
 
-void populateI64EmulationPatterns(TypeConverter &typeConverter,
-                                  RewritePatternSet &patterns) {
+void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
+                                      RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<
     ConvertConstant,
@@ -520,13 +532,13 @@ void populateI64EmulationPatterns(TypeConverter &typeConverter,
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
 }
 
-std::unique_ptr<Pass> createEmulateI64Pass() {
-  return std::make_unique<EmulateI64Pass>();
+std::unique_ptr<Pass> createEmulateWideIntPass(unsigned widestIntSupported) {
+  return std::make_unique<EmulateWideIntPass>(widestIntSupported);
 }
 
 std::unique_ptr<TypeConverter>
-createI64EmulationTypeConverter(unsigned int maxIntegerWidthSupported) {
-  return std::make_unique<I64EmulationConverter>(maxIntegerWidthSupported);
+createWideIntEmulationTypeConverter(unsigned widestIntSupported) {
+  return std::make_unique<WideIntEmulationConverter>(widestIntSupported);
 }
 
 } // namespace mlir::arith

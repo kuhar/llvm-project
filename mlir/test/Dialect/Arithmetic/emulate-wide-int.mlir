@@ -1,4 +1,4 @@
-// RUN: mlir-opt -arith-emulate-i64 %s | FileCheck %s
+// RUN: mlir-opt -arith-emulate-wide-int %s | FileCheck %s
 
 // CHECK-LABEL: func @addi_same_i32
 // CHECK-SAME:    ([[ARG:%.+]]: i32) -> i32
@@ -210,4 +210,11 @@ func.func @muli_scalar(%a : i64, %b : i64) -> i64 {
 func.func @muli_vector(%a : vector<3xi64>, %b : vector<3xi64>) -> vector<3xi64> {
     %m = arith.muli %a, %b : vector<3xi64>
     return %m : vector<3xi64>
+}
+
+// CHECK-LABEL: func.func @shrui_scalar
+func.func @shrui_scalar(%a : i64, %b : i64) -> i64 {
+    %sh = arith.constant 2 : i64
+    %c = arith.shrui %a, %sh : i64
+    return %c : i64
 }

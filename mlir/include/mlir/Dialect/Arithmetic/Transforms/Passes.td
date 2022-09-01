@@ -49,12 +49,16 @@ def ArithmeticUnsignedWhenEquivalent : Pass<"arith-unsigned-when-equivalent"> {
   let constructor = "mlir::arith::createArithmeticUnsignedWhenEquivalentPass()";
 }
 
-def ArithmeticEmulateI64 : Pass<"arith-emulate-i64"> {
-  let summary = "Emulate 64-bit integer operations using 32-bit operations";
+def ArithmeticEmulateWideInt : Pass<"arith-emulate-wide-int"> {
+  let summary = "Emulate 2*N-bit integer operations using N-bit operations";
   let description = [{
     TBD
   }];
-  let constructor = "mlir::arith::createEmulateI64Pass()";
+  let constructor = "mlir::arith::createEmulateWideIntPass()";
+  let options = [
+    Option<"widestIntSupported", "widest-int-supported", "unsigned", /*default=*/"32",
+           "Widest integer type supported by the target">,
+  ];
   let dependentDialects = ["vector::VectorDialect"];
 }
 

@@ -28,14 +28,15 @@ std::unique_ptr<Pass> createArithmeticBufferizePass();
 /// Create a pass to bufferize arith.constant ops.
 std::unique_ptr<Pass> createConstantBufferizePass(uint64_t alignment = 0);
 
-/// Creates a pass to emulate 64-bit integer operations with 32-bit operations.
-std::unique_ptr<Pass> createEmulateI64Pass();
+/// Creates a pass to emulate 2*N-bit integer operations with N-bit operations.
+std::unique_ptr<Pass>
+createEmulateWideIntPass(unsigned widestIntSupported = 32);
 
 std::unique_ptr<TypeConverter>
-createI64EmulationTypeConverter(unsigned maxIntegerWidthSupported);
+createWideIntEmulationTypeConverter(unsigned widestIntSupported = 32);
 
-void populateI64EmulationPatterns(TypeConverter &typeConverter,
-                                  RewritePatternSet &patterns);
+void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
+                                      RewritePatternSet &patterns);
 
 /// Add patterns to expand Arithmetic ops for LLVM lowering.
 void populateArithmeticExpandOpsPatterns(RewritePatternSet &patterns);
