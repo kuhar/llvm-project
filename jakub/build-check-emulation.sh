@@ -22,7 +22,7 @@ bin/mlir-opt "$TMP/wide.mlir" \
   | bin/mlir-translate --mlir-to-llvmir -o "$TMP/wide.ll"
 
 bin/mlir-opt "$TMP/emulated.mlir" \
-    --arith-emulate-i64 \
+    --arith-emulate-wide-int="widest-int-supported=8" \
     --convert-vector-to-llvm --convert-func-to-llvm --convert-arith-to-llvm \
   | bin/mlir-translate --mlir-to-llvmir -o "$TMP/emulated.ll"
 
