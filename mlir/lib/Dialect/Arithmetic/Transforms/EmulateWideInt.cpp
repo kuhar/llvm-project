@@ -97,6 +97,16 @@ private:
   unsigned maxIntWidth;
 };
 
+Type peelOutermostDim(ShapedType integerLike) {
+  if (auto ty = integerLike.dyn_cast<VectorType>()) {
+    if (ty.getShape().size() == 1)
+      return ty.getElementType();
+    return VectorType::get(ty.getShape().drop_front(), ty.getElementType());
+  }
+
+  return nullptr;
+}
+
 struct ConvertConstant final : OpConversionPattern<arith::ConstantOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -162,6 +172,48 @@ private:
   }
 };
 
+struct ConvertAddI final : OpConversionPattern<arith::AddIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::AddIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+    auto newTy = getTypeConverter()
+                     ->convertType(op.getResult().getType())
+                     .dyn_cast_or_null<VectorType>();
+    Type newElemTy = peelOutermostDim(newTy);
+    if (!newElemTy)
+      return rewriter.notifyMatchFailure(loc, "Expected scalar or vector type");
+
+    const unsigned newBitWidth = newTy.getElementTypeBitWidth();
+
+    Value lhsElem0 = rewriter.create<vector::ExtractOp>(loc, lhs, 0);
+    Value lhsElem1 = rewriter.create<vector::ExtractOp>(loc, lhs, 1);
+
+    Value rhsElem0 = rewriter.create<vector::ExtractOp>(loc, rhs, 0);
+    Value rhsElem1 = rewriter.create<vector::ExtractOp>(loc, rhs, 1);
+
+    auto lowSum = rewriter.create<arith::AddUICarryOp>(loc, lhsElem0, rhsElem0);
+    Value carryVal =
+        rewriter.create<arith::ExtUIOp>(loc, newElemTy, lowSum.getCarry());
+
+    Value high0 = rewriter.create<arith::AddIOp>(loc, carryVal, lhsElem1);
+    Value high = rewriter.create<arith::AddIOp>(loc, high0, rhsElem1);
+
+    Attribute zeroAttr = DenseElementsAttr::get(newTy, newBitWidth);
+    Value zeroVec = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
+    Value vecLow =
+        rewriter.create<vector::InsertOp>(loc, lowSum.getSum(), zeroVec, 0);
+    Value vecLowHigh = rewriter.create<vector::InsertOp>(loc, high, vecLow, 1);
+    rewriter.replaceOp(op, vecLowHigh);
+    return success();
+  }
+};
+
 struct EmulateWideIntPass final
     : arith::impl::ArithmeticEmulateWideIntBase<EmulateWideIntPass> {
   EmulateWideIntPass(unsigned widestIntSupported) {
@@ -195,6 +247,7 @@ struct EmulateWideIntPass final
     target.addDynamicallyLegalOp<
       // arith ops
       arith::ConstantOp,
+      arith::AddIOp,
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp
     >(
@@ -223,7 +276,12 @@ namespace mlir::arith {
 
 void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
                                       RewritePatternSet &patterns) {
-  patterns.add<ConvertConstant>(typeConverter, patterns.getContext());
+  // clang-format off
+  patterns.add<
+    ConvertConstant,
+    ConvertAddI
+  >(typeConverter, patterns.getContext());
+  // clang-format on
 
   // Populate `func.*` conversion patterns.
   populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns,
