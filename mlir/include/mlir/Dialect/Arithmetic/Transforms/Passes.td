@@ -49,4 +49,22 @@ def ArithmeticUnsignedWhenEquivalent : Pass<"arith-unsigned-when-equivalent"> {
   let constructor = "mlir::arith::createArithmeticUnsignedWhenEquivalentPass()";
 }
 
+def ArithmeticEmulateWideInt : Pass<"arith-emulate-wide-int"> {
+  let summary = "Emulate 2*N-bit integer operations using N-bit operations";
+  let description = [{
+    Emulate integer operations that use too wide integer types with equivalent
+    operations on supported integer types.
+    This pass is intended preserve semantics but not necessarily provide the
+    most efficient implementation.
+
+    Currently, only power-of-two integer types are supported.
+  }];
+  let constructor = "mlir::arith::createEmulateWideIntPass()";
+  let options = [
+    Option<"widestIntSupported", "widest-int-supported", "unsigned", /*default=*/"32",
+           "Widest integer type supported by the target">,
+  ];
+  let dependentDialects = ["vector::VectorDialect"];
+}
+
 #endif // MLIR_DIALECT_ARITHMETIC_TRANSFORMS_PASSES
