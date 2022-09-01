@@ -33,7 +33,8 @@ namespace {
 // Currently, we only handle power-of-two integer types and support conversions
 // of integers twice as wide as the maxium supported. Wide integers are
 // represented as vectors, e.g., i64 --> vector<2xi32>, where the first element
-// is the low half of the original integer, and the second element the high half.
+// is the low half of the original integer, and the second element the high
+// half.
 class WideIntEmulationConverter final : public TypeConverter {
 public:
   explicit WideIntEmulationConverter(unsigned widestIntSupported)
@@ -61,7 +62,7 @@ public:
         if (width <= widestInt)
           return ty;
 
-      // vector<...xi2N> --> vector<2x...xiN>
+        // vector<...xi2N> --> vector<2x...xiN>
         if (width == 2 * widestInt) {
           SmallVector<int64_t> newShape = {2};
           llvm::append_range(newShape, ty.getShape());
@@ -96,6 +97,71 @@ private:
   unsigned maxIntWidth;
 };
 
+struct ConvertConstant final : OpConversionPattern<arith::ConstantOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::ConstantOp op, OpAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type oldType = op.getType();
+    auto newType = getTypeConverter()->convertType(oldType).cast<ShapedType>();
+    const unsigned newBitWidth = newType.getElementTypeBitWidth();
+    Attribute oldValue = op.getValueAttr();
+
+    if (auto intAttr = oldValue.dyn_cast<IntegerAttr>()) {
+      auto [low, high] = getHalves(intAttr.getValue(), newBitWidth);
+      auto newAttr = DenseElementsAttr::get(newType, {low, high});
+      rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, newAttr);
+      return success();
+    }
+
+    if (auto splatAttr = oldValue.dyn_cast<SplatElementsAttr>()) {
+      auto [low, high] =
+          getHalves(splatAttr.getSplatValue<APInt>(), newBitWidth);
+      const auto numSplatElems =
+          static_cast<size_t>(splatAttr.getNumElements());
+      auto values = llvm::to_vector(
+          llvm::concat<APInt>(SmallVector<APInt>(numSplatElems, low),
+                              SmallVector<APInt>(numSplatElems, high)));
+
+      auto attr = DenseElementsAttr::get(newType, values);
+      rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, attr);
+      return success();
+    }
+
+    if (auto elemsAttr = oldValue.dyn_cast<DenseElementsAttr>()) {
+      const auto numElems = static_cast<size_t>(elemsAttr.getNumElements());
+      SmallVector<APInt> lowVals;
+      lowVals.reserve(numElems);
+      SmallVector<APInt> highVals;
+      highVals.reserve(numElems);
+
+      for (const APInt &origVal : elemsAttr.getValues<APInt>()) {
+        auto [low, high] = getHalves(origVal, newBitWidth);
+        lowVals.push_back(std::move(low));
+        highVals.push_back(std::move(high));
+      }
+      auto values = llvm::to_vector(
+          llvm::concat<APInt>(std::move(lowVals), std::move(highVals)));
+
+      auto attr = DenseElementsAttr::get(newType, values);
+      rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, attr);
+      return success();
+    }
+
+    return rewriter.notifyMatchFailure(op.getLoc(),
+                                       "Unhandled constant attribute");
+  }
+
+private:
+  static std::pair<APInt, APInt> getHalves(const APInt &value,
+                                           unsigned newBitWidth) {
+    APInt low = value.extractBits(newBitWidth, 0);
+    APInt high = value.extractBits(newBitWidth, newBitWidth);
+    return {std::move(low), std::move(high)};
+  }
+};
+
 struct EmulateWideIntPass final
     : arith::impl::ArithmeticEmulateWideIntBase<EmulateWideIntPass> {
   EmulateWideIntPass(unsigned widestIntSupported) {
@@ -127,6 +193,8 @@ struct EmulateWideIntPass final
     ConversionTarget target(*ctx);
     // clang-format off
     target.addDynamicallyLegalOp<
+      // arith ops
+      arith::ConstantOp,
       // func ops
       func::FuncOp, func::CallOp, func::ReturnOp
     >(
@@ -155,6 +223,8 @@ namespace mlir::arith {
 
 void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
                                       RewritePatternSet &patterns) {
+  patterns.add<ConvertConstant>(typeConverter, patterns.getContext());
+
   // Populate `func.*` conversion patterns.
   populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns,
                                                                  typeConverter);
