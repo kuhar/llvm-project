@@ -12,9 +12,13 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+
+class TypeConverter;
+
 namespace arith {
 
 #define GEN_PASS_DECL_ARITHMETICBUFFERIZE
+#define GEN_PASS_DECL_ARITHMETICEMULATEWIDEINT
 #define GEN_PASS_DECL_ARITHMETICEXPANDOPS
 #define GEN_PASS_DECL_ARITHMETICUNSIGNEDWHENEQUIVALENT
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"
@@ -24,6 +28,16 @@ std::unique_ptr<Pass> createArithmeticBufferizePass();
 
 /// Create a pass to bufferize arith.constant ops.
 std::unique_ptr<Pass> createConstantBufferizePass(uint64_t alignment = 0);
+
+/// Creates a pass to emulate 2*N-bit integer operations with N-bit operations.
+std::unique_ptr<Pass>
+createEmulateWideIntPass(unsigned widestIntSupported = 32);
+
+std::unique_ptr<TypeConverter>
+createWideIntEmulationTypeConverter(unsigned widestIntSupported = 32);
+
+void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
+                                      RewritePatternSet &patterns);
 
 /// Add patterns to expand Arithmetic ops for LLVM lowering.
 void populateArithmeticExpandOpsPatterns(RewritePatternSet &patterns);
