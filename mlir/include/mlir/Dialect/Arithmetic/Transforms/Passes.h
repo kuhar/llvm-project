@@ -18,6 +18,7 @@ class TypeConverter;
 namespace arith {
 
 #define GEN_PASS_DECL_ARITHMETICBUFFERIZE
+#define GEN_PASS_DECL_ARITHMETICEMULATEWIDEINT
 #define GEN_PASS_DECL_ARITHMETICEXPANDOPS
 #define GEN_PASS_DECL_ARITHMETICUNSIGNEDWHENEQUIVALENT
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"

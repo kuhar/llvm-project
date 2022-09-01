@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -19,20 +19,26 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Transforms/DialectConversion.h"
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/MathExtras.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+
+namespace mlir::arith {
+#define GEN_PASS_DEF_ARITHMETICEMULATEWIDEINT
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h.inc"
+} // namespace mlir::arith
 
 namespace mlir::arith {
 namespace {
@@ -455,7 +461,7 @@ struct ConvertTruncI final : OpConversionPattern<TruncIOp> {
 };
 
 class EmulateWideIntPass final
-    : public ArithmeticEmulateWideIntBase<EmulateWideIntPass> {
+    : public impl::ArithmeticEmulateWideIntBase<EmulateWideIntPass> {
 public:
   EmulateWideIntPass(unsigned widestIntSupported) {
     this->widestIntSupported.setValue(widestIntSupported);
@@ -528,7 +534,6 @@ void populateWideIntEmulationPatterns(TypeConverter &typeConverter,
   populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns,
                                                                  typeConverter);
   populateCallOpTypeConversionPattern(patterns, typeConverter);
-  // populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
 }
 
