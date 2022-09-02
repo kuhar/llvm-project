@@ -1335,15 +1335,15 @@ void spirv::AtomicIAddOp::print(OpAsmPrinter &p) {
 // spv.AtomicFAddEXTOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult spirv::AtomicFAddEXTOp::verify() {
+LogicalResult spirv::EXTAtomicFAddOp::verify() {
   return ::verifyAtomicUpdateOp<FloatType>(getOperation());
 }
 
-ParseResult spirv::AtomicFAddEXTOp::parse(OpAsmParser &parser,
+ParseResult spirv::EXTAtomicFAddOp::parse(OpAsmParser &parser,
                                           OperationState &result) {
   return ::parseAtomicUpdateOp(parser, result, true);
 }
-void spirv::AtomicFAddEXTOp::print(OpAsmPrinter &p) {
+void spirv::EXTAtomicFAddOp::print(OpAsmPrinter &p) {
   ::printAtomicUpdateOp(*this, p);
 }
 
@@ -2617,7 +2617,7 @@ LogicalResult spirv::GroupNonUniformBroadcastOp::verify() {
 // spv.SubgroupBlockReadINTEL
 //===----------------------------------------------------------------------===//
 
-ParseResult spirv::SubgroupBlockReadINTELOp::parse(OpAsmParser &parser,
+ParseResult spirv::INTELSubgroupBlockReadOp::parse(OpAsmParser &parser,
                                                    OperationState &result) {
   // Parse the storage class specification
   spirv::StorageClass storageClass;
@@ -2640,11 +2640,11 @@ ParseResult spirv::SubgroupBlockReadINTELOp::parse(OpAsmParser &parser,
   return success();
 }
 
-void spirv::SubgroupBlockReadINTELOp::print(OpAsmPrinter &printer) {
+void spirv::INTELSubgroupBlockReadOp::print(OpAsmPrinter &printer) {
   printer << " " << ptr() << " : " << getType();
 }
 
-LogicalResult spirv::SubgroupBlockReadINTELOp::verify() {
+LogicalResult spirv::INTELSubgroupBlockReadOp::verify() {
   if (failed(verifyBlockReadWritePtrAndValTypes(*this, ptr(), value())))
     return failure();
 
@@ -2655,7 +2655,7 @@ LogicalResult spirv::SubgroupBlockReadINTELOp::verify() {
 // spv.SubgroupBlockWriteINTEL
 //===----------------------------------------------------------------------===//
 
-ParseResult spirv::SubgroupBlockWriteINTELOp::parse(OpAsmParser &parser,
+ParseResult spirv::INTELSubgroupBlockWriteOp::parse(OpAsmParser &parser,
                                                     OperationState &result) {
   // Parse the storage class specification
   spirv::StorageClass storageClass;
@@ -2679,11 +2679,11 @@ ParseResult spirv::SubgroupBlockWriteINTELOp::parse(OpAsmParser &parser,
   return success();
 }
 
-void spirv::SubgroupBlockWriteINTELOp::print(OpAsmPrinter &printer) {
+void spirv::INTELSubgroupBlockWriteOp::print(OpAsmPrinter &printer) {
   printer << " " << ptr() << ", " << value() << " : " << value().getType();
 }
 
-LogicalResult spirv::SubgroupBlockWriteINTELOp::verify() {
+LogicalResult spirv::INTELSubgroupBlockWriteOp::verify() {
   if (failed(verifyBlockReadWritePtrAndValTypes(*this, ptr(), value())))
     return failure();
 
@@ -3787,7 +3787,7 @@ LogicalResult spirv::VectorShuffleOp::verify() {
 // spv.CooperativeMatrixLoadNV
 //===----------------------------------------------------------------------===//
 
-ParseResult spirv::CooperativeMatrixLoadNVOp::parse(OpAsmParser &parser,
+ParseResult spirv::NVCooperativeMatrixLoadOp::parse(OpAsmParser &parser,
                                                     OperationState &result) {
   SmallVector<OpAsmParser::UnresolvedOperand, 3> operandInfo;
   Type strideType = parser.getBuilder().getIntegerType(32);
@@ -3809,7 +3809,7 @@ ParseResult spirv::CooperativeMatrixLoadNVOp::parse(OpAsmParser &parser,
   return success();
 }
 
-void spirv::CooperativeMatrixLoadNVOp::print(OpAsmPrinter &printer) {
+void spirv::NVCooperativeMatrixLoadOp::print(OpAsmPrinter &printer) {
   printer << " " << pointer() << ", " << stride() << ", " << columnmajor();
   // Print optional memory access attribute.
   if (auto memAccess = memory_access())
@@ -3836,7 +3836,7 @@ static LogicalResult verifyPointerAndCoopMatrixType(Operation *op, Type pointer,
   return success();
 }
 
-LogicalResult spirv::CooperativeMatrixLoadNVOp::verify() {
+LogicalResult spirv::NVCooperativeMatrixLoadOp::verify() {
   return verifyPointerAndCoopMatrixType(*this, pointer().getType(),
                                         result().getType());
 }
@@ -3845,7 +3845,7 @@ LogicalResult spirv::CooperativeMatrixLoadNVOp::verify() {
 // spv.CooperativeMatrixStoreNV
 //===----------------------------------------------------------------------===//
 
-ParseResult spirv::CooperativeMatrixStoreNVOp::parse(OpAsmParser &parser,
+ParseResult spirv::NVCooperativeMatrixStoreOp::parse(OpAsmParser &parser,
                                                      OperationState &result) {
   SmallVector<OpAsmParser::UnresolvedOperand, 4> operandInfo;
   Type strideType = parser.getBuilder().getIntegerType(32);
@@ -3867,7 +3867,7 @@ ParseResult spirv::CooperativeMatrixStoreNVOp::parse(OpAsmParser &parser,
   return success();
 }
 
-void spirv::CooperativeMatrixStoreNVOp::print(OpAsmPrinter &printer) {
+void spirv::NVCooperativeMatrixStoreOp::print(OpAsmPrinter &printer) {
   printer << " " << pointer() << ", " << object() << ", " << stride() << ", "
           << columnmajor();
   // Print optional memory access attribute.
@@ -3876,7 +3876,7 @@ void spirv::CooperativeMatrixStoreNVOp::print(OpAsmPrinter &printer) {
   printer << " : " << pointer().getType() << ", " << getOperand(1).getType();
 }
 
-LogicalResult spirv::CooperativeMatrixStoreNVOp::verify() {
+LogicalResult spirv::NVCooperativeMatrixStoreOp::verify() {
   return verifyPointerAndCoopMatrixType(*this, pointer().getType(),
                                         object().getType());
 }
@@ -3886,7 +3886,7 @@ LogicalResult spirv::CooperativeMatrixStoreNVOp::verify() {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult
-verifyCoopMatrixMulAdd(spirv::CooperativeMatrixMulAddNVOp op) {
+verifyCoopMatrixMulAdd(spirv::NVCooperativeMatrixMulAddOp op) {
   if (op.c().getType() != op.result().getType())
     return op.emitOpError("result and third operand must have the same type");
   auto typeA = op.a().getType().cast<spirv::CooperativeMatrixNVType>();
@@ -3907,7 +3907,7 @@ verifyCoopMatrixMulAdd(spirv::CooperativeMatrixMulAddNVOp op) {
   return success();
 }
 
-LogicalResult spirv::CooperativeMatrixMulAddNVOp::verify() {
+LogicalResult spirv::NVCooperativeMatrixMulAddOp::verify() {
   return verifyCoopMatrixMulAdd(*this);
 }
 
@@ -3934,7 +3934,7 @@ verifyPointerAndJointMatrixType(Operation *op, Type pointer, Type jointMatrix) {
 // spv.JointMatrixLoadINTEL
 //===----------------------------------------------------------------------===//
 
-LogicalResult spirv::JointMatrixLoadINTELOp::verify() {
+LogicalResult spirv::INTELJointMatrixLoadOp::verify() {
   return verifyPointerAndJointMatrixType(*this, pointer().getType(),
                                          result().getType());
 }
@@ -3943,7 +3943,7 @@ LogicalResult spirv::JointMatrixLoadINTELOp::verify() {
 // spv.JointMatrixStoreINTEL
 //===----------------------------------------------------------------------===//
 
-LogicalResult spirv::JointMatrixStoreINTELOp::verify() {
+LogicalResult spirv::INTELJointMatrixStoreOp::verify() {
   return verifyPointerAndJointMatrixType(*this, pointer().getType(),
                                          object().getType());
 }
@@ -3952,7 +3952,7 @@ LogicalResult spirv::JointMatrixStoreINTELOp::verify() {
 // spv.JointMatrixMadINTEL
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verifyJointMatrixMad(spirv::JointMatrixMadINTELOp op) {
+static LogicalResult verifyJointMatrixMad(spirv::INTELJointMatrixMadOp op) {
   if (op.c().getType() != op.result().getType())
     return op.emitOpError("result and third operand must have the same type");
   auto typeA = op.a().getType().cast<spirv::JointMatrixINTELType>();
@@ -3973,7 +3973,7 @@ static LogicalResult verifyJointMatrixMad(spirv::JointMatrixMadINTELOp op) {
   return success();
 }
 
-LogicalResult spirv::JointMatrixMadINTELOp::verify() {
+LogicalResult spirv::INTELJointMatrixMadOp::verify() {
   return verifyJointMatrixMad(*this);
 }
 
