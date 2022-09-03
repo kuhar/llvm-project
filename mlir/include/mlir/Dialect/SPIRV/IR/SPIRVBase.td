@@ -4537,7 +4537,7 @@ class SPV_ExtInstOp<string mnemonic, string setPrefix, string setName,
 // Op<Name><VENDOR>, e.g., OpCooperativeMatrixStoreNV.
 class SPV_VendorOp<string mnemonic, string vendorName,
                    list<Trait> traits = []> :
-  SPV_Op<mnemonic # vendorName, traits> {
+  SPV_Op<vendorName # "." # mnemonic, traits> {
   string spirvOpName = "Op" # mnemonic # vendorName;
 }
 
