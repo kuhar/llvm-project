@@ -1047,8 +1047,15 @@ def BitcastTypeConstraint : TypeConstraint<Or<[
         MemRefOf<[AnySignlessInteger, Index, AnyFloat]>.predicate]>,
     "signless-integer-or-float-like or memref of signless-integer or float">;
 
-def Arith_BitcastOp : Arith_CastOp<"bitcast", BitcastTypeConstraint,
-                                              BitcastTypeConstraint> {
+// Do not use Arith_CastOp because it does not allow for scalar-vector casts.
+// In that case, this is not an elementwise op, so we cannot use Arith_Op
+// either.
+def Arith_BitcastOp : Op<Arithmetic_Dialect, "bitcast", [
+        NoSideEffect,
+        DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
+        DeclareOpInterfaceMethods<CastOpInterface>]>,
+      Arguments<(ins BitcastTypeConstraint:$in)>,
+      Results<(outs BitcastTypeConstraint:$out)> {
   let summary = "bitcast between values of equal bit width";
   let description = [{
     Bitcast an integer or floating point value to an integer or floating point
@@ -1067,6 +1074,7 @@ def Arith_BitcastOp : Arith_CastOp<"bitcast", BitcastTypeConstraint,
     order of words in addition to the bitcast.
   }];
 
+  let assemblyFormat = "$in attr-dict `:` type($in) `to` type($out)";
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }

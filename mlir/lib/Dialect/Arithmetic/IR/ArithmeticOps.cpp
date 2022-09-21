@@ -12,6 +12,9 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/CommonFolders.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -1283,13 +1286,36 @@ void arith::IndexCastOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 bool arith::BitcastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
-  if (!areValidCastInputsAndOutputs(inputs, outputs))
-    return false;
+  Type input = inputs.front();
+  Type output = outputs.front();
+
+  if (!areValidCastInputsAndOutputs(inputs, outputs)) {
+    bool mixedShapes = input.isa<VectorType>() != output.isa<VectorType>();
+    if (!mixedShapes)
+      return false;
+
+    auto vecTy = input.isa<VectorType>() ? input.cast<VectorType>()
+                                         : output.cast<VectorType>();
+    if (!vecTy.hasRank() || vecTy.getNumScalableDims() != 0)
+      return false;
+
+    Type scalarTy = input.isa<VectorType>() ? output : input;
+    if (!scalarTy.isSignlessIntOrFloat())
+      return false;
+
+    Type elemTy = vecTy.getElementType();
+    if (!elemTy.isSignlessIntOrFloat())
+      return false;
+
+    unsigned scalarBits = scalarTy.getIntOrFloatBitWidth();
+    unsigned vectorBits = elemTy.getIntOrFloatBitWidth() * vecTy.getNumElements();
+    return scalarBits == vectorBits;
+  }
 
   auto srcType =
-      getTypeIfLikeOrMemRef<IntegerType, IndexType, FloatType>(inputs.front());
+      getTypeIfLikeOrMemRef<IntegerType, IndexType, FloatType>(input);
   auto dstType =
-      getTypeIfLikeOrMemRef<IntegerType, IndexType, FloatType>(outputs.front());
+      getTypeIfLikeOrMemRef<IntegerType, IndexType, FloatType>(output);
   if (!srcType || !dstType)
     return false;
 
