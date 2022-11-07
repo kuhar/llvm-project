@@ -13,7 +13,10 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include <cassert>
@@ -191,6 +194,24 @@ static Value constructResultVector(ConversionPatternRewriter &rewriter,
   return resultVec;
 }
 
+/// Returns the matching unsigned version of the given predicate `pred`, or the
+/// same predicate if |pred| is not a signed.
+static arith::CmpIPredicate toUnsignedPredicate(arith::CmpIPredicate pred) {
+  using P = arith::CmpIPredicate;
+  switch (pred) {
+  case P::sge:
+    return P::uge;
+  case P::sgt:
+    return P::ugt;
+  case P::sle:
+    return P::ule;
+  case P::slt:
+    return P::ult;
+  default:
+    return pred;
+  }
+}
+
 namespace {
 //===----------------------------------------------------------------------===//
 // ConvertConstant
@@ -320,6 +341,58 @@ struct ConvertBitwiseBinary final : OpConversionPattern<BinaryOp> {
     Value resultVec =
         constructResultVector(rewriter, loc, newTy, {resElem0, resElem1});
     rewriter.replaceOp(op, resultVec);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ConvertCmpI
+//===----------------------------------------------------------------------===//
+
+struct ConvertCmpI final : OpConversionPattern<arith::CmpIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    auto inputTy = getTypeConverter()
+                       ->convertType(op.getLhs().getType())
+                       .dyn_cast_or_null<VectorType>();
+    if (!inputTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
+    arith::CmpIPredicate highPred = adaptor.getPredicate();
+    arith::CmpIPredicate lowPred = toUnsignedPredicate(highPred);
+
+    auto [lhsElem0, lhsElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getLhs());
+    auto [rhsElem0, rhsElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getRhs());
+
+    Value highCmp =
+        rewriter.create<arith::CmpIOp>(loc, highPred, lhsElem1, rhsElem1);
+    Value lowCmp =
+        rewriter.create<arith::CmpIOp>(loc, lowPred, lhsElem0, rhsElem0);
+
+    switch (highPred) {
+    case arith::CmpIPredicate::eq: {
+      rewriter.replaceOpWithNewOp<arith::AndIOp>(op, lowCmp, highCmp);
+      break;
+    }
+    case arith::CmpIPredicate::ne: {
+      rewriter.replaceOpWithNewOp<arith::OrIOp>(op, lowCmp, highCmp);
+      break;
+    }
+    default: {
+      Value highEq = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, lhsElem0, rhsElem0);
+      rewriter.replaceOpWithNewOp<arith::SelectOp>(op, highEq, lowCmp, highCmp);
+      break;
+    }
+    }
+
     return success();
   }
 };
@@ -487,6 +560,41 @@ struct ConvertExtUI final : OpConversionPattern<arith::ExtUIOp> {
     Value zeroCst = createScalarOrSplatConstant(rewriter, loc, newTy, 0);
     Value newRes = insertLastDimSlice(rewriter, loc, extended, zeroCst, 0);
     rewriter.replaceOp(op, newRes);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ConvertSelect
+//===----------------------------------------------------------------------===//
+
+struct ConvertSelect final : OpConversionPattern<arith::SelectOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::SelectOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    auto newTy = getTypeConverter()
+                     ->convertType(op.getType())
+                     .dyn_cast_or_null<VectorType>();
+    if (!newTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
+    Value cond = adaptor.getCondition();
+    auto [trueElem0, trueElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getTrueValue());
+    auto [falseElem0, falseElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getFalseValue());
+
+    Value resElem0 =
+        rewriter.create<arith::SelectOp>(loc, cond, trueElem0, falseElem0);
+    Value resElem1 =
+        rewriter.create<arith::SelectOp>(loc, cond, trueElem1, falseElem1);
+    Value resultVec =
+        constructResultVector(rewriter, loc, newTy, {resElem0, resElem1});
+    rewriter.replaceOp(op, resultVec);
     return success();
   }
 };
@@ -672,6 +780,59 @@ struct ConvertShRUI final : OpConversionPattern<arith::ShRUIOp> {
 };
 
 //===----------------------------------------------------------------------===//
+// ConvertShRSI
+//===----------------------------------------------------------------------===//
+
+struct ConvertShRSI final : OpConversionPattern<arith::ShRSIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::ShRSIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+
+    Type oldTy = op.getType();
+    auto newTy =
+        getTypeConverter()->convertType(oldTy).dyn_cast_or_null<VectorType>();
+    if (!newTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+    Value rhsElem0 = extractLastDimSlice(rewriter, loc, adaptor.getRhs(), 0);
+
+    int64_t elemBitwidth = newTy.getElementTypeBitWidth();
+
+    // Rewrite this as an bitwise or of `arith.shrui` and sign extension bits.
+    // Let the other emulation patterns convert the result to narrow integer
+    // types.
+    Value zero = createScalarOrSplatConstant(rewriter, loc, newTy, 0);
+    Value maxShift =
+        createScalarOrSplatConstant(rewriter, loc, newTy, elemBitwidth);
+    Value signBit = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, lhs,
+        createScalarOrSplatConstant(rewriter, loc, oldTy, 0));
+    Value allSign = rewriter.create<arith::ExtSIOp>(loc, oldTy, signBit);
+    Value numSignExtBits =
+        rewriter.create<arith::SubIOp>(loc, maxShift, rhsElem0);
+    numSignExtBits =
+        rewriter.create<arith::ExtUIOp>(loc, oldTy, numSignExtBits);
+    Value signBits =
+        rewriter.create<arith::ShLIOp>(loc, allSign, numSignExtBits);
+    Value isSaturated = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, numSignExtBits, maxShift);
+    signBits =
+        rewriter.create<arith::SelectOp>(loc, isSaturated, zero, signBits);
+
+    Value shrui = rewriter.create<arith::ShRUIOp>(loc, lhs, rhs);
+    rewriter.replaceOpWithNewOp<arith::OrIOp>(op, shrui, signBits);
+
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConvertTruncI
 //===----------------------------------------------------------------------===//
 
@@ -689,7 +850,8 @@ struct ConvertTruncI final : OpConversionPattern<arith::TruncIOp> {
           loc, llvm::formatv("unsupported truncation result type: {0}",
                              op.getType()));
 
-    // Discard the high half of the input. Truncate the low half, if necessary.
+    // Discard the high half of the input. Truncate the low half, if
+    // necessary.
     Value extracted = extractLastDimSlice(rewriter, loc, adaptor.getIn(), 0);
     extracted = dropTrailingX1Dim(rewriter, loc, extracted);
     Value truncated =
@@ -828,9 +990,9 @@ void arith::populateArithWideIntEmulationPatterns(
   // Populate `arith.*` conversion patterns.
   patterns.add<
       // Misc ops.
-      ConvertConstant, ConvertVectorPrint,
+      ConvertCmpI, ConvertConstant, ConvertSelect, ConvertVectorPrint,
       // Binary ops.
-      ConvertAddI, ConvertMulI, ConvertShLI, ConvertShRUI,
+      ConvertAddI, ConvertMulI, ConvertShLI, ConvertShRSI, ConvertShRUI,
       // Bitwise binary ops.
       ConvertBitwiseBinary<arith::AndIOp>, ConvertBitwiseBinary<arith::OrIOp>,
       ConvertBitwiseBinary<arith::XOrIOp>,
