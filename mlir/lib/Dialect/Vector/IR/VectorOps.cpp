@@ -18,11 +18,15 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
+#include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -30,14 +34,22 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/bit.h"
+#include <cassert>
+#include <cstdint>
+#include <functional>
 #include <numeric>
 
 #include "mlir/Dialect/Vector/IR/VectorOpsDialect.cpp.inc"
 // Pull in all enum type and utility function definitions.
 #include "mlir/Dialect/Vector/IR/VectorOpsEnums.cpp.inc"
+#include "mlir/Support/LogicalResult.h"
 
 using namespace mlir;
 using namespace mlir::vector;
@@ -2690,27 +2702,130 @@ public:
 };
 
 // Pattern to rewrite a ExtractStridedSliceOp(splat ConstantOp) -> ConstantOp.
-class StridedSliceConstantFolder final
+class StridedSliceSplatConstantFolder final
     : public OpRewritePattern<ExtractStridedSliceOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(ExtractStridedSliceOp extractStridedSliceOp,
                                 PatternRewriter &rewriter) const override {
-    // Return if 'extractStridedSliceOp' operand is not defined by a
+    // Return if 'ExtractStridedSliceOp' operand is not defined by a splat
     // ConstantOp.
-    auto constantOp =
-        extractStridedSliceOp.getVector().getDefiningOp<arith::ConstantOp>();
-    if (!constantOp)
+    Value sourceVector = extractStridedSliceOp.getVector();
+    Attribute vectorCst;
+    if (!matchPattern(sourceVector, m_Constant(&vectorCst)))
       return failure();
-    auto dense = constantOp.getValue().dyn_cast<SplatElementsAttr>();
-    if (!dense)
+
+    auto splat = vectorCst.dyn_cast<SplatElementsAttr>();
+    if (!splat)
       return failure();
-    auto newAttr = DenseElementsAttr::get(extractStridedSliceOp.getType(),
-                                          dense.getSplatValue<Attribute>());
+
+    auto newAttr = SplatElementsAttr::get(extractStridedSliceOp.getType(),
+                                          splat.getSplatValue<Attribute>());
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(extractStridedSliceOp,
                                                    newAttr);
     return success();
+  }
+};
+
+// Pattern to rewrite a ExtractStridedSliceOp(non-splat ConstantOp) ->
+// ConstantOp.
+class StridedSliceNonSplatConstantFolder final
+    : public OpRewritePattern<ExtractStridedSliceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExtractStridedSliceOp extractStridedSliceOp,
+                                PatternRewriter &rewriter) const override {
+    // Return if 'ExtractStridedSliceOp' operand is not defined by a non-splat
+    // ConstantOp.
+    Value sourceVector = extractStridedSliceOp.getVector();
+    Attribute vectorCst;
+    if (!matchPattern(sourceVector, m_Constant(&vectorCst)))
+      return failure();
+
+    // The splat case is handled by `StridedSliceSplatConstantFolder`.
+    auto dense = vectorCst.dyn_cast<DenseElementsAttr>();
+    if (!dense || dense.isSplat())
+      return failure();
+
+    auto sourceVecTy = sourceVector.getType().cast<VectorType>();
+    ArrayRef<int64_t> sourceShape = sourceVecTy.getShape();
+    int64_t numSourceElements = sourceVecTy.getNumElements();
+    SmallVector<int64_t, 4> sourceStrides = computeStrides(
+        sourceShape, llvm::SmallVector<int64_t>(numSourceElements, 1));
+
+    VectorType sliceVecTy = extractStridedSliceOp.getType();
+    int64_t sliceRank = sliceVecTy.getRank();
+
+    // TODO: Handle non-unit strides when they become available.
+    if (extractStridedSliceOp.hasNonUnitStrides())
+      return failure();
+
+    // Expand offsets and sizes to match the vector rank.
+    SmallVector<int64_t, 4> offsets(sliceRank, 0);
+    llvm::copy(getI64SubArray(extractStridedSliceOp.getOffsets()),
+               offsets.begin());
+
+    SmallVector<int64_t, 4> sizes(sourceShape.begin(), sourceShape.end());
+    llvm::copy(getI64SubArray(extractStridedSliceOp.getSizes()), sizes.begin());
+
+    // Bound the search for sub-shape slice values to the first and last
+    // linearized element index.
+    int64_t beginLinearIdx = calculateBeginLinearIdx(sourceStrides, offsets);
+    int64_t endLinearIdx = calculateEndLinearIdx(sourceStrides, offsets, sizes);
+
+    assert((endLinearIdx - beginLinearIdx) >= sliceVecTy.getNumElements() &&
+           "Invalid slice index linearization");
+
+    SmallVector<Attribute> allValues(
+        dense.value_begin<Attribute>() + beginLinearIdx,
+        dense.value_begin<Attribute>() + endLinearIdx);
+    llvm::SmallVector<Attribute> sliceValues;
+    sliceValues.reserve(sliceVecTy.getNumElements());
+
+    // Collect elements within the extracted slice.
+    for (auto [idx, elementValue] :
+         llvm::zip(llvm::seq(beginLinearIdx, endLinearIdx), allValues))
+      if (isInSlice(delinearize(sourceStrides, idx), offsets, sizes))
+        sliceValues.push_back(elementValue);
+
+    auto newAttr = DenseElementsAttr::get(sliceVecTy, sliceValues);
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(extractStridedSliceOp,
+                                                   newAttr);
+    return success();
+  }
+
+private:
+  // Returns true iff the point `elementPosition` is within the shape slice
+  // defined by `offsets` and `sizes`.
+  static bool isInSlice(ArrayRef<int64_t> elementPosition,
+                        ArrayRef<int64_t> offsets, ArrayRef<int64_t> sizes) {
+    return llvm::all_of(
+        llvm::zip(elementPosition, offsets, sizes), [](auto posOffsetSize) {
+          auto [posInDim, offset, size] = posOffsetSize;
+          return (posInDim >= offset) && (posInDim < offset + size);
+        });
+  }
+
+  // Returns the first index of the slice defined by `offsets` in linear space
+  // defined by `strides`.
+  static int64_t calculateBeginLinearIdx(ArrayRef<int64_t> strides,
+                                         ArrayRef<int64_t> offsets) {
+    return linearize(offsets, strides);
+  }
+
+  // Returns the end index of the slice defined by `offsets` and `sizes` in
+  // linear space defined by `strides`.
+  static int64_t calculateEndLinearIdx(ArrayRef<int64_t> strides,
+                                       ArrayRef<int64_t> offsets,
+                                       ArrayRef<int64_t> sizes) {
+    auto lastOffsets = llvm::to_vector_of<int64_t>(
+        llvm::map_range(llvm::zip(offsets, sizes), [](auto offsetSizePair) {
+          auto [offset, size] = offsetSizePair;
+          return offset + size - 1;
+        }));
+    return linearize(lastOffsets, strides) + 1;
   }
 };
 
@@ -2780,8 +2895,9 @@ void ExtractStridedSliceOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
   // Pattern to rewrite a ExtractStridedSliceOp(ConstantMaskOp) ->
   // ConstantMaskOp and ExtractStridedSliceOp(ConstantOp) -> ConstantOp.
-  results.add<StridedSliceConstantMaskFolder, StridedSliceConstantFolder,
-              StridedSliceBroadcast, StridedSliceSplat>(context);
+  results.add<StridedSliceConstantMaskFolder, StridedSliceSplatConstantFolder,
+              StridedSliceNonSplatConstantFolder, StridedSliceBroadcast,
+              StridedSliceSplat>(context);
 }
 
 //===----------------------------------------------------------------------===//
