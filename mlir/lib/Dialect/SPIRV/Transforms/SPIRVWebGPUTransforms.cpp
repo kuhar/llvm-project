@@ -17,7 +17,10 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/raw_ostream.h"
+#include <cstdint>
 
 namespace mlir {
 namespace spirv {
@@ -43,6 +46,82 @@ Attribute getScalarOrSplatAttr(Type type, int64_t value) {
 //===----------------------------------------------------------------------===//
 // Rewrite Patterns
 //===----------------------------------------------------------------------===//
+struct ExpandSMulExtendedPattern final : OpRewritePattern<SMulExtendedOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SMulExtendedOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value lhs = op.getOperand1();
+    Value rhs = op.getOperand2();
+    Type argTy = lhs.getType();
+
+    // Currently, WGSL only supports 32-bit integer types. Any other integer
+    // types should already have been promoted/demoted to i32.
+    auto elemTy = getElementTypeOrSelf(argTy).cast<IntegerType>();
+    if (elemTy.getIntOrFloatBitWidth() != 32)
+      return rewriter.notifyMatchFailure(
+          loc,
+          llvm::formatv("Unexpected integer type for WebGPU: '{0}'", elemTy));
+
+    // Calculate the 'low' and the 'high' result separately. Use UMulExtended
+    // expansion so that we only have to worry about multiplication with
+    // sign-extended bits.
+    //
+    // lhs = [s0   s0]  [a   b]
+    // rhs = [s1   s1]  [c   d]
+    // --lhs * rhs--
+    // =     [0   0][a  b] * [0   0][c   d] +
+    //       [s0 s0][0  0] * [0   0][c   d] +
+    //       [0   0][a  b] * [s1 s1][c   d]
+    //
+    // ==> high = UMulExtended(lhs, rhs).high +          ; high0 +
+    //            (s0 * d) + (s1 * b) +                  ; high1 + high2 +
+    //           ((s0 * c) + (s1 * a)) >> 16             ; high3
+    Value cst16 = rewriter.create<ConstantOp>(loc, argTy,
+                                              getScalarOrSplatAttr(argTy, 16));
+    Value cst31 = rewriter.create<ConstantOp>(loc, argTy,
+                                              getScalarOrSplatAttr(argTy, 31));
+    Value cstLowMask = rewriter.create<ConstantOp>(
+        loc, argTy, getScalarOrSplatAttr(argTy, (1 << 16) - 1));
+    auto getLowHalf = [&rewriter, loc, cstLowMask](Value val) {
+      return rewriter.create<BitwiseAndOp>(loc, val, cstLowMask);
+    };
+    auto getHighHalf = [&rewriter, loc, cst16](Value val) {
+      return rewriter.create<ShiftRightLogicalOp>(loc, val, cst16);
+    };
+    Value lhsLow = getLowHalf(lhs);
+    Value lhsHigh = getHighHalf(lhs);
+    Value rhsLow = getLowHalf(rhs);
+    Value rhsHigh = getHighHalf(rhs);
+
+    // This extended multiplication will be expanded by another pattern.
+    Value umul = rewriter.create<UMulExtendedOp>(loc, lhs, rhs);
+    Value low =
+        rewriter.create<CompositeExtractOp>(loc, umul, llvm::makeArrayRef(0));
+    Value high0 =
+        rewriter.create<CompositeExtractOp>(loc, umul, llvm::makeArrayRef(1));
+
+    // The sign extensions of op arguments.
+    Value lhsSign = rewriter.create<ShiftRightArithmeticOp>(loc, lhs, cst31);
+    Value rhsSign = rewriter.create<ShiftRightArithmeticOp>(loc, rhs, cst31);
+
+    Value high1 = rewriter.create<IMulOp>(loc, lhsSign, rhsLow);
+    Value high2 = rewriter.create<IMulOp>(loc, rhsSign, lhsLow);
+
+    Value tmp0 = rewriter.create<IMulOp>(loc, lhsSign, rhsHigh);
+    Value tmp1 = rewriter.create<IMulOp>(loc, rhsSign, lhsHigh);
+    Value high3 = getHighHalf(rewriter.create<IAddOp>(loc, tmp0, tmp1));
+
+    Value high =
+        rewriter.create<IAddOp>(loc, rewriter.create<IAddOp>(loc, high0, high1),
+                                rewriter.create<IAddOp>(loc, high2, high3));
+    rewriter.replaceOpWithNewOp<CompositeConstructOp>(
+        op, op.getType(), llvm::makeArrayRef({low, high}));
+    return success();
+  }
+};
+
 struct ExpandUMulExtendedPattern final : OpRewritePattern<UMulExtendedOp> {
   using OpRewritePattern::OpRewritePattern;
 
@@ -74,12 +153,12 @@ struct ExpandUMulExtendedPattern final : OpRewritePattern<UMulExtendedOp> {
     Value low = rewriter.create<IMulOp>(loc, lhs, rhs);
 
     Value cstLowMask = rewriter.create<ConstantOp>(
-        loc, lhs.getType(), getScalarOrSplatAttr(argTy, (1 << 16) - 1));
+        loc, argTy, getScalarOrSplatAttr(argTy, (1 << 16) - 1));
     auto getLowHalf = [&rewriter, loc, cstLowMask](Value val) {
       return rewriter.create<BitwiseAndOp>(loc, val, cstLowMask);
     };
 
-    Value cst16 = rewriter.create<ConstantOp>(loc, lhs.getType(),
+    Value cst16 = rewriter.create<ConstantOp>(loc, argTy,
                                               getScalarOrSplatAttr(argTy, 16));
     auto getHighHalf = [&rewriter, loc, cst16](Value val) {
       return rewriter.create<ShiftRightLogicalOp>(loc, val, cst16);
@@ -110,6 +189,7 @@ class WebGPUPreparePass
     : public impl::SPIRVWebGPUPreparePassBase<WebGPUPreparePass> {
 public:
   void runOnOperation() override {
+    llvm::errs() << __PRETTY_FUNCTION__ << "\n";
     RewritePatternSet patterns(&getContext());
     populateSPIRVExpandExtendedMultiplicationPatterns(patterns);
 
@@ -127,9 +207,8 @@ void populateSPIRVExpandExtendedMultiplicationPatterns(
     RewritePatternSet &patterns) {
   // WGSL currently does not support extended multiplication ops, see:
   // https://github.com/gpuweb/gpuweb/issues/1565.
-  // TODO(https://github.com/llvm/llvm-project/issues/59563): Add SMulExtended
-  // expansion.
-  patterns.add<ExpandUMulExtendedPattern>(patterns.getContext());
+  patterns.add<ExpandSMulExtendedPattern, ExpandUMulExtendedPattern>(
+      patterns.getContext());
 }
 } // namespace spirv
 } // namespace mlir
