@@ -2189,113 +2189,209 @@ template <typename T> struct deref {
 
 namespace detail {
 
-template <typename R> class enumerator_iter;
+/// Infinite stream of increasing 0-based `size_t` indices.
+struct index_stream {
+  struct iterator : iterator_facade_base<iterator, std::forward_iterator_tag,
+                                         const iterator> {
+    std::size_t operator*() const { return Index; }
+    iterator &operator++() {
+      ++Index;
+      return *this;
+    }
 
-template <typename R> struct result_pair {
-  using value_reference =
-      typename std::iterator_traits<IterOfRange<R>>::reference;
+    bool operator==(const iterator &Other) const {
+      return Index == Other.Index;
+    }
 
-  friend class enumerator_iter<R>;
+    std::size_t Index = 0;
+  };
 
-  result_pair(std::size_t Index, IterOfRange<R> Iter)
-      : Index(Index), Iter(Iter) {}
-
-  std::size_t index() const { return Index; }
-  value_reference value() const { return *Iter; }
-
-private:
-  std::size_t Index = std::numeric_limits<std::size_t>::max();
-  IterOfRange<R> Iter;
+  iterator begin() const { return {}; }
+  iterator end() const {
+    // We approximate 'infinity' with the max size_t value, which should be good
+    // enough to index over any container.
+    iterator It;
+    It.Index = std::numeric_limits<std::size_t>::max();
+    return It;
+  }
 };
 
-template <std::size_t i, typename R>
-decltype(auto) get(const result_pair<R> &Pair) {
-  static_assert(i < 2);
-  if constexpr (i == 0) {
-    return Pair.index();
-  } else {
-    return Pair.value();
+// Zippy iterator that uses the second iterator for comparisons. For the
+// increment to be safe, the second range has to be the shortest.
+template <typename... Iters>
+struct zip_second : public zip_common<zip_second<Iters...>, Iters...> {
+  static_assert(sizeof...(Iters) >= 2, "Expected at least two iteratees");
+  using Base = zip_common<zip_second<Iters...>, Iters...>;
+
+  bool operator==(const zip_second &Other) const {
+    return std::get<1>(this->iterators) == std::get<1>(Other.iterators);
   }
-}
 
-template <typename R>
+  zip_second(Iters &&...It) : Base(std::forward<Iters>(It)...) {}
+};
+
+template <typename... Ranges> struct enumerator_result {
+  static constexpr std::size_t NumRanges = sizeof...(Ranges);
+  static_assert(NumRanges != 0);
+  // `NumValues` includes the index stream.
+  static constexpr std::size_t NumValues = NumRanges + 1;
+
+  // We use `zippy` to handle the underlying iterators. Because index is the
+  // first one, we use the second range to determine when to finish iteration.
+  using range = zippy<zip_second, index_stream, Ranges...>;
+  using iterator = typename range::iterator;
+
+  // Tuple type whose element types are references for each `Range`.
+  using range_reference_tuple =
+      typename ZipTupleType<IterOfRange<Ranges>...>::type;
+  // Tuple type who elements are references to all values, including both
+  // the index and `Range` reference types.
+  using value_reference_tuple =
+      typename ZipTupleType<index_stream::iterator,
+                            IterOfRange<Ranges>...>::type;
+
+  template <typename... R> friend class enumerator_iter;
+
+  enumerator_result(iterator Iter) : Iter(Iter) {}
+
+  /// Returns the 0-based index of the current position within the original
+  /// input `Range`(s).
+  std::size_t index() const {
+    // Index is always the first iteratee.
+    return std::get<0>(*Iter);
+  }
+
+  /// Returns the value(s) for the current iterator. This does not include the
+  /// index.
+  decltype(auto) value() const {
+    if constexpr (NumRanges == 1) {
+      using value_result = std::tuple_element_t<0, range_reference_tuple>;
+      return value_result(std::get<1>(*Iter));
+    } else {
+      return get_values(std::index_sequence_for<Ranges...>{});
+    }
+  }
+
+  /// Returns the value at index `I`. This includes the index.
+  template <std::size_t I>
+  friend decltype(auto) get(const enumerator_result &Result) {
+    static_assert(I < NumValues, "Index out of bounds");
+    return std::tuple_element_t<I, value_reference_tuple>(
+        std::get<I>(*Result.Iter));
+  }
+
+  template <typename... Ts>
+  friend bool operator==(const enumerator_result &Result,
+                         const std::tuple<std::size_t, Ts...> &Other) {
+    static_assert(NumRanges == sizeof...(Ts), "Size mismatch");
+    return Result.is_value_equal(Other, std::make_index_sequence<NumValues>{});
+  }
+
+private:
+  template <std::size_t... Idx>
+  range_reference_tuple get_values(std::index_sequence<Idx...>) const {
+    return {std::tuple_element_t<Idx, range_reference_tuple>(
+        std::get<Idx + 1>(*Iter))...};
+  }
+
+  template <typename Tuple, std::size_t... Idx>
+  bool is_value_equal(const Tuple &Other, std::index_sequence<Idx...>) const {
+    return ((std::get<Idx>(*Iter) == std::get<Idx>(Other)) && ...);
+  }
+
+  iterator Iter;
+};
+
+template <typename... Ranges>
 class enumerator_iter
-    : public iterator_facade_base<enumerator_iter<R>, std::forward_iterator_tag,
-                                  const result_pair<R>> {
-  using result_type = result_pair<R>;
-
+    : public iterator_facade_base<enumerator_iter<Ranges...>,
+                                  std::forward_iterator_tag,
+                                  const enumerator_result<Ranges...>> {
 public:
-  explicit enumerator_iter(IterOfRange<R> EndIter)
-      : Result(std::numeric_limits<size_t>::max(), EndIter) {}
+  using result_type = enumerator_result<Ranges...>;
+  using result_range = typename result_type::range;
+  using result_iter = typename result_type::iterator;
 
-  enumerator_iter(std::size_t Index, IterOfRange<R> Iter)
-      : Result(Index, Iter) {}
+  explicit enumerator_iter(result_iter Iter) : Result(Iter) {}
 
   const result_type &operator*() const { return Result; }
 
   enumerator_iter &operator++() {
-    assert(Result.Index != std::numeric_limits<size_t>::max());
     ++Result.Iter;
-    ++Result.Index;
     return *this;
   }
 
-  bool operator==(const enumerator_iter &RHS) const {
-    // Don't compare indices here, only iterators.  It's possible for an end
-    // iterator to have different indices depending on whether it was created
-    // by calling std::end() versus incrementing a valid iterator.
-    return Result.Iter == RHS.Result.Iter;
+  bool operator==(const enumerator_iter &Rhs) const {
+    return Result.Iter == Rhs.Result.Iter;
   }
 
 private:
   result_type Result;
 };
 
-template <typename R> class enumerator {
+template <typename... Ranges> class enumerator {
 public:
-  explicit enumerator(R &&Range) : TheRange(std::forward<R>(Range)) {}
+  explicit enumerator(Ranges &&...Range)
+      : TheRange(index_stream{}, std::forward<Ranges>(Range)...) {}
+  using iterator = enumerator_iter<Ranges...>;
 
-  enumerator_iter<R> begin() {
-    return enumerator_iter<R>(0, adl_begin(TheRange));
-  }
-  enumerator_iter<R> begin() const {
-    return enumerator_iter<R>(0, adl_begin(TheRange));
-  }
+  iterator begin() { return iterator{adl_begin(TheRange)}; }
+  iterator begin() const { return iterator{adl_begin(TheRange)}; }
 
-  enumerator_iter<R> end() { return enumerator_iter<R>(adl_end(TheRange)); }
-  enumerator_iter<R> end() const {
-    return enumerator_iter<R>(adl_end(TheRange));
-  }
+  iterator end() { return iterator{adl_end(TheRange)}; }
+  iterator end() const { return iterator{adl_end(TheRange)}; }
 
 private:
-  R TheRange;
+  using range = typename enumerator_iter<Ranges...>::result_range;
+  range TheRange;
 };
 
 } // end namespace detail
 
-/// Given an input range, returns a new range whose values are are pair (A,B)
-/// such that A is the 0-based index of the item in the sequence, and B is
-/// the value from the original sequence.  Example:
+/// Given two or more input ranges, returns a new range whose values are are
+/// tuples (A, B, C, ...), such that A is the 0-based index of the item in the
+/// sequence, and B, C, ..., are the values from the original input ranges. All
+/// input ranges are required to have equal lengths. Note that the returned
+/// iterator allows for the values (B, C, ...) to be modified.  Example:
 ///
-/// std::vector<char> Items = {'A', 'B', 'C', 'D'};
-/// for (auto X : enumerate(Items)) {
-///   printf("Item %zu - %c\n", X.index(), X.value());
+/// ```c++
+/// std::vector<char> Letters = {'A', 'B', 'C', 'D'};
+/// std::vector<int> Vals = {10, 11, 12, 13};
+///
+/// for (auto [Index, Letter, Value] : enumerate(Letters, Vals)) {
+///   printf("Item %zu - %c: %d\n", Index, Letter, Value);
+///   Value -= 10;
 /// }
-///
-/// or using structured bindings:
-///
-/// for (auto [Index, Value] : enumerate(Items)) {
-///   printf("Item %zu - %c\n", Index, Value);
-/// }
+/// ```
 ///
 /// Output:
-///   Item 0 - A
-///   Item 1 - B
-///   Item 2 - C
-///   Item 3 - D
+///   Item 0 - A: 10
+///   Item 1 - B: 11
+///   Item 2 - C: 12
+///   Item 3 - D: 13
 ///
-template <typename R> detail::enumerator<R> enumerate(R &&TheRange) {
-  return detail::enumerator<R>(std::forward<R>(TheRange));
+/// or using an iterator:
+/// ```c++
+/// for (auto it : enumerate(Vals)) {
+///   it.value() += 10;
+///   printf("Item %zu: %d\n", it.index(), it.value());
+/// }
+/// ```
+///
+/// Output:
+///   Item 0: 20
+///   Item 1: 21
+///   Item 2: 22
+///   Item 3: 23
+///
+template <typename FirstRange, typename... RestRanges>
+auto enumerate(FirstRange &&First, RestRanges &&...Rest) {
+  assert((sizeof...(Rest) == 0 ||
+          all_equal({std::distance(adl_begin(First), adl_end(First)),
+                     std::distance(adl_begin(Rest), adl_end(Rest))...})) &&
+         "Ranges have different length");
+  return detail::enumerator<FirstRange, RestRanges...>(
+      std::forward<FirstRange>(First), std::forward<RestRanges>(Rest)...);
 }
 
 namespace detail {
@@ -2427,15 +2523,14 @@ template <class T> constexpr T *to_address(T *P) { return P; }
 } // end namespace llvm
 
 namespace std {
-template <typename R>
-struct tuple_size<llvm::detail::result_pair<R>>
-    : std::integral_constant<std::size_t, 2> {};
+template <typename... Ranges>
+struct tuple_size<llvm::detail::enumerator_result<Ranges...>>
+    : std::integral_constant<std::size_t, sizeof...(Ranges) + 1> {};
 
-template <std::size_t i, typename R>
-struct tuple_element<i, llvm::detail::result_pair<R>>
-    : std::conditional<i == 0, std::size_t,
-                       typename llvm::detail::result_pair<R>::value_reference> {
-};
+template <std::size_t I, typename... Ranges>
+struct tuple_element<I, llvm::detail::enumerator_result<Ranges...>>
+    : std::tuple_element<I, typename llvm::detail::enumerator_result<
+                                Ranges...>::value_reference_tuple> {};
 
 } // namespace std
 
