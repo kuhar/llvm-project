@@ -110,6 +110,7 @@ TEST(STLExtrasTest, EnumerateRValueRef) {
   std::vector<PairType> Results;
 
   auto Enumerator = llvm::enumerate(std::vector<int>{1, 2, 3});
+  (void) Enumerator;
 
   for (auto X : llvm::enumerate(std::vector<int>{1, 2, 3})) {
     Results.emplace_back(X.index(), X.value());
@@ -135,6 +136,11 @@ TEST(STLExtrasTest, EnumerateModifyRValue) {
   // extra const in there somewhere.
   typedef std::pair<std::size_t, char> PairType;
   std::vector<PairType> Results;
+
+  using zippy = detail::zippy<detail::zip_second, std::vector<char>, std::vector<bool>>;
+  using vt = zippy::value_type;
+  using it = zippy::iterator;
+  using iit = decltype(adl_begin(std::declval<std::vector<char>>()));
 
   for (auto X : llvm::enumerate(std::vector<char>{'1', '2', '3'})) {
     ++X.value();

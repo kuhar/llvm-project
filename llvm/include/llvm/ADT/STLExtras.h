@@ -443,7 +443,7 @@ inline mapped_iterator<ItTy, FuncTy> map_iterator(ItTy I, FuncTy F) {
 
 template <class ContainerTy, class FuncTy>
 auto map_range(ContainerTy &&C, FuncTy F) {
-  return make_range(map_iterator(C.begin(), F), map_iterator(C.end(), F));
+  return make_range(map_iterator(adl_begin(C), F), map_iterator(adl_end(C), F));
 }
 
 /// A base type of mapped iterator, that is useful for building derived
@@ -2230,45 +2230,37 @@ struct zip_second : public zip_common<zip_second<Iters...>, Iters...> {
   zip_second(Iters &&...It) : Base(std::forward<Iters>(It)...) {}
 };
 
-template <typename... Ranges> struct enumerator_result {
-  static constexpr std::size_t NumRanges = sizeof...(Ranges);
+
+template <typename TupleType>
+struct enumerator_result;
+
+template <typename... Refs>
+struct enumerator_result<std::tuple<std::size_t, Refs...>> {
+  static constexpr std::size_t NumRanges = sizeof...(Refs);
   static_assert(NumRanges != 0);
   // `NumValues` includes the index stream.
   static constexpr std::size_t NumValues = NumRanges + 1;
 
-  // We use `zippy` to handle the underlying iterators. Because index is the
-  // first one, we use the second range to determine when to finish iteration.
-  using range = zippy<zip_second, index_stream, Ranges...>;
-  using iterator = typename range::iterator;
+  using value_reference_tuple = std::tuple<std::size_t, Refs...>;
 
-  // Tuple type whose element types are references for each `Range`.
-  using range_reference_tuple =
-      typename ZipTupleType<IterOfRange<Ranges>...>::type;
-  // Tuple type who elements are references to all values, including both
-  // the index and `Range` reference types.
-  using value_reference_tuple =
-      typename ZipTupleType<index_stream::iterator,
-                            IterOfRange<Ranges>...>::type;
-
-  template <typename... R> friend class enumerator_iter;
-
-  enumerator_result(iterator Iter) : Iter(Iter) {}
+  enumerator_result(value_reference_tuple Ref) : Ref(std::move(Ref)) {}
 
   /// Returns the 0-based index of the current position within the original
   /// input `Range`(s).
   std::size_t index() const {
     // Index is always the first iteratee.
-    return std::get<0>(*Iter);
+    return std::get<0>(Ref);
   }
 
   /// Returns the value(s) for the current iterator. This does not include the
   /// index.
   decltype(auto) value() const {
     if constexpr (NumRanges == 1) {
-      using value_result = std::tuple_element_t<0, range_reference_tuple>;
-      return value_result(std::get<1>(*Iter));
+      using value_result = std::tuple_element_t<1, value_reference_tuple>;
+      return value_result(std::get<1>(Ref));
     } else {
-      return get_values(std::index_sequence_for<Ranges...>{});
+      // This is only supported when there is exactly one range.
+      return;
     }
   }
 
@@ -2277,74 +2269,24 @@ template <typename... Ranges> struct enumerator_result {
   friend decltype(auto) get(const enumerator_result &Result) {
     static_assert(I < NumValues, "Index out of bounds");
     return std::tuple_element_t<I, value_reference_tuple>(
-        std::get<I>(*Result.Iter));
+        std::get<I>(Result.Ref));
   }
 
   template <typename... Ts>
   friend bool operator==(const enumerator_result &Result,
                          const std::tuple<std::size_t, Ts...> &Other) {
     static_assert(NumRanges == sizeof...(Ts), "Size mismatch");
-    return Result.is_value_equal(Other, std::make_index_sequence<NumValues>{});
+    return Result.Ref == Other;
   }
 
 private:
-  template <std::size_t... Idx>
-  range_reference_tuple get_values(std::index_sequence<Idx...>) const {
-    return {std::tuple_element_t<Idx, range_reference_tuple>(
-        std::get<Idx + 1>(*Iter))...};
-  }
-
-  template <typename Tuple, std::size_t... Idx>
-  bool is_value_equal(const Tuple &Other, std::index_sequence<Idx...>) const {
-    return ((std::get<Idx>(*Iter) == std::get<Idx>(Other)) && ...);
-  }
-
-  iterator Iter;
+  value_reference_tuple Ref;
 };
 
-template <typename... Ranges>
-class enumerator_iter
-    : public iterator_facade_base<enumerator_iter<Ranges...>,
-                                  std::forward_iterator_tag,
-                                  const enumerator_result<Ranges...>> {
-public:
-  using result_type = enumerator_result<Ranges...>;
-  using result_range = typename result_type::range;
-  using result_iter = typename result_type::iterator;
-
-  explicit enumerator_iter(result_iter Iter) : Result(Iter) {}
-
-  const result_type &operator*() const { return Result; }
-
-  enumerator_iter &operator++() {
-    ++Result.Iter;
-    return *this;
-  }
-
-  bool operator==(const enumerator_iter &Rhs) const {
-    return Result.Iter == Rhs.Result.Iter;
-  }
-
-private:
-  result_type Result;
-};
-
-template <typename... Ranges> class enumerator {
-public:
-  explicit enumerator(Ranges &&...Range)
-      : TheRange(index_stream{}, std::forward<Ranges>(Range)...) {}
-  using iterator = enumerator_iter<Ranges...>;
-
-  iterator begin() { return iterator{adl_begin(TheRange)}; }
-  iterator begin() const { return iterator{adl_begin(TheRange)}; }
-
-  iterator end() { return iterator{adl_end(TheRange)}; }
-  iterator end() const { return iterator{adl_end(TheRange)}; }
-
-private:
-  using range = typename enumerator_iter<Ranges...>::result_range;
-  range TheRange;
-};
+template <typename TupleType>
+enumerator_result<TupleType> to_enumerator_result(TupleType &&Tuple) {
+  return {std::forward<TupleType>(Tuple)};
+}
 
 } // end namespace detail
 
@@ -2390,8 +2332,11 @@ auto enumerate(FirstRange &&First, RestRanges &&...Rest) {
           all_equal({std::distance(adl_begin(First), adl_end(First)),
                      std::distance(adl_begin(Rest), adl_end(Rest))...})) &&
          "Ranges have different length");
-  return detail::enumerator<FirstRange, RestRanges...>(
-      std::forward<FirstRange>(First), std::forward<RestRanges>(Rest)...);
+  using zip = detail::zippy<detail::zip_second, detail::index_stream,
+                            FirstRange, RestRanges...>;
+  return map_range(zip(detail::index_stream{}, std::forward<FirstRange>(First),
+                       std::forward<RestRanges>(Rest)...),
+                   detail::to_enumerator_result<typename zip::value_type>);
 }
 
 namespace detail {

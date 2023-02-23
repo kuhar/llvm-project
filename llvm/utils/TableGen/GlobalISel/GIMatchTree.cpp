@@ -89,18 +89,18 @@ GIMatchTreeBuilderLeafInfo::GIMatchTreeBuilderLeafInfo(
       TraversableEdges(MatchDag.getNumEdges()),
       TestablePredicates(MatchDag.getNumPredicates()) {
   // Number all the predicates in this DAG
-  for (auto &P : enumerate(MatchDag.predicates())) {
+  for (auto &&P : enumerate(MatchDag.predicates())) {
     PredicateIDs.insert(std::make_pair(P.value(), P.index()));
   }
 
   // Number all the predicate dependencies in this DAG and set up a bitvector
   // for each predicate indicating the unsatisfied dependencies.
-  for (auto &Dep : enumerate(MatchDag.predicate_edges())) {
+  for (auto &&Dep : enumerate(MatchDag.predicate_edges())) {
     PredicateDepIDs.insert(std::make_pair(Dep.value(), Dep.index()));
   }
   UnsatisfiedPredDepsForPred.resize(MatchDag.getNumPredicates(),
                                     BitVector(PredicateDepIDs.size()));
-  for (auto &Dep : enumerate(MatchDag.predicate_edges())) {
+  for (auto &&Dep : enumerate(MatchDag.predicate_edges())) {
     unsigned ID = PredicateIDs.lookup(Dep.value()->getPredicate());
     UnsatisfiedPredDepsForPred[ID].set(Dep.index());
   }
@@ -134,10 +134,10 @@ void GIMatchTreeBuilderLeafInfo::declareInstr(const GIMatchDagInstr *Instr, unsi
   // Mark the dependencies that are now satisfied as a result of this
   // instruction and mark any predicates whose dependencies are fully
   // satisfied.
-  for (auto &Dep : enumerate(MatchDag.predicate_edges())) {
+  for (auto &&Dep : enumerate(MatchDag.predicate_edges())) {
     if (Dep.value()->getRequiredMI() == Instr &&
         Dep.value()->getRequiredMO() == nullptr) {
-      for (auto &DepsFor : enumerate(UnsatisfiedPredDepsForPred)) {
+      for (auto &&DepsFor : enumerate(UnsatisfiedPredDepsForPred)) {
         DepsFor.value().reset(Dep.index());
         if (DepsFor.value().none())
           TestablePredicates.set(DepsFor.index());
@@ -157,7 +157,7 @@ void GIMatchTreeBuilderLeafInfo::declareOperand(unsigned InstrID,
   // When an operand becomes reachable, we potentially activate some traversals.
   // Record the edges that can now be followed as a result of this
   // instruction.
-  for (auto &E : enumerate(MatchDag.edges())) {
+  for (auto &&E : enumerate(MatchDag.edges())) {
     if (E.value()->getFromMI() == Instr &&
         E.value()->getFromMO()->getIdx() == OpIdx) {
       TraversableEdges.set(E.index());
@@ -168,10 +168,10 @@ void GIMatchTreeBuilderLeafInfo::declareOperand(unsigned InstrID,
   // Clear the dependencies that are now satisfied as a result of this
   // operand and activate any predicates whose dependencies are fully
   // satisfied.
-  for (auto &Dep : enumerate(MatchDag.predicate_edges())) {
+  for (auto &&Dep : enumerate(MatchDag.predicate_edges())) {
     if (Dep.value()->getRequiredMI() == Instr && Dep.value()->getRequiredMO() &&
         Dep.value()->getRequiredMO()->getIdx() == OpIdx) {
-      for (auto &DepsFor : enumerate(UnsatisfiedPredDepsForPred)) {
+      for (auto &&DepsFor : enumerate(UnsatisfiedPredDepsForPred)) {
         DepsFor.value().reset(Dep.index());
         if (DepsFor.value().none())
           TestablePredicates.set(DepsFor.index());
@@ -339,7 +339,7 @@ void GIMatchTreeBuilder::runStep() {
          "Must always partition into at least one partition");
 
   TreeNode->setNumChildren(Partitioner->getNumPartitions());
-  for (auto &C : enumerate(TreeNode->children())) {
+  for (auto &&C : enumerate(TreeNode->children())) {
     SubtreeBuilders.emplace_back(&C.value(), NextInstrID);
     Partitioner->applyForPartition(C.index(), *this, SubtreeBuilders.back());
   }
@@ -536,7 +536,7 @@ void GIMatchTreeOpcodePartitioner::applyForPartition(
 
   BitVector PossibleLeaves = getPossibleLeavesForPartition(PartitionIdx);
   // Consume any predicates we handled.
-  for (auto &EnumeratedLeaf : enumerate(Builder.getPossibleLeaves())) {
+  for (auto &&EnumeratedLeaf : enumerate(Builder.getPossibleLeaves())) {
     if (!PossibleLeaves[EnumeratedLeaf.index()])
       continue;
 
@@ -571,7 +571,7 @@ void GIMatchTreeOpcodePartitioner::applyForPartition(
     if (!InstrInfo)
       continue;
     const GIMatchDagInstr *Instr = InstrInfo->getInstrNode();
-    for (auto &E : enumerate(Leaf.getMatchDag().edges())) {
+    for (auto &&E : enumerate(Leaf.getMatchDag().edges())) {
       if (E.value()->getFromMI() == Instr &&
           E.value()->getFromMO()->getIdx() < CGI->Operands.size()) {
         ReferencedOperands.resize(E.value()->getFromMO()->getIdx() + 1);
@@ -715,7 +715,7 @@ void GIMatchTreeVRegDefPartitioner::applyForPartition(
 
   std::vector<BitVector> TraversedEdgesByNewLeaves;
   // Consume any edges we handled.
-  for (auto &EnumeratedLeaf : enumerate(Builder.getPossibleLeaves())) {
+  for (auto &&EnumeratedLeaf : enumerate(Builder.getPossibleLeaves())) {
     if (!PossibleLeaves[EnumeratedLeaf.index()])
       continue;
 
