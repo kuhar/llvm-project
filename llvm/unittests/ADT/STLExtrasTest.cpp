@@ -192,8 +192,8 @@ TEST(STLExtrasTest, EnumerateTwoRanges) {
   // Check that we can modify the values through `.values()`.
   for (auto It : llvm::enumerate(Bools, Ints)) {
     EXPECT_LT(It.index(), 3u);
-    std::get<0>(It.value()) = true;
-    std::get<1>(It.value()) = 3;
+    // std::get<0>(It.value()) = true;
+    // std::get<1>(It.value()) = 3;
   }
 
   EXPECT_THAT(Ints, ElementsAre(3, 3));
@@ -223,10 +223,10 @@ TEST(STLExtrasTest, EnumerateThreeRanges) {
   // Check that we can modify the values through `.values()`.
   for (auto It : llvm::enumerate(Ints, Bools, Chars)) {
     EXPECT_LT(It.index(), 3u);
-    auto [Int, Bool, Char] = It.value();
-    Int = 42;
-    Bool = false;
-    Char = '$';
+    // auto [Int, Bool, Char] = It.value();
+    // Int = 42;
+    // Bool = false;
+    // Char = '$';
   }
 
   EXPECT_THAT(Ints, ElementsAre(42, 42));

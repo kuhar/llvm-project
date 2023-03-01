@@ -2231,11 +2231,11 @@ struct zip_second : public zip_common<zip_second<Iters...>, Iters...> {
 };
 
 
-template <typename TupleType>
+template <typename... >
 struct enumerator_result;
 
 template <typename... Refs>
-struct enumerator_result<std::tuple<std::size_t, Refs...>> {
+struct enumerator_result<std::size_t, Refs...> {
   static constexpr std::size_t NumRanges = sizeof...(Refs);
   static_assert(NumRanges != 0);
   // `NumValues` includes the index stream.
@@ -2243,7 +2243,7 @@ struct enumerator_result<std::tuple<std::size_t, Refs...>> {
 
   using value_reference_tuple = std::tuple<std::size_t, Refs...>;
 
-  enumerator_result(value_reference_tuple Ref) : Ref(std::move(Ref)) {}
+  enumerator_result(value_reference_tuple&& Ref) : Ref(std::move(Ref)) {}
 
   /// Returns the 0-based index of the current position within the original
   /// input `Range`(s).
@@ -2283,10 +2283,27 @@ private:
   value_reference_tuple Ref;
 };
 
-template <typename TupleType>
-enumerator_result<TupleType> to_enumerator_result(TupleType &&Tuple) {
-  return {std::forward<TupleType>(Tuple)};
-}
+template <typename... Refs >
+enumerator_result(std::tuple<Refs...> &&) -> enumerator_result<Refs...>;
+
+template <typename R, typename Fn> class mapper {
+public:
+  mapper(R &&Range, Fn &&Function)
+      : TheRange(std::forward<R>(Range)),
+        TheFunction(std::forward<Fn>(Function)) {}
+
+  auto begin() { return map_iterator(adl_begin(TheRange), TheFunction); }
+  auto begin() const { return map_iterator(adl_begin(TheRange), TheFunction); }
+
+  auto end() { return map_iterator(adl_end(TheRange), TheFunction); }
+  auto end() const { return map_iterator(adl_end(TheRange), TheFunction); }
+
+private:
+  R TheRange;
+  Fn TheFunction;
+};
+
+template <typename R, typename Fn> mapper(R &&, Fn &&) -> mapper<R, Fn>;
 
 } // end namespace detail
 
@@ -2334,9 +2351,13 @@ auto enumerate(FirstRange &&First, RestRanges &&...Rest) {
          "Ranges have different length");
   using zip = detail::zippy<detail::zip_second, detail::index_stream,
                             FirstRange, RestRanges...>;
-  return map_range(zip(detail::index_stream{}, std::forward<FirstRange>(First),
-                       std::forward<RestRanges>(Rest)...),
-                   detail::to_enumerator_result<typename zip::value_type>);
+  return detail::mapper(zip(detail::index_stream{},
+                            std::forward<FirstRange>(First),
+                            std::forward<RestRanges>(Rest)...),
+                        [](auto &&RefTuple) {
+                          return detail::enumerator_result(
+                              std::forward<decltype(RefTuple)>(RefTuple));
+                        });
 }
 
 namespace detail {
@@ -2470,7 +2491,7 @@ template <class T> constexpr T *to_address(T *P) { return P; }
 namespace std {
 template <typename... Ranges>
 struct tuple_size<llvm::detail::enumerator_result<Ranges...>>
-    : std::integral_constant<std::size_t, sizeof...(Ranges) + 1> {};
+    : std::integral_constant<std::size_t, sizeof...(Ranges)> {};
 
 template <std::size_t I, typename... Ranges>
 struct tuple_element<I, llvm::detail::enumerator_result<Ranges...>>
