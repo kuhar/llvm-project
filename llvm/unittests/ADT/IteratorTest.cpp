@@ -741,6 +741,15 @@ TEST(RangeTest, Distance) {
 
   EXPECT_EQ(std::distance(v1.begin(), v1.end()), size(v1));
   EXPECT_EQ(std::distance(v2.begin(), v2.end()), size(v2));
+
+  std::map<int, int> m1 = {{1, 1}, {2, 2}};
+  EXPECT_EQ(range_size(m1), m1.size());
+
+  static constexpr int c_arr[5] = {};
+  static_assert(range_size(c_arr) == 5u);
+
+  static constexpr std::array<int, 6> cpp_arr = {};
+  static_assert(range_size(cpp_arr) == 6u);
 }
 
 } // anonymous namespace

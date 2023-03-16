@@ -745,6 +745,8 @@ bool any_of(R &&range, UnaryPredicate P);
 
 template <typename T> bool all_equal(std::initializer_list<T> Values);
 
+template <typename R> constexpr size_t range_size(R&& Range);
+
 namespace detail {
 
 using std::declval;
@@ -936,9 +938,7 @@ detail::zippy<detail::zip_shortest, T, U, Args...> zip(T &&t, U &&u,
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_first, T, U, Args...> zip_equal(T &&t, U &&u,
                                                           Args &&...args) {
-  assert(all_equal({std::distance(adl_begin(t), adl_end(t)),
-                    std::distance(adl_begin(u), adl_end(u)),
-                    std::distance(adl_begin(args), adl_end(args))...}) &&
+  assert(all_equal({range_size(t), range_size(u), range_size(args)...}) &&
          "Iteratees do not have equal length");
   return detail::zippy<detail::zip_first, T, U, Args...>(
       std::forward<T>(t), std::forward<U>(u), std::forward<Args>(args)...);
@@ -951,9 +951,7 @@ detail::zippy<detail::zip_first, T, U, Args...> zip_equal(T &&t, U &&u,
 template <typename T, typename U, typename... Args>
 detail::zippy<detail::zip_first, T, U, Args...> zip_first(T &&t, U &&u,
                                                           Args &&...args) {
-  assert(std::distance(adl_begin(t), adl_end(t)) <=
-             std::min({std::distance(adl_begin(u), adl_end(u)),
-                       std::distance(adl_begin(args), adl_end(args))...}) &&
+  assert(range_size(t) <= std::min({range_size(u), range_size(args)...}) &&
          "First iteratee is not the shortest");
 
   return detail::zippy<detail::zip_first, T, U, Args...>(
@@ -1769,6 +1767,39 @@ auto size(R &&Range,
   return std::distance(Range.begin(), Range.end());
 }
 
+namespace detail {
+template <typename Range>
+using check_has_member_size = decltype(std::declval<Range &>().size());
+
+template <typename Range>
+static constexpr bool HasMemberSize =
+    is_detected<check_has_member_size, Range>::value;
+
+template <typename Range>
+using check_has_free_function_size = decltype(size(std::declval<Range &>()));
+
+template <typename Range>
+static constexpr bool HasFreeFunctionSize =
+    is_detected<check_has_free_function_size, Range>::value;
+} // namespace detail
+
+/// Returns the size of the \p Range, i.e., the number of elements. This
+/// implementation follows `std::ranges::size` from C++20 and delegates the size
+/// check to `std::extent`, `Range.size()`, `size(Range)`, or `std::distance`,
+/// as available, in this order of preference. Unlike `llvm::size`, this
+/// function does *not* guarantee O(1) running time, and is intended to be used
+/// in generic code that does not know the exact range type.
+template <typename R> constexpr size_t range_size(R &&Range) {
+  if constexpr (std::is_array_v<R>)
+    return std::extent<R>::value;
+  else if constexpr (detail::HasMemberSize<R>)
+    return Range.size();
+  else if constexpr (detail::HasFreeFunctionSize<R>)
+    return size(Range);
+  else
+    return std::distance(adl_begin(Range), adl_end(Range));
+}
+
 /// Provide wrappers to std::for_each which take ranges instead of having to
 /// pass begin/end explicitly.
 template <typename R, typename UnaryFunction>
@@ -2386,8 +2417,7 @@ struct index_stream {
 template <typename FirstRange, typename... RestRanges>
 auto enumerate(FirstRange &&First, RestRanges &&...Rest) {
   assert((sizeof...(Rest) == 0 ||
-          all_equal({std::distance(adl_begin(First), adl_end(First)),
-                     std::distance(adl_begin(Rest), adl_end(Rest))...})) &&
+          all_equal({range_size(First), range_size(Rest)...})) &&
          "Ranges have different length");
   using enumerator = detail::zippy<detail::zip_enumerator, detail::index_stream,
                                    FirstRange, RestRanges...>;
