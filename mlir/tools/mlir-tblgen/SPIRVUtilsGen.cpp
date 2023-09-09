@@ -29,6 +29,7 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
+#include <cassert>
 #include <list>
 #include <optional>
 
@@ -521,6 +522,34 @@ constexpr llvm::StringLiteral constantIdEnumAttrs[] = {
     "SPIRV_KHR_CooperativeMatrixLayoutAttr", "SPIRV_MemorySemanticsAttr",
     "SPIRV_MatrixLayoutAttr"};
 
+static bool isSpirvEnumAttr(const Attribute &attr) {
+  return attr.isSubClassOf("SPIRV_BitEnumAttr") ||
+         attr.isSubClassOf("SPIRV_I32EnumAttr");
+}
+
+struct EnumSerializationInfo {
+  bool emitConstantId;
+  bool emitAsArray;
+  std::string cppEnumName;
+  std::string cppEnumAttrName;
+
+  static EnumSerializationInfo from(const Attribute &enumAttr) {
+    EnumSerializationInfo res = {};
+    Record *serializationInfo =
+        enumAttr.getDef().getValueAsDef("serializationInfo");
+    res.emitConstantId = serializationInfo->getValueAsBit("emitConstantId");
+    res.emitAsArray = serializationInfo->getValueAsBit("emitAsArray");
+
+    EnumAttr baseEnum(enumAttr.getDef().getValueAsDef("enum"));
+    res.cppEnumName = (llvm::Twine(baseEnum.getCppNamespace()) +
+                       "::" + baseEnum.getEnumClassName())
+                          .str();
+    res.cppEnumAttrName = res.cppEnumName + "Attr";
+
+    return res;
+  }
+};
+
 /// Generates code to serialize attributes of a SPIRV_Op `op` into `os`. The
 /// generates code extracts the attribute with name `attrName` from
 /// `operandList` of `op`.
@@ -538,8 +567,16 @@ static void emitAttributeSerialization(const Attribute &attr,
                   "::llvm::cast<{2}::{3}Attr>(attr).getValue()))));\n",
                   operandList, opVar, baseEnum.getCppNamespace(),
                   baseEnum.getEnumClassName());
-  } else if (attr.isSubClassOf("SPIRV_BitEnumAttr") ||
-             attr.isSubClassOf("SPIRV_I32EnumAttr")) {
+  } else if (attr.getAttrDefName() ==
+             "SPIRV_KHR_CooperativeMatrixOperandsAttr") {
+    auto info = EnumSerializationInfo::from(attr);
+    assert(info.emitAsArray);
+    os << formatv("{0}  auto enumAttr = ::llvm::cast<{2}>(attr);\n"
+                  "{0}  for ({3} value : enumAttr.getActiveValues()) {\n"
+                  "{0}    {1}.push_back(static_cast<uint32_t>(value));\n"
+                  "{0}  }\n",
+                  tabs, operandList, info.cppEnumAttrName, info.cppEnumName);
+  } else if (isSpirvEnumAttr(attr)) {
     EnumAttr baseEnum(attr.getDef().getValueAsDef("enum"));
     os << tabs
        << formatv("  {0}.push_back(static_cast<uint32_t>("

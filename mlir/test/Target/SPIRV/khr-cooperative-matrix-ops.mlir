@@ -71,7 +71,15 @@ spirv.module Logical GLSL450 requires
                                                        !spirv.coopmatrix<16x8xi16, Subgroup, MatrixB>
                                                        -> !spirv.coopmatrix<8x8xi32, Subgroup, MatrixAcc>
 
-    // TODO: Handle multiple matrix operands and add relevant testcases here.
+    // CHECK-NEXT: {{%.+}} = spirv.KHR.CooperativeMatrixMulAdd {{%.*}}, {{%.*}}, {{%.*}}, <BSigned> :
+    // CHECK-SAME:   !spirv.coopmatrix<8x16xi8, Subgroup, MatrixA>,
+    // CHECK-SAME:   !spirv.coopmatrix<16x8xi16, Subgroup, MatrixB>
+    // CHECK-SAME:   -> !spirv.coopmatrix<8x8xi32, Subgroup, MatrixAcc>
+    %r = spirv.KHR.CooperativeMatrixMulAdd %a, %b, %c,
+                                           <ASigned|ResultSigned|AccSat> : !spirv.coopmatrix<8x16xi8, Subgroup, MatrixA>,
+                                                       !spirv.coopmatrix<16x8xi16, Subgroup, MatrixB>
+                                                       -> !spirv.coopmatrix<8x8xi32, Subgroup, MatrixAcc>
+
     spirv.Return
   }
 

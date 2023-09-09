@@ -78,6 +78,22 @@ def SPIRV_Dialect : Dialect {
 // Utility definitions
 //===----------------------------------------------------------------------===//
 
+class SPIRV_EnumSerializatonInfo {
+  // Whether to materialize enum values as constants and serialize as `<id>`s.
+  bit emitConstantId = false;
+  // Whether to serialie multiple values as an array of integers or as one
+  // integer.
+  bit emitAsArray = false;
+}
+
+def DefaultEnumSerialization : SPIRV_EnumSerializatonInfo;
+def ArrayEnumSerialization : SPIRV_EnumSerializatonInfo {
+  let emitAsArray = true;
+}
+def ConstantIdSerialization : SPIRV_EnumSerializatonInfo {
+  let emitConstantId = true;
+}
+
 // Wrapper over base BitEnumAttr to set common fields.
 class SPIRV_BitEnum<string name, string description,
                     list<BitEnumAttrCaseBase> cases>
@@ -86,9 +102,34 @@ class SPIRV_BitEnum<string name, string description,
   let cppNamespace = "::mlir::spirv";
 }
 class SPIRV_BitEnumAttr<string name, string description, string mnemonic,
-                        list<BitEnumAttrCaseBase> cases> :
+                        list<BitEnumAttrCaseBase> cases,
+                        SPIRV_EnumSerializatonInfo serialization =
+                          DefaultEnumSerialization> :
     EnumAttr<SPIRV_Dialect, SPIRV_BitEnum<name, description, cases>, mnemonic> {
   let assemblyFormat = "`<` $value `>`";
+
+  SPIRV_EnumSerializatonInfo serializationInfo = serialization;
+
+  let extraClassDeclaration = [{
+    using EnumType = }] # enum.cppType # [{;
+    static constexpr ::std::array<EnumType, }] # !size(enum.enumerants) # [{>
+    allEnumerants = {}] #
+        !interleave(!foreach(enumCase, enum.enumerants,
+                             enum.cppType # "::" # enumCase.str),
+                    ", ") # [{};
+    ::llvm::SmallVector<EnumType> getActiveValues() const;
+  }];
+
+  let extraClassDefinition = [{
+    ::llvm::SmallVector<$cppClass::EnumType> $cppClass::getActiveValues() const {
+      auto value = static_cast<uint32_t>(getValue());
+      ::llvm::SmallVector<EnumType> result;
+      for (EnumType enumerant : $cppClass::allEnumerants)
+        if ((static_cast<uint32_t>(enumerant) & value) != 0)
+          result.push_back(enumerant);
+      return result;
+    }
+  }];
 }
 
 // Wrapper over base I32EnumAttr to set common fields.
@@ -99,9 +140,13 @@ class SPIRV_I32Enum<string name, string description,
   let cppNamespace = "::mlir::spirv";
 }
 class SPIRV_I32EnumAttr<string name, string description, string mnemonic,
-                        list<I32EnumAttrCase> cases> :
+                        list<I32EnumAttrCase> cases,
+                        SPIRV_EnumSerializatonInfo serialization =
+                          DefaultEnumSerialization> :
     EnumAttr<SPIRV_Dialect, SPIRV_I32Enum<name, description, cases>, mnemonic> {
   let assemblyFormat = "`<` $value `>`";
+
+  SPIRV_EnumSerializatonInfo serializationInfo = serialization;
 }
 
 //===----------------------------------------------------------------------===//
@@ -4090,7 +4135,7 @@ def SPIRV_KHR_CooperativeMatrixOperandsAttr :
       SPIRV_KHR_CMO_None, SPIRV_KHR_CMO_MatrixA_Signed,
       SPIRV_KHR_CMO_MatrixB_Signed, SPIRV_KHR_CMO_MatrixC_Signed,
       SPIRV_KHR_CMO_Result_Signed, SPIRV_KHR_CMO_AccSat
-    ]>;
+    ], ArrayEnumSerialization>;
 
 //===----------------------------------------------------------------------===//
 // SPIR-V attribute definitions
