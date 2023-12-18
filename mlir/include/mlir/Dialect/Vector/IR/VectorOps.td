@@ -15,6 +15,7 @@
 
 include "mlir/Dialect/Vector/IR/Vector.td"
 include "mlir/Dialect/Vector/IR/VectorAttributes.td"
+include "mlir/Dialect/Vector/IR/VectorCombiningAttributes.td"
 include "mlir/Dialect/Arith/IR/ArithBase.td"
 include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.td"

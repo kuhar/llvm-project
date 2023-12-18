@@ -15,6 +15,7 @@
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Utils/CombiningOpsUtils.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskingOpInterface.h"
 #include "mlir/IR/AffineMap.h"
@@ -37,6 +38,9 @@
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/Vector/IR/VectorAttributes.h.inc"
 
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Vector/IR/VectorCombiningAttributes.h.inc"
+
 namespace mlir {
 class MLIRContext;
 class RewritePatternSet;
@@ -50,6 +54,9 @@ class ContractionOp;
 class TransferReadOp;
 class TransferWriteOp;
 class VectorDialect;
+
+// Expose the combining kind enum from dialect utils.
+using ::mlir::utils::CombiningKind;
 
 namespace detail {
 struct BitmaskEnumStorage;

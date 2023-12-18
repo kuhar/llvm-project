@@ -16,3 +16,10 @@ mlir_tablegen(VectorAttributes.h.inc -gen-attrdef-decls)
 mlir_tablegen(VectorAttributes.cpp.inc -gen-attrdef-defs)
 add_public_tablegen_target(MLIRVectorAttributesIncGen)
 add_dependencies(mlir-generic-headers MLIRVectorAttributesIncGen)
+
+# Add Vector combining attributes
+set(LLVM_TARGET_DEFINITIONS VectorCombiningAttributes.td)
+mlir_tablegen(VectorCombiningAttributes.h.inc -gen-attrdef-decls)
+mlir_tablegen(VectorCombiningAttributes.cpp.inc -gen-attrdef-defs)
+add_public_tablegen_target(MLIRVectorCombiningAttributesIncGen)
+add_dependencies(mlir-generic-headers MLIRVectorCombiningAttributesIncGen)

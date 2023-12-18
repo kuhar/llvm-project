@@ -24,7 +24,7 @@
 #include "mlir/Support/LLVM.h"
 
 // Pull in all enum type definitions and utility function declarations.
-#include "mlir/Dialect/Utils/DialectUtilsEnums.h.inc"
+#include "mlir/Dialect/Utils/DialectUtilsStructuredOpsEnums.h.inc"
 
 namespace mlir {
 

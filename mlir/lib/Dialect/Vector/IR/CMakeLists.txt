@@ -9,6 +9,7 @@ add_mlir_dialect_library(MLIRVectorDialect
   MLIRMaskingOpInterfaceIncGen
   MLIRVectorOpsIncGen
   MLIRVectorAttributesIncGen
+  MLIRVectorCombiningAttributesIncGen
 
   LINK_LIBS PUBLIC
   MLIRAffineDialect

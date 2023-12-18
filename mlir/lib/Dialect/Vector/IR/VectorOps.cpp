@@ -6336,5 +6336,8 @@ Value mlir::vector::selectPassthru(OpBuilder &builder, Value mask,
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/Vector/IR/VectorAttributes.cpp.inc"
 
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Vector/IR/VectorCombiningAttributes.cpp.inc"
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/IR/VectorOps.cpp.inc"

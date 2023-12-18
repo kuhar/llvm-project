@@ -13,7 +13,7 @@
 #include "mlir/IR/IRMapping.h"
 #include "llvm/ADT/StringSet.h"
 
-#include "mlir/Dialect/Utils/DialectUtilsEnums.cpp.inc"
+#include "mlir/Dialect/Utils/DialectUtilsStructuredOpsEnums.cpp.inc"
 
 using namespace mlir;
 
