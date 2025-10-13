@@ -13,11 +13,14 @@
 #ifndef LLVM_ADT_STRINGSWITCH_H
 #define LLVM_ADT_STRINGSWITCH_H
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstring>
 #include <optional>
+#include <tuple>
+#include <utility>
 
 namespace llvm {
 
@@ -85,55 +88,14 @@ public:
     return *this;
   }
 
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, T Value) {
-    return CasesImpl(Value, S0, S1);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      T Value) {
-    return CasesImpl(Value, S0, S1, S2);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, StringLiteral S5,
-                      T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4, S5);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, StringLiteral S5,
-                      StringLiteral S6, T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4, S5, S6);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, StringLiteral S5,
-                      StringLiteral S6, StringLiteral S7, T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4, S5, S6, S7);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, StringLiteral S5,
-                      StringLiteral S6, StringLiteral S7, StringLiteral S8,
-                      T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4, S5, S6, S7, S8);
-  }
-
-  StringSwitch &Cases(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                      StringLiteral S3, StringLiteral S4, StringLiteral S5,
-                      StringLiteral S6, StringLiteral S7, StringLiteral S8,
-                      StringLiteral S9, T Value) {
-    return CasesImpl(Value, S0, S1, S2, S3, S4, S5, S6, S7, S8, S9);
+  // The last argument is the Value to return when any of the cases match.
+  template <typename... Ts>
+  StringSwitch &Cases(StringLiteral First, StringLiteral Second, Ts &&...Rest) {
+    using LastType = TypeAtIndex<sizeof...(Ts) - 1, Ts...>;
+    T Value = std::forward<LastType&&>((..., Rest));
+    return CasesDispatch</*Lower=*/false>(
+        Value, std::forward_as_tuple(First, Second, std::forward<Ts>(Rest)...),
+        std::make_index_sequence<sizeof...(Rest) + 1>{});
   }
 
   // Case-insensitive case matchers.
@@ -156,23 +118,16 @@ public:
     return *this;
   }
 
-  StringSwitch &CasesLower(StringLiteral S0, StringLiteral S1, T Value) {
-    return CasesLowerImpl(Value, S0, S1);
-  }
-
-  StringSwitch &CasesLower(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                           T Value) {
-    return CasesLowerImpl(Value, S0, S1, S2);
-  }
-
-  StringSwitch &CasesLower(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                           StringLiteral S3, T Value) {
-    return CasesLowerImpl(Value, S0, S1, S2, S3);
-  }
-
-  StringSwitch &CasesLower(StringLiteral S0, StringLiteral S1, StringLiteral S2,
-                           StringLiteral S3, StringLiteral S4, T Value) {
-    return CasesLowerImpl(Value, S0, S1, S2, S3, S4);
+  // Returns the `Value` when any of the (string literal) Cases match
+  // (case-insensitive). The last argument is the `Value` to return.
+  template <typename... Ts>
+  StringSwitch &CasesLower(StringLiteral First, StringLiteral Second,
+                           Ts &&...Rest) {
+    using LastType = TypeAtIndex<sizeof...(Ts) - 1, Ts...>;
+    T Value = std::forward<LastType&&>((..., Rest));
+    return CasesDispatch</*Lower=*/true>(
+        Value, std::forward_as_tuple(First, Second, std::forward<Ts>(Rest)...),
+        std::make_index_sequence<sizeof...(Rest) + 1>{});
   }
 
   [[nodiscard]] R Default(T Value) {
@@ -211,16 +166,30 @@ private:
     return false;
   }
 
-  template <typename... Args> StringSwitch &CasesImpl(T &Value, Args... Cases) {
-    // Stop matching after the string is found.
-    (... || CaseImpl(Value, Cases));
-    return *this;
+  // Since we cannot force conversion to StringLiterals with variadic templates,
+  // provide a helper function to handle char arrays. We can't just rely on the
+  // StringLiteral constructor because of the enable_if attribute that won't
+  // work because the string is not a constant expression here.
+  template <size_t N> static StringLiteral ToStringLiteral(const char (&S)[N]) {
+    // StringLiteral's constructor enforces the same invariant on some
+    // toolchains.
+    assert(strlen(S) == N - 1 && "Invalid string literal");
+    return StringLiteral::withInnerNUL(S);
   }
+  static StringLiteral ToStringLiteral(StringLiteral S) { return S; }
 
-  template <typename... Args>
-  StringSwitch &CasesLowerImpl(T &Value, Args... Cases) {
-    // Stop matching after the string is found.
-    (... || CaseLowerImpl(Value, Cases));
+  // Implements matching over multiple cases, given `Refs` with all the string
+  // literals in the front and the `Value` in the back. The index sequence
+  // contains one fewer index than the tuple size so that we can extract all
+  // case strings and skip the `Value`.
+  template <bool Lower, typename... Ts, size_t... Idxs>
+  StringSwitch &CasesDispatch(T &Value, std::tuple<Ts...> &&Refs,
+                              std::index_sequence<Idxs...>) {
+    if constexpr (Lower) {
+      (... || CaseLowerImpl(Value, ToStringLiteral(std::get<Idxs>(Refs))));
+    } else {
+      (... || CaseImpl(Value, ToStringLiteral(std::get<Idxs>(Refs))));
+    }
     return *this;
   }
 };
