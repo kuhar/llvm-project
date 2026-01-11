@@ -14,6 +14,8 @@
 #include <type_traits>
 #include <utility>
 
+using namespace llvm;
+
 namespace {
 
 template <typename T>
@@ -203,6 +205,39 @@ TEST(STLForwardCompatTest, IdentityCxx20) {
   static_assert(std::is_same_v<int &, decltype(identity(X))>);
   static_assert(std::is_same_v<const int &, decltype(identity(CX))>);
   static_assert(std::is_same_v<int &&, decltype(identity(int(5)))>);
+}
+
+TEST(STLForwardCompat, BindFrontBindBack) {
+  std::vector<int> V;
+  auto MulAdd = [](int A, int B, int C) { return A * (B + C) == 12; };
+  auto Mul0 = bind_back(MulAdd, 4, 2);
+  auto Mul1 = bind_front(MulAdd, 2, 4);
+  auto Mul20 = bind_back(MulAdd, 4);
+  auto Mul21 = bind_front(MulAdd, 2);
+  EXPECT_TRUE(all_of(V, Mul0));
+  EXPECT_TRUE(all_of(V, Mul1));
+
+  V.push_back(2);
+  EXPECT_TRUE(all_of(V, Mul0));
+  EXPECT_TRUE(all_of(V, Mul1));
+
+  V.push_back(2);
+  V.push_back(2);
+  EXPECT_TRUE(all_of(V, Mul0));
+  EXPECT_TRUE(all_of(V, Mul1));
+
+  auto Spec0 = bind_front(Mul20, 2);
+  auto Spec1 = bind_back(Mul21, 4);
+  EXPECT_TRUE(all_of(V, Spec0));
+  EXPECT_TRUE(all_of(V, Spec1));
+
+  V.push_back(3);
+  EXPECT_FALSE(all_of(V, Mul0));
+  EXPECT_FALSE(all_of(V, Mul1));
+  EXPECT_FALSE(all_of(V, Spec0));
+  EXPECT_FALSE(all_of(V, Spec1));
+  EXPECT_TRUE(any_of(V, Spec0));
+  EXPECT_TRUE(any_of(V, Spec1));
 }
 
 } // namespace
