@@ -327,6 +327,26 @@ TEST(STLForwardCompatTest, BindBackMutableStorage) {
   EXPECT_EQ(A, 1); // Original still unchanged.
 }
 
+// Free function for compile-time bind tests.
+static int Subtract(int A, int B) { return A - B; }
+
+TEST(STLForwardCompat, BindFrontConstexprCallable) {
+  // Test compile-time callable with bind_front.
+  auto TimesFive = bind_front<Subtract>(5);
+  EXPECT_EQ(TimesFive(3), 2);
+
+  // Test compile-time callable with bind_back.
+  auto FiveTimesX = bind_back<Subtract>(5);
+  EXPECT_EQ(FiveTimesX(3), -2);
+}
+
+TEST(STLForwardCompat, BindFrontBackNoBoundArgs) {
+  auto Fn1 = bind_front([](int A, int B) { return A + B; });
+  EXPECT_EQ(Fn1(3, 4), 7);
+  auto Fn2 = bind_back([](int A, int B) { return A + B; });
+  EXPECT_EQ(Fn2(3, 4), 7);
+}
+
 TEST(STLForwardCompatTest, BindFrontBindBackConstexpr) {
   static constexpr auto Fn1 = bind_front([](int A, int B) { return A + B; }, 1);
   static_assert(Fn1(3) == 4);
@@ -342,6 +362,40 @@ TEST(STLForwardCompatTest, BindWithReferenceWrapper) {
   EXPECT_EQ(X, 2);
   Increment();
   EXPECT_EQ(X, 3);
+}
+
+// The callable itself can have mutable state.
+TEST(STLForwardCompatTest, BindMutableCallable) {
+  auto Counter = bind_front([N = 0]() mutable { return ++N; });
+  EXPECT_EQ(Counter(), 1);
+  EXPECT_EQ(Counter(), 2);
+  EXPECT_EQ(Counter(), 3);
+}
+
+namespace {
+struct MemberTest {
+  int Value;
+  int scale(int Factor) const { return Value * Factor; }
+};
+} // namespace
+
+TEST(STLForwardCompatTest, BindMembers) {
+  // Member function pointer support via std::apply (with std::invoke used
+  // internally).
+  MemberTest Obj{10};
+  auto ScaleObj = bind_front(&MemberTest::scale, Obj);
+  EXPECT_EQ(ScaleObj(3), 30);
+  auto ScaleBy5 = bind_back(&MemberTest::scale, 5);
+  EXPECT_EQ(ScaleBy5(Obj), 50);
+
+  // Member data pointer support via std::apply (with std::invoke used
+  // internally).
+  auto GetValue = bind_front(&MemberTest::Value);
+  EXPECT_EQ(GetValue(Obj), 10);
+
+  // Make sure we can use member data pointers for constexpr callables.
+  static constexpr int MemberVal = bind_front(&MemberTest::Value)(MemberTest{10});
+  EXPECT_EQ(MemberVal, 10);
 }
 
 TEST(STLForwardCompat, BindFrontBindBack) {
