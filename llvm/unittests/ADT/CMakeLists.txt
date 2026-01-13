@@ -64,6 +64,7 @@ add_llvm_unittest(ADTTests
   PostOrderIteratorTest.cpp
   PriorityWorklistTest.cpp
   RadixTreeTest.cpp
+  RandomAccessDeque.cpp
   RangeAdapterTest.cpp
   RewriteBufferTest.cpp
   SCCIteratorTest.cpp

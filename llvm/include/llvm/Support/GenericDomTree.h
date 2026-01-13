@@ -259,6 +259,7 @@ protected:
 
   using DomTreeNodeStorageTy =
       SmallVector<std::unique_ptr<DomTreeNodeBase<NodeT>>>;
+  static constexpr size_t sz = sizeof(DomTreeNodeStorageTy);
   DomTreeNodeStorageTy DomTreeNodes;
   // For graphs where blocks don't have numbers, create a numbering here.
   // TODO: use an empty struct with [[no_unique_address]] in C++20.
