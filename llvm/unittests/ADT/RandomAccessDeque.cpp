@@ -137,10 +137,11 @@ public:
             IteratorImpl<IsConst>, std::random_access_iterator_tag, T,
             std::ptrdiff_t, std::conditional_t<IsConst, const T *, T *>,
             std::conditional_t<IsConst, const T &, T &>> {
-    using BaseT = iterator_facade_base<
-        IteratorImpl<IsConst>, std::random_access_iterator_tag, T,
-        std::ptrdiff_t, std::conditional_t<IsConst, const T *, T *>,
-        std::conditional_t<IsConst, const T &, T &>>;
+    using BaseT =
+        iterator_facade_base<IteratorImpl<IsConst>,
+                             std::random_access_iterator_tag, T, std::ptrdiff_t,
+                             std::conditional_t<IsConst, const T *, T *>,
+                             std::conditional_t<IsConst, const T &, T &>>;
     using ContainerPtr = std::conditional_t<IsConst, const RandomAccessDeque *,
                                             RandomAccessDeque *>;
     ContainerPtr Container = nullptr;
@@ -166,7 +167,8 @@ public:
 
     bool operator<(const IteratorImpl &RHS) const { return Index < RHS.Index; }
 
-    // Bring base class operator- (iter - n) into scope alongside our difference.
+    // Bring base class operator- (iter - n) into scope alongside our
+    // difference.
     using BaseT::operator-;
     std::ptrdiff_t operator-(const IteratorImpl &RHS) const {
       return static_cast<std::ptrdiff_t>(Index) -
@@ -281,6 +283,15 @@ public:
   // Element Access
   //===--------------------------------------------------------------------===//
 
+  /// Hint for accelerating nearby element accesses.
+  /// Users can pass this to operator[] to avoid recomputing bucket/offset
+  /// when accessing elements sequentially or within the same bucket.
+  struct IndexHint {
+    uint32_t LastIndex = ~0u; // ~0u means invalid/uninitialized
+    uint32_t BucketIdx = 0;
+    uint32_t Offset = 0;
+  };
+
   [[nodiscard]] reference operator[](uint32_t Index) {
     assert(Index < Size && "Index out of bounds");
     auto [Bucket, Offset] = getBucketAndOffset(Index);
@@ -293,6 +304,44 @@ public:
     return Buckets[Bucket][Offset];
   }
 
+  /// Access element with hint. If Index is in the same bucket as the hint,
+  /// avoids recomputing bucket/offset. Updates the hint for next access.
+  [[nodiscard]] reference at(uint32_t Index, IndexHint &Hint) {
+    assert(Index < Size && "Index out of bounds");
+    updateHint(Index, Hint);
+    return Buckets[Hint.BucketIdx][Hint.Offset];
+  }
+
+  [[nodiscard]] const_reference at(uint32_t Index, IndexHint &Hint) const {
+    assert(Index < Size && "Index out of bounds");
+    updateHint(Index, Hint);
+    return Buckets[Hint.BucketIdx][Hint.Offset];
+  }
+
+private:
+  /// Update hint for a new index. If the new index is in the same bucket
+  /// as the hint, just update the offset. Otherwise, recompute everything.
+  void updateHint(uint32_t Index, IndexHint &Hint) const {
+    if (Hint.LastIndex != ~0u) {
+      // Check if we can stay in the same bucket
+      int64_t Delta = static_cast<int64_t>(Index) - Hint.LastIndex;
+      int64_t NewOffset = static_cast<int64_t>(Hint.Offset) + Delta;
+      if (NewOffset >= 0 &&
+          NewOffset < static_cast<int64_t>(getBucketSize(Hint.BucketIdx))) {
+        // Same bucket - just update offset
+        Hint.Offset = static_cast<uint32_t>(NewOffset);
+        Hint.LastIndex = Index;
+        return;
+      }
+    }
+    // Fall back to full computation
+    auto [BucketIdx, Offset] = getBucketAndOffset(Index);
+    Hint.LastIndex = Index;
+    Hint.BucketIdx = BucketIdx;
+    Hint.Offset = Offset;
+  }
+
+public:
   [[nodiscard]] reference front() {
     assert(!empty() && "front() on empty container");
     return Buckets[0][0];
@@ -471,6 +520,45 @@ TEST(RandomAccessDeque, RandomAccessIterator) {
   EXPECT_TRUE(D.begin() <= D.begin());
   EXPECT_TRUE(D.end() > D.begin());
   EXPECT_EQ(D.end() - D.begin(), 20);
+}
+
+TEST(RandomAccessDeque, IndexHint) {
+  RandomAccessDeque<int, 4> D;
+  // Fill multiple buckets: bucket 0 (4), bucket 1 (8), bucket 2 (16) = 28 total
+  for (int I = 0; I < 28; ++I)
+    D.push_back(I * 10);
+
+  RandomAccessDeque<int, 4>::IndexHint Hint;
+
+  // First access initializes the hint
+  EXPECT_EQ(D.at(5, Hint), 50);
+  EXPECT_EQ(Hint.LastIndex, 5u);
+
+  // Sequential forward access within same bucket (bucket 1: indices 4-11)
+  EXPECT_EQ(D.at(6, Hint), 60);
+  EXPECT_EQ(D.at(7, Hint), 70);
+  EXPECT_EQ(D.at(8, Hint), 80);
+
+  // Backward access within same bucket
+  EXPECT_EQ(D.at(5, Hint), 50);
+
+  // Jump to different bucket (bucket 2: indices 12-27)
+  EXPECT_EQ(D.at(15, Hint), 150);
+  EXPECT_EQ(Hint.BucketIdx, 2u);
+
+  // Sequential access in new bucket
+  EXPECT_EQ(D.at(16, Hint), 160);
+  EXPECT_EQ(D.at(17, Hint), 170);
+
+  // Jump back to bucket 0
+  EXPECT_EQ(D.at(0, Hint), 0);
+  EXPECT_EQ(Hint.BucketIdx, 0u);
+
+  // Const access with hint
+  const auto &CD = D;
+  RandomAccessDeque<int, 4>::IndexHint ConstHint;
+  EXPECT_EQ(CD.at(10, ConstHint), 100);
+  EXPECT_EQ(CD.at(11, ConstHint), 110);
 }
 
 TEST(RandomAccessDeque, PopBack) {
