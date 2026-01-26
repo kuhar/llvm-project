@@ -10,6 +10,7 @@ add_clang_library(clangTidyLLVMModule STATIC
   PreferIsaOrDynCastInConditionalsCheck.cpp
   PreferRegisterOverUnsignedCheck.cpp
   PreferStaticOverAnonymousNamespaceCheck.cpp
+  TypeSwitchDefaultCheck.cpp
   TwineLocalCheck.cpp
   UseNewMLIROpBuilderCheck.cpp
   UseRangesCheck.cpp

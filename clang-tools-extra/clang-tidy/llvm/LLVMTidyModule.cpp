@@ -17,6 +17,7 @@
 #include "PreferRegisterOverUnsignedCheck.h"
 #include "PreferStaticOverAnonymousNamespaceCheck.h"
 #include "TwineLocalCheck.h"
+#include "TypeSwitchDefaultCheck.h"
 #include "UseNewMLIROpBuilderCheck.h"
 #include "UseRangesCheck.h"
 #include "UseVectorUtilsCheck.h"
@@ -40,6 +41,8 @@ public:
         "llvm-prefer-register-over-unsigned");
     CheckFactories.registerCheck<PreferStaticOverAnonymousNamespaceCheck>(
         "llvm-prefer-static-over-anonymous-namespace");
+    CheckFactories.registerCheck<TypeSwitchDefaultCheck>(
+        "llvm-type-switch-default");
     CheckFactories.registerCheck<readability::QualifiedAutoCheck>(
         "llvm-qualified-auto");
     CheckFactories.registerCheck<TwineLocalCheck>("llvm-twine-local");

@@ -97,6 +97,12 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`llvm-type-switch-default
+  <clang-tidy/checks/llvm/type-switch-default>` check.
+
+  Simplifies ``llvm::TypeSwitch::Default`` calls that take a lambda returning
+  a constant value to just pass the value directly.
+
 - New :doc:`llvm-use-vector-utils
   <clang-tidy/checks/llvm/use-vector-utils>` check.
 
