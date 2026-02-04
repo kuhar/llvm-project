@@ -257,6 +257,7 @@ Clang-Tidy Checks
    :doc:`llvm-prefer-static-over-anonymous-namespace <llvm/prefer-static-over-anonymous-namespace>`,
    :doc:`llvm-twine-local <llvm/twine-local>`, "Yes"
    :doc:`llvm-type-switch-case-types <llvm/type-switch-case-types>`, "Yes"
+   :doc:`llvm-type-switch-default-unreachable <llvm/type-switch-default-unreachable>`, "Yes"
    :doc:`llvm-use-new-mlir-op-builder <llvm/use-new-mlir-op-builder>`, "Yes"
    :doc:`llvm-use-ranges <llvm/use-ranges>`, "Yes"
    :doc:`llvm-use-vector-utils <llvm/use-vector-utils>`, "Yes"

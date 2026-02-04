@@ -103,6 +103,12 @@ New checks
   Finds ``llvm::TypeSwitch::Case`` calls with redundant explicit template
   arguments that can be inferred from the lambda parameter type.
 
+- New :doc:`llvm-type-switch-default-unreachable
+  <clang-tidy/checks/llvm/type-switch-default-unreachable>` check.
+
+  Finds ``llvm::TypeSwitch::Default`` calls with a lambda that only contains
+  ``llvm_unreachable`` and suggests using ``DefaultUnreachable`` instead.
+
 - New :doc:`llvm-use-vector-utils
   <clang-tidy/checks/llvm/use-vector-utils>` check.
 

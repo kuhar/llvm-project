@@ -18,6 +18,7 @@
 #include "PreferStaticOverAnonymousNamespaceCheck.h"
 #include "TwineLocalCheck.h"
 #include "TypeSwitchCaseTypesCheck.h"
+#include "TypeSwitchDefaultUnreachableCheck.h"
 #include "UseNewMLIROpBuilderCheck.h"
 #include "UseRangesCheck.h"
 #include "UseVectorUtilsCheck.h"
@@ -46,6 +47,8 @@ public:
     CheckFactories.registerCheck<TwineLocalCheck>("llvm-twine-local");
     CheckFactories.registerCheck<TypeSwitchCaseTypesCheck>(
         "llvm-type-switch-case-types");
+    CheckFactories.registerCheck<TypeSwitchDefaultUnreachableCheck>(
+        "llvm-type-switch-default-unreachable");
     CheckFactories.registerCheck<UseNewMlirOpBuilderCheck>(
         "llvm-use-new-mlir-op-builder");
     CheckFactories.registerCheck<UseRangesCheck>("llvm-use-ranges");
