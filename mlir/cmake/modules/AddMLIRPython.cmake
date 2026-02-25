@@ -313,16 +313,35 @@ function(build_nanobind_lib)
   # See https://github.com/wjakob/nanobind/blob/4ba51fcf795971c5d603d875ae4184bc0c9bd8e6/cmake/nanobind-config.cmake#L363-L371.
   if (NB_ABI MATCHES "[0-9]t")
     set(_ft "-ft")
+    set(_abi3 "")
+  else()
+    set(_ft "")
+    # Match nanobind_add_module's naming: with STABLE_ABI, the shared library
+    # name includes "-abi3" (e.g. "nanobind-abi3-mlir").
+    if(MLIR_PYTHON_STABLE_ABI)
+      set(_abi3 "-abi3")
+    else()
+      set(_abi3 "")
+    endif()
   endif()
   # nanobind does a string match on the suffix to figure out whether to build
   # the lib with free threading...
-  set(NB_LIBRARY_TARGET_NAME "nanobind${_ft}-${ARG_MLIR_BINDINGS_PYTHON_NB_DOMAIN}")
+  set(NB_LIBRARY_TARGET_NAME "nanobind${_ft}${_abi3}-${ARG_MLIR_BINDINGS_PYTHON_NB_DOMAIN}")
   set(NB_LIBRARY_TARGET_NAME "${NB_LIBRARY_TARGET_NAME}" PARENT_SCOPE)
   nanobind_build_library(${NB_LIBRARY_TARGET_NAME} AS_SYSINCLUDE)
   target_compile_definitions(${NB_LIBRARY_TARGET_NAME}
     PRIVATE
     NB_DOMAIN=${ARG_MLIR_BINDINGS_PYTHON_NB_DOMAIN}
   )
+  # Propagate stable ABI to the shared nanobind library. nanobind internally
+  # skips this when the interpreter is free-threaded.
+  if(MLIR_PYTHON_STABLE_ABI AND NOT (NB_ABI MATCHES "[0-9]t"))
+    target_compile_definitions(${NB_LIBRARY_TARGET_NAME}
+      PUBLIC
+      Py_LIMITED_API=0x030C0000
+    )
+    target_link_libraries(${NB_LIBRARY_TARGET_NAME} PRIVATE Python::SABIModule)
+  endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # nanobind handles this correctly for MacOS by explicitly setting -U for all the necessary Python symbols
     # (see https://github.com/wjakob/nanobind/blob/master/cmake/darwin-ld-cpython.sym)
@@ -913,9 +932,15 @@ function(add_mlir_python_extension libname extname nb_library_target_name)
       set_property(TARGET ${libname} PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif()
   else()
+    if(MLIR_PYTHON_STABLE_ABI)
+      set(_stable_abi_flag STABLE_ABI)
+    else()
+      set(_stable_abi_flag "")
+    endif()
     nanobind_add_module(${libname}
       NB_DOMAIN ${ARG_MLIR_BINDINGS_PYTHON_NB_DOMAIN}
       FREE_THREADED
+      ${_stable_abi_flag}
       NB_SHARED
       ${ARG_SOURCES}
     )

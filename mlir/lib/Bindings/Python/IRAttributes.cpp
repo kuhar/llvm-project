@@ -774,7 +774,7 @@ std::unique_ptr<nb_buffer_info> PyDenseElementsAttribute::accessBuffer() {
 }
 
 void PyDenseElementsAttribute::bindDerived(ClassTy &c) {
-#if PY_VERSION_HEX < 0x03090000
+#if !defined(Py_LIMITED_API) && PY_VERSION_HEX < 0x03090000
   PyTypeObject *tp = reinterpret_cast<PyTypeObject *>(c.ptr());
   tp->tp_as_buffer->bf_getbuffer = PyDenseElementsAttribute::bf_getbuffer;
   tp->tp_as_buffer->bf_releasebuffer =
@@ -1047,9 +1047,23 @@ nb::int_ PyDenseIntElementsAttribute::dunderGetItem(intptr_t pos) const {
 void PyDenseIntElementsAttribute::bindDerived(ClassTy &c) {
   c.def("__getitem__", &PyDenseIntElementsAttribute::dunderGetItem);
 }
-// Check if the python version is less than 3.13. Py_IsFinalizing is a part
-// of stable ABI since 3.13 and before it was available as _Py_IsFinalizing.
-#if PY_VERSION_HEX < 0x030d0000
+// Py_IsFinalizing is part of the stable ABI since 3.13. Before that it was
+// available as the private _Py_IsFinalizing (not in limited API).
+#if defined(Py_LIMITED_API) && Py_LIMITED_API < 0x030d0000
+// Under limited API targeting < 3.13, use sys.is_finalizing() via C API.
+static inline int Py_IsFinalizing(void) {
+  PyObject *sys = PyImport_ImportModule("sys");
+  if (!sys)
+    return 0;
+  PyObject *result = PyObject_CallMethod(sys, "is_finalizing", NULL);
+  Py_DECREF(sys);
+  if (!result)
+    return 0;
+  int val = PyObject_IsTrue(result);
+  Py_DECREF(result);
+  return val > 0 ? 1 : 0;
+}
+#elif PY_VERSION_HEX < 0x030d0000
 #define Py_IsFinalizing _Py_IsFinalizing
 #endif
 
