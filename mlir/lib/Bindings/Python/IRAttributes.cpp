@@ -1051,14 +1051,17 @@ void PyDenseIntElementsAttribute::bindDerived(ClassTy &c) {
 // available as the private _Py_IsFinalizing (not in limited API).
 #if defined(Py_LIMITED_API) && Py_LIMITED_API < 0x030d0000
 // Under limited API targeting < 3.13, use sys.is_finalizing() via C API.
+// PySys_GetObject avoids import machinery (safe during finalization).
 static inline int Py_IsFinalizing(void) {
-  PyObject *sys = PyImport_ImportModule("sys");
-  if (!sys)
+  // PySys_GetObject returns a borrowed reference; no Py_DECREF needed.
+  PyObject *fn = PySys_GetObject("is_finalizing");
+  if (!fn)
     return 0;
-  PyObject *result = PyObject_CallMethod(sys, "is_finalizing", NULL);
-  Py_DECREF(sys);
-  if (!result)
+  PyObject *result = PyObject_CallNoArgs(fn);
+  if (!result) {
+    PyErr_Clear();
     return 0;
+  }
   int val = PyObject_IsTrue(result);
   Py_DECREF(result);
   return val > 0 ? 1 : 0;
