@@ -18,6 +18,7 @@ add_mlir_unittest(MLIRIRTests
   RemarkTest.cpp  
   ShapedTypeTest.cpp
   SymbolTableTest.cpp
+  TypeRangeTest.cpp
   TypeTest.cpp
   TypeAttrNamesTest.cpp
   OpPropertiesTest.cpp

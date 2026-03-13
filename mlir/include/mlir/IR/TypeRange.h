@@ -21,6 +21,10 @@
 
 namespace mlir {
 
+/// Single-element wrapper used as a PointerUnion variant in TypeRange.
+/// Use llvm::Repeated<Type> as the public API.
+using RepeatedType = llvm::RepeatedStorage<Type>;
+
 //===----------------------------------------------------------------------===//
 // TypeRange
 //===----------------------------------------------------------------------===//
@@ -33,7 +37,8 @@ namespace mlir {
 class TypeRange : public llvm::detail::indexed_accessor_range_base<
                       TypeRange,
                       llvm::PointerUnion<const Value *, const Type *,
-                                         OpOperand *, detail::OpResultImpl *>,
+                                         OpOperand *, detail::OpResultImpl *,
+                                         const RepeatedType *>,
                       Type, Type, Type> {
 public:
   using RangeBaseT::RangeBaseT;
@@ -51,6 +56,10 @@ public:
       : TypeRange(ArrayRef<Type>(std::forward<Arg>(arg))) {}
   TypeRange(std::initializer_list<Type> types LLVM_LIFETIME_BOUND)
       : TypeRange(ArrayRef<Type>(types)) {}
+  TypeRange(const RepeatedType &repeated LLVM_LIFETIME_BOUND, ptrdiff_t count)
+      : RangeBaseT(&repeated, count) {}
+  TypeRange(const llvm::Repeated<Type> &rep LLVM_LIFETIME_BOUND)
+      : TypeRange(rep.storage, rep.count) {}
 
 private:
   /// The owner of the range is either:
@@ -58,8 +67,10 @@ private:
   /// * A pointer to the first element of an array of types.
   /// * A pointer to the first element of an array of operands.
   /// * A pointer to the first element of an array of results.
+  /// * A pointer to a RepeatedType (single element repeated N times).
   using OwnerT = llvm::PointerUnion<const Value *, const Type *, OpOperand *,
-                                    detail::OpResultImpl *>;
+                                    detail::OpResultImpl *,
+                                    const RepeatedType *>;
 
   /// See `llvm::detail::indexed_accessor_range_base` for details.
   static OwnerT offset_base(OwnerT object, ptrdiff_t index);

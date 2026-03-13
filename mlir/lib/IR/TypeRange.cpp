@@ -10,6 +10,12 @@
 
 using namespace mlir;
 
+static_assert(sizeof(TypeRange) == 2 * sizeof(void *),
+              "TypeRange should remain pointer + count (16 bytes on 64-bit)");
+static_assert(alignof(RepeatedType) >= alignof(void *),
+              "PointerUnion requires tag bits; RepeatedType must be "
+              "pointer-aligned");
+
 //===----------------------------------------------------------------------===//
 // TypeRange
 //===----------------------------------------------------------------------===//
@@ -31,6 +37,10 @@ TypeRange::TypeRange(ValueRange values) : TypeRange(OwnerT(), values.size()) {
     this->base = result;
   else if (auto *operand = llvm::dyn_cast_if_present<OpOperand *>(owner))
     this->base = operand;
+  else if (llvm::dyn_cast_if_present<const RepeatedValue *>(owner))
+    llvm::report_fatal_error("cannot construct TypeRange from a "
+                             "RepeatedValue-backed ValueRange; use "
+                             "TypeRange(RepeatedType, count) instead");
   else
     this->base = cast<const Value *>(owner);
 }
@@ -43,6 +53,8 @@ TypeRange::OwnerT TypeRange::offset_base(OwnerT object, ptrdiff_t index) {
     return {operand + index};
   if (auto *result = llvm::dyn_cast_if_present<detail::OpResultImpl *>(object))
     return {result->getNextResultAtOffset(index)};
+  if (llvm::isa<const RepeatedType *>(object))
+    return object;
   return {llvm::dyn_cast_if_present<const Type *>(object) + index};
 }
 
@@ -54,5 +66,7 @@ Type TypeRange::dereference_iterator(OwnerT object, ptrdiff_t index) {
     return (operand + index)->get().getType();
   if (auto *result = llvm::dyn_cast_if_present<detail::OpResultImpl *>(object))
     return result->getNextResultAtOffset(index)->getType();
+  if (auto *repeated = llvm::dyn_cast_if_present<const RepeatedType *>(object))
+    return repeated->value;
   return llvm::dyn_cast_if_present<const Type *>(object)[index];
 }
