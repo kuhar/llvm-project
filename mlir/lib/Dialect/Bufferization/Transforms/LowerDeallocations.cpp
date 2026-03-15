@@ -19,6 +19,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/Repeated.h"
 
 namespace mlir {
 namespace bufferization {
@@ -357,7 +358,7 @@ public:
       Value falseVal = arith::ConstantOp::create(rewriter, op.getLoc(),
                                                  rewriter.getBoolAttr(false));
       rewriter.replaceOp(
-          op, SmallVector<Value>(adaptor.getRetained().size(), falseVal));
+          op, llvm::Repeated<Value>(adaptor.getRetained().size(), falseVal));
       return success();
     }
 

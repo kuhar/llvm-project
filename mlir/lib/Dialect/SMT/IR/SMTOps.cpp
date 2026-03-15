@@ -10,6 +10,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/Repeated.h"
 
 using namespace mlir;
 using namespace smt;
@@ -104,7 +105,7 @@ parseSameOperandTypeVariadicToBoolOp(OpAsmParser &parser,
     return failure();
 
   result.addTypes(BoolType::get(parser.getContext()));
-  if (parser.resolveOperands(inputs, SmallVector<Type>(inputs.size(), type),
+  if (parser.resolveOperands(inputs, llvm::Repeated<Type>(inputs.size(), type),
                              loc, result.operands))
     return failure();
 

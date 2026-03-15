@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "llvm/ADT/Repeated.h"
 
 using namespace mlir;
 using namespace tosa;
@@ -117,8 +118,8 @@ public:
     auto one = createIndexConst(rewriter, loc, 1);
 
     // Loop bounds
-    auto lbs = llvm::SmallVector<Value>(2, zero);
-    auto steps = llvm::SmallVector<Value>(2, one);
+    auto lbs = llvm::Repeated<Value>(2, zero);
+    auto steps = llvm::Repeated<Value>(2, one);
     auto ubs = llvm::SmallVector<Value>{{dimN, dimW}};
 
     auto buildBody = [&](OpBuilder &builder, Location loc, ValueRange ivs,

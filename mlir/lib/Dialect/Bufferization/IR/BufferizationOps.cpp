@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/VerificationUtils.h"
 #include "mlir/IR/Matchers.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/SmallVectorExtras.h"
 #include <optional>
 
@@ -1053,8 +1054,8 @@ struct EraseEmptyDealloc : public OpRewritePattern<DeallocOp> {
       Value constFalse = arith::ConstantOp::create(rewriter, deallocOp.getLoc(),
                                                    rewriter.getBoolAttr(false));
       rewriter.replaceOp(
-          deallocOp, SmallVector<Value>(deallocOp.getUpdatedConditions().size(),
-                                        constFalse));
+          deallocOp, llvm::Repeated<Value>(
+                         deallocOp.getUpdatedConditions().size(), constFalse));
       return success();
     }
     return failure();

@@ -35,6 +35,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
@@ -748,8 +749,9 @@ static Value buildVectorWrite(RewriterBase &rewriter, Value value,
   auto vectorType = state.getCanonicalVecType(
       getElementTypeOrSelf(outputOperand->get().getType()), vectorTypeMap);
 
-  SmallVector<Value> indices(linalgOp.getRank(outputOperand),
-                             arith::ConstantIndexOp::create(rewriter, loc, 0));
+  llvm::Repeated<Value> indices(
+      linalgOp.getRank(outputOperand),
+      arith::ConstantIndexOp::create(rewriter, loc, 0));
 
   Operation *write;
   if (vectorType.getRank() > 0) {
@@ -1497,7 +1499,7 @@ vectorizeAsLinalgGeneric(RewriterBase &rewriter, VectorizationState &state,
           state.getCanonicalVecType(elemType, readMap.compose(indexingMap));
     }
 
-    SmallVector<Value> indices(linalgOp.getShape(opOperand).size(), zero);
+    llvm::Repeated<Value> indices(linalgOp.getShape(opOperand).size(), zero);
 
     Operation *read = vector::TransferReadOp::create(
         rewriter, loc, readType, opOperand->get(), indices,
@@ -2835,7 +2837,7 @@ LogicalResult mlir::linalg::vectorizeCopy(RewriterBase &rewriter,
 
   Location loc = copyOp->getLoc();
   Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
-  SmallVector<Value> indices(srcType.getRank(), zero);
+  llvm::Repeated<Value> indices(srcType.getRank(), zero);
 
   Value readValue = vector::TransferReadOp::create(
       rewriter, loc, readType, copyOp.getSource(), indices,
@@ -3724,9 +3726,9 @@ public:
     auto rhsType = VectorType::get(rhsShape, rhsEltType);
     auto resType = VectorType::get(resShape, resEltType);
     // Zero padding with the corresponding dimensions for lhs, rhs and res.
-    SmallVector<Value> lhsPadding(lhsShape.size(), zero);
-    SmallVector<Value> rhsPadding(rhsShape.size(), zero);
-    SmallVector<Value> resPadding(resShape.size(), zero);
+    llvm::Repeated<Value> lhsPadding(lhsShape.size(), zero);
+    llvm::Repeated<Value> rhsPadding(rhsShape.size(), zero);
+    llvm::Repeated<Value> resPadding(resShape.size(), zero);
 
     // Read the whole lhs, rhs and res in one shot (with zero padding).
     Value lhs = vector::TransferReadOp::create(

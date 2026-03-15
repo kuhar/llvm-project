@@ -22,6 +22,7 @@
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/Repeated.h"
 
 using namespace mlir;
 using namespace mlir::sparse_tensor;
@@ -337,7 +338,7 @@ static void createBinarySearchFunc(OpBuilder &builder, ModuleOp module,
   Location loc = func.getLoc();
   ValueRange args = entryBlock->getArguments();
   Value p = args[hiIdx];
-  SmallVector<Type, 2> types(2, p.getType()); // Only two types.
+  llvm::Repeated<Type> types(2, p.getType()); // Only two types.
   scf::WhileOp whileOp = scf::WhileOp::create(
       builder, loc, types, SmallVector<Value, 2>{args[loIdx], args[hiIdx]});
 
@@ -777,7 +778,7 @@ static void createShiftDownFunc(OpBuilder &builder, ModuleOp module,
     Value rChild = arith::AddIOp::create(builder, loc, lChild, c1);
     Value cond1 = arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::ult,
                                         rChild, n);
-    SmallVector<Type, 2> ifTypes(2, r.getType());
+    llvm::Repeated<Type> ifTypes(2, r.getType());
     scf::IfOp if1 =
         scf::IfOp::create(builder, loc, ifTypes, cond1, /*else=*/true);
     builder.setInsertionPointToStart(&if1.getThenRegion().front());
@@ -805,7 +806,7 @@ static void createShiftDownFunc(OpBuilder &builder, ModuleOp module,
   std::tie(child, childIdx) = getLargerChild(child);
 
   // While (data[start] < data[childIndex]).
-  SmallVector<Type, 3> types(3, child.getType());
+  llvm::Repeated<Type> types(3, child.getType());
   scf::WhileOp whileOp = scf::WhileOp::create(
       builder, loc, types, SmallVector<Value, 2>{start, child, childIdx});
 
@@ -926,7 +927,7 @@ createQuickSort(OpBuilder &builder, ModuleOp module, func::FuncOp func,
   Location loc = func.getLoc();
   Value lo = args[loIdx];
   Value hi = args[hiIdx];
-  SmallVector<Type, 2> types(2, lo.getType()); // Only two types.
+  llvm::Repeated<Type> types(2, lo.getType()); // Only two types.
 
   FlatSymbolRefAttr partitionFunc = getMangledSortHelperFunc(
       builder, func, {IndexType::get(context)}, kPartitionFuncNamePrefix, xPerm,
@@ -1127,7 +1128,7 @@ static void createQuickSortFunc(OpBuilder &builder, ModuleOp module,
               entryBlock->getArguments().end());
   Value lo = args[loIdx];
   Value hi = args[hiIdx];
-  SmallVector<Type, 2> types(2, lo.getType()); // Only two types.
+  llvm::Repeated<Type> types(2, lo.getType()); // Only two types.
   scf::WhileOp whileOp =
       scf::WhileOp::create(builder, loc, types, SmallVector<Value, 2>{lo, hi});
 

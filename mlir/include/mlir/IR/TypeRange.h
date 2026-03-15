@@ -34,12 +34,12 @@ using RepeatedType = llvm::RepeatedStorage<Type>;
 /// a SmallVector/std::vector. This class should be used in places that are not
 /// suitable for a more derived type (e.g. ArrayRef) or a template range
 /// parameter.
-class TypeRange : public llvm::detail::indexed_accessor_range_base<
-                      TypeRange,
-                      llvm::PointerUnion<const Value *, const Type *,
-                                         OpOperand *, detail::OpResultImpl *,
-                                         const RepeatedType *>,
-                      Type, Type, Type> {
+class TypeRange
+    : public llvm::detail::indexed_accessor_range_base<
+          TypeRange,
+          llvm::PointerUnion<const Value *, const Type *, OpOperand *,
+                             detail::OpResultImpl *, const RepeatedType *>,
+          Type, Type, Type> {
 public:
   using RangeBaseT::RangeBaseT;
   TypeRange(ArrayRef<Type> types = {});
@@ -68,9 +68,9 @@ private:
   /// * A pointer to the first element of an array of operands.
   /// * A pointer to the first element of an array of results.
   /// * A pointer to a RepeatedType (single element repeated N times).
-  using OwnerT = llvm::PointerUnion<const Value *, const Type *, OpOperand *,
-                                    detail::OpResultImpl *,
-                                    const RepeatedType *>;
+  using OwnerT =
+      llvm::PointerUnion<const Value *, const Type *, OpOperand *,
+                         detail::OpResultImpl *, const RepeatedType *>;
 
   /// See `llvm::detail::indexed_accessor_range_base` for details.
   static OwnerT offset_base(OwnerT object, ptrdiff_t index);

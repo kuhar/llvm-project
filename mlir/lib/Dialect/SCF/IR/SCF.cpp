@@ -28,6 +28,7 @@
 #include "mlir/Transforms/InliningUtils.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Casting.h"
@@ -1279,7 +1280,7 @@ void ForallOp::build(
 
   // Add block arguments for indices and outputs.
   bodyBlock.addArguments(
-      SmallVector<Type>(lbs.size(), b.getIndexType()),
+      llvm::Repeated<Type>(lbs.size(), b.getIndexType()),
       SmallVector<Location>(staticLbs.size(), result.location));
   bodyBlock.addArguments(
       TypeRange(outputs),
@@ -2753,7 +2754,7 @@ void ParallelOp::build(
 
   OpBuilder::InsertionGuard guard(builder);
   unsigned numIVs = steps.size();
-  SmallVector<Type, 8> argTypes(numIVs, builder.getIndexType());
+  llvm::Repeated<Type> argTypes(numIVs, builder.getIndexType());
   SmallVector<Location, 8> argLocs(numIVs, result.location);
   Region *bodyRegion = result.addRegion();
   Block *bodyBlock = builder.createBlock(bodyRegion, {}, argTypes, argLocs);

@@ -38,6 +38,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/Repeated.h"
 
 #define DEBUG_TYPE "shard-to-mpi"
 
@@ -561,8 +562,8 @@ struct CommOpPattern : public OpConversionPattern<CommOp> {
         otherAxes.emplace_back(i);
     }
 
-    SmallVector<Type> indexResultTypes(otherAxes.size(),
-                                       iBuilder.getIndexType());
+    llvm::Repeated<Type> indexResultTypes(otherAxes.size(),
+                                          iBuilder.getIndexType());
 
     Value color =
         createProcessLinearIndex(iBuilder, gridOp.getSymName(), otherAxes);
@@ -1005,8 +1006,8 @@ struct ConvertUpdateHaloOp : public OpConversionPattern<UpdateHaloOp> {
     auto zeroAttr = rewriter.getI32IntegerAttr(0); // for detecting v<0
     auto zero = arith::ConstantOp::create(rewriter, loc, zeroAttr);
 
-    SmallVector<Type> indexResultTypes(gridOp.getShape().size(),
-                                       rewriter.getIndexType());
+    llvm::Repeated<Type> indexResultTypes(gridOp.getShape().size(),
+                                          rewriter.getIndexType());
     auto myMultiIndex =
         ProcessMultiIndexOp::create(rewriter, loc, indexResultTypes, grid)
             .getResult();

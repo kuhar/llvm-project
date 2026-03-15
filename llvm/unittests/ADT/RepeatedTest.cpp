@@ -259,7 +259,7 @@ TEST(RepeatedTest, ReverseIteratorEmpty) {
 TEST(RepeatedTest, IteratorTraits) {
   using It = RepeatedIterator<int>;
   static_assert(std::is_same_v<std::iterator_traits<It>::iterator_category,
-                                std::random_access_iterator_tag>);
+                               std::random_access_iterator_tag>);
   static_assert(std::is_same_v<std::iterator_traits<It>::value_type, int>);
   static_assert(
       std::is_same_v<std::iterator_traits<It>::difference_type, ptrdiff_t>);

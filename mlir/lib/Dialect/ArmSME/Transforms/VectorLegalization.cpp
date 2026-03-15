@@ -27,6 +27,7 @@
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/Repeated.h"
 
 #define DEBUG_TYPE "arm-sme-vector-legalization"
 
@@ -708,7 +709,7 @@ struct LiftIllegalVectorTransposeToMemory
 
     VectorType legalReadType = resultType.clone(readType.getElementType());
     // Note: The indices are all zero as the subview is already offset.
-    SmallVector<Value> readIndices(illegalRead.getIndices().size(), zero);
+    llvm::Repeated<Value> readIndices(illegalRead.getIndices().size(), zero);
     auto legalRead = vector::TransferReadOp::create(
         rewriter, loc, legalReadType, transposedSubview, readIndices,
         illegalRead.getPermutationMapAttr(), illegalRead.getPadding(), mask,

@@ -27,6 +27,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/Support/DebugLog.h"
 #include "llvm/Support/InterleavedRange.h"
 
@@ -357,7 +358,7 @@ Value vector::createReadOrMaskedRead(OpBuilder &builder, Location loc,
       builder, loc,
       /*vectorType=*/vecToReadTy,
       /*source=*/source,
-      /*indices=*/SmallVector<Value>(vecToReadRank, zero),
+      /*indices=*/llvm::Repeated<Value>(vecToReadRank, zero),
       /*padding=*/padValue,
       /*inBounds=*/inBoundsVal);
 

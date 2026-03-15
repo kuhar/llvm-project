@@ -17,6 +17,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -155,13 +156,11 @@ struct CopySignPattern final : public OpConversionPattern<math::CopySignOp> {
       int count = vectorType.getNumElements();
       intType = VectorType::get(count, intType);
 
-      SmallVector<Value> signSplat(count, signMask);
-      signMask = spirv::CompositeConstructOp::create(rewriter, loc, intType,
-                                                     signSplat);
+      signMask = spirv::CompositeConstructOp::create(
+          rewriter, loc, intType, llvm::Repeated<Value>(count, signMask));
 
-      SmallVector<Value> valueSplat(count, valueMask);
-      valueMask = spirv::CompositeConstructOp::create(rewriter, loc, intType,
-                                                      valueSplat);
+      valueMask = spirv::CompositeConstructOp::create(
+          rewriter, loc, intType, llvm::Repeated<Value>(count, valueMask));
     }
 
     Value lhsCast =

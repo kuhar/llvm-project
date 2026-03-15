@@ -26,6 +26,7 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
@@ -128,10 +129,10 @@ struct VectorBroadcastConvert final
       return success();
     }
 
-    SmallVector<Value, 4> source(castOp.getResultVectorType().getNumElements(),
-                                 adaptor.getSource());
-    rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(castOp, resultType,
-                                                             source);
+    rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(
+        castOp, resultType,
+        llvm::Repeated<Value>(castOp.getResultVectorType().getNumElements(),
+                              adaptor.getSource()));
     return success();
   }
 };
@@ -517,10 +518,10 @@ public:
       rewriter.replaceOp(op, adaptor.getSource());
     } else {
       auto dstVecType = cast<VectorType>(dstType);
-      SmallVector<Value, 4> source(dstVecType.getNumElements(),
-                                   adaptor.getSource());
-      rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(op, dstType,
-                                                               source);
+      rewriter.replaceOpWithNewOp<spirv::CompositeConstructOp>(
+          op, dstType,
+          llvm::Repeated<Value>(dstVecType.getNumElements(),
+                                adaptor.getSource()));
     }
     return success();
   }

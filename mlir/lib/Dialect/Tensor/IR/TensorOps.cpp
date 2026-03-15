@@ -32,6 +32,7 @@
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
@@ -1708,7 +1709,7 @@ void GenerateOp::build(
   OpBuilder::InsertionGuard guard(b);
   Region *bodyRegion = result.regions.front().get();
   auto rank = llvm::cast<RankedTensorType>(resultTy).getRank();
-  SmallVector<Type, 2> argumentTypes(rank, b.getIndexType());
+  llvm::Repeated<Type> argumentTypes(rank, b.getIndexType());
   SmallVector<Location, 2> argumentLocs(rank, result.location);
   Block *bodyBlock =
       b.createBlock(bodyRegion, bodyRegion->end(), argumentTypes, argumentLocs);
@@ -3381,7 +3382,7 @@ void PadOp::build(OpBuilder &b, OperationState &result, Type resultType,
   // Add a region and a block to yield the pad value.
   Region *region = result.regions[0].get();
   int sourceRank = llvm::cast<RankedTensorType>(source.getType()).getRank();
-  SmallVector<Type> blockArgTypes(sourceRank, b.getIndexType());
+  llvm::Repeated<Type> blockArgTypes(sourceRank, b.getIndexType());
   SmallVector<Location> blockArgLocs(sourceRank, result.location);
 
   // `builder.createBlock` changes the insertion point within the block. Create

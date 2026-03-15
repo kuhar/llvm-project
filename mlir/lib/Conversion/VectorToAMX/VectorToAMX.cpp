@@ -20,6 +20,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/DebugLog.h"
 
@@ -270,7 +271,7 @@ loadStoreFromTransfer(PatternRewriter &rewriter,
   auto tileType = x86::amx::TileType::get({rows, cols}, vecTy.getElementType());
 
   Value zeroIndex = rewriter.createOrFold<arith::ConstantIndexOp>(loc, 0);
-  SmallVector<Value> tileIndicides(src.getType().getRank(), zeroIndex);
+  llvm::Repeated<Value> tileIndicides(src.getType().getRank(), zeroIndex);
 
   Operation *amxTileOp = nullptr;
   if (isa<vector::TransferReadOp>(xferOp)) {
@@ -327,7 +328,7 @@ static TypedValue<x86::amx::TileType> loadTile(PatternRewriter &rewriter,
   Value buf = memref::AllocaOp::create(
       rewriter, loc, MemRefType::get(vecTy.getShape(), vecTy.getElementType()));
   Value zeroIndex = rewriter.createOrFold<arith::ConstantIndexOp>(loc, 0);
-  SmallVector<Value> indices(vecTy.getRank(), zeroIndex);
+  llvm::Repeated<Value> indices(vecTy.getRank(), zeroIndex);
   vector::TransferWriteOp::create(rewriter, loc, vec, buf, indices);
 
   // Collapse the VNNI dimension in case of packing.
@@ -354,7 +355,7 @@ static TypedValue<VectorType> storeTile(PatternRewriter &rewriter,
       rewriter, loc,
       MemRefType::get(tileTy.getShape(), tileTy.getElementType()));
   Value zeroIndex = rewriter.createOrFold<arith::ConstantIndexOp>(loc, 0);
-  SmallVector<Value> indices(2, zeroIndex);
+  llvm::Repeated<Value> indices(2, zeroIndex);
   x86::amx::TileStoreOp::create(rewriter, loc, buf, indices, tile);
 
   auto vecTy = VectorType::get(tileTy.getShape(), tileTy.getElementType());

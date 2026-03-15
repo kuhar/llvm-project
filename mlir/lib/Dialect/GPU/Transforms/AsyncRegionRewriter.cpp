@@ -21,6 +21,7 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 namespace mlir {
@@ -322,7 +323,7 @@ struct GpuAsyncRegionPass::SingleTokenUseCallback {
       auto uses = llvm::drop_begin(executeOp.getBodyResults()[index].getUses());
       auto count = std::distance(uses.begin(), uses.end());
       auto yieldOp = cast<async::YieldOp>(executeOp.getBody()->getTerminator());
-      SmallVector<Value, 4> operands(count, yieldOp.getOperand(index));
+      llvm::Repeated<Value> operands(count, yieldOp.getOperand(index));
       executeOp = addExecuteResults(executeOp, operands);
       // Update 'uses' to refer to the new executeOp.
       uses = llvm::drop_begin(executeOp.getBodyResults()[index].getUses());

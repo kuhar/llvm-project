@@ -39,6 +39,7 @@
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -636,7 +637,7 @@ void transform::FuseOp::build(OpBuilder &builder, OperationState &result,
                               bool applyCleanup, bool useForall) {
   // Loop types are automaticaly splat by the callee, setting up one is
   // enough.
-  SmallVector<Type> loopTypes(1, builder.getType<transform::AnyOpType>());
+  llvm::Repeated<Type> loopTypes(1, builder.getType<transform::AnyOpType>());
   build(builder, result, loopTypes, target, mixedTileSizes,
         mixedTileInterchange, applyCleanup, useForall);
 }
@@ -3482,7 +3483,7 @@ void transform::TileUsingForOp::build(
     std::optional<ArrayRef<bool>> scalableSizes) {
   // Loop types are automaticaly splat by the callee, setting up one is
   // enough.
-  SmallVector<Type> loopTypes(1, builder.getType<transform::AnyOpType>());
+  llvm::Repeated<Type> loopTypes(1, builder.getType<transform::AnyOpType>());
   build(builder, result, loopTypes, target, mixedTileSizes, interchange,
         scalableSizes);
 }

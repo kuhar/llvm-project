@@ -26,6 +26,7 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -453,8 +454,8 @@ void GridShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
 void GridShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
                         GridOp grid, ArrayRef<GridAxis> axes) {
   build(odsBuilder, odsState,
-        SmallVector<Type>(axes.empty() ? grid.getRank() : axes.size(),
-                          odsBuilder.getIndexType()),
+        llvm::Repeated<Type>(axes.empty() ? grid.getRank() : axes.size(),
+                             odsBuilder.getIndexType()),
         grid.getSymName(), GridAxesAttr::get(odsBuilder.getContext(), axes));
 }
 
@@ -462,7 +463,7 @@ void GridShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
                         StringRef grid, ArrayRef<GridAxis> axes) {
   assert(!axes.empty());
   build(odsBuilder, odsState,
-        SmallVector<Type>(axes.size(), odsBuilder.getIndexType()), grid,
+        llvm::Repeated<Type>(axes.size(), odsBuilder.getIndexType()), grid,
         GridAxesAttr::get(odsBuilder.getContext(), axes));
 }
 
@@ -920,14 +921,14 @@ ProcessMultiIndexOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 void ProcessMultiIndexOp::build(OpBuilder &odsBuilder, OperationState &odsState,
                                 GridOp grid) {
   build(odsBuilder, odsState,
-        SmallVector<Type>(grid.getRank(), odsBuilder.getIndexType()),
+        llvm::Repeated<Type>(grid.getRank(), odsBuilder.getIndexType()),
         grid.getSymName(), ArrayRef<GridAxis>());
 }
 
 void ProcessMultiIndexOp::build(OpBuilder &odsBuilder, OperationState &odsState,
                                 StringRef grid, ArrayRef<GridAxis> axes) {
   build(odsBuilder, odsState,
-        SmallVector<Type>(axes.size(), odsBuilder.getIndexType()), grid,
+        llvm::Repeated<Type>(axes.size(), odsBuilder.getIndexType()), grid,
         GridAxesAttr::get(odsBuilder.getContext(), axes));
 }
 

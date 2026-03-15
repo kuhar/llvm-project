@@ -32,6 +32,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/LoopInvariantCodeMotionUtils.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -2661,7 +2662,7 @@ transform::SelectOp::apply(transform::TransformRewriter &rewriter,
 void transform::SplitHandleOp::build(OpBuilder &builder, OperationState &result,
                                      Value target, int64_t numResultHandles) {
   result.addOperands(target);
-  result.addTypes(SmallVector<Type>(numResultHandles, target.getType()));
+  result.addTypes(llvm::Repeated<Type>(numResultHandles, target.getType()));
 }
 
 DiagnosedSilenceableFailure

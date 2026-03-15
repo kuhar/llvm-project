@@ -22,6 +22,7 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include <cstdint>
 #include <numeric>
@@ -130,7 +131,7 @@ createPointerFromEmitcArray(Location loc, OpBuilder &builder,
       builder, loc, builder.getIndexType(), builder.getIndexAttr(0));
 
   emitc::ArrayType arrayType = arrayValue.getType();
-  llvm::SmallVector<mlir::Value> indices(arrayType.getRank(), zeroIndex);
+  llvm::Repeated<mlir::Value> indices(arrayType.getRank(), zeroIndex);
   emitc::SubscriptOp subPtr =
       emitc::SubscriptOp::create(builder, loc, arrayValue, ValueRange(indices));
   emitc::AddressOfOp ptr = emitc::AddressOfOp::create(

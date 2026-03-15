@@ -24,6 +24,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DebugLog.h"
@@ -544,7 +545,7 @@ class TransferReadDropUnitDimsPattern
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
     Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    SmallVector<Value> zeros(reducedRank, c0);
+    llvm::Repeated<Value> zeros(reducedRank, c0);
     auto identityMap = rewriter.getMultiDimIdentityMap(reducedRank);
     SmallVector<bool> inBounds(reducedVectorType.getRank(), true);
     Operation *newTransferReadOp = vector::TransferReadOp::create(
@@ -658,7 +659,7 @@ class TransferWriteDropUnitDimsPattern
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
     Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
-    SmallVector<Value> zeros(reducedRank, c0);
+    llvm::Repeated<Value> zeros(reducedRank, c0);
     auto identityMap = rewriter.getMultiDimIdentityMap(reducedRank);
     SmallVector<bool> inBounds(reducedVectorType.getRank(), true);
     auto shapeCastSrc = rewriter.createOrFold<vector::ShapeCastOp>(

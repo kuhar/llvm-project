@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/Repeated.h"
 
 using namespace mlir;
 
@@ -217,8 +218,8 @@ struct RewriteExtractSliceFromCollapseShapeUsingScfFor
     const unsigned numTiledDims = helper.getIterationSpaceSizes().size();
     auto zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
     auto one = arith::ConstantIndexOp::create(rewriter, loc, 1);
-    SmallVector<Value> lbs(numTiledDims, zero);
-    SmallVector<Value> steps(numTiledDims, one);
+    llvm::Repeated<Value> lbs(numTiledDims, zero);
+    llvm::Repeated<Value> steps(numTiledDims, one);
 
     scf::LoopNest nest = scf::buildLoopNest(
         rewriter, loc, lbs, helper.getIterationSpaceSizes(), steps, dest,

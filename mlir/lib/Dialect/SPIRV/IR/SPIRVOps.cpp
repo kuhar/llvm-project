@@ -31,6 +31,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/Repeated.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -279,7 +280,7 @@ static ParseResult parseArithmeticExtendedBinaryOp(OpAsmParser &parser,
   if (!structType || structType.getNumElements() != 2)
     return parser.emitError(loc, "expected spirv.struct type with two members");
 
-  SmallVector<Type, 2> operandTypes(2, structType.getElementType(0));
+  llvm::Repeated<Type> operandTypes(2, structType.getElementType(0));
   if (parser.resolveOperands(operands, operandTypes, loc, result.operands))
     return failure();
 
