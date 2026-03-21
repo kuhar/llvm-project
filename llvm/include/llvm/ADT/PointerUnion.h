@@ -40,6 +40,52 @@ template <typename... Ts> constexpr int lowBitsAvailable() {
   return std::min<int>({PointerLikeTypeTraits<Ts>::NumLowBitsAvailable...});
 }
 
+/// True if all types have enough low bits for a fixed-width tag.
+template <typename... PTs> constexpr bool isSingleTier() {
+  return lowBitsAvailable<PTs...>() >= bitsRequired(sizeof...(PTs));
+}
+
+/// True if types are in non-decreasing NumLowBitsAvailable order.
+template <typename... PTs> constexpr bool typesInAscendingBitOrder() {
+  if constexpr (sizeof...(PTs) <= 1)
+    return true;
+  else {
+    int bits[] = {PointerLikeTypeTraits<PTs>::NumLowBitsAvailable...};
+    for (size_t i = 1; i < sizeof...(PTs); ++i)
+      if (bits[i] < bits[i - 1])
+        return false;
+    return true;
+  }
+}
+
+/// True if the variable-length encoding has enough capacity for all types.
+template <typename... PTs> constexpr bool extendedTagsFit() {
+  if constexpr (sizeof...(PTs) == 0)
+    return true;
+  else {
+    constexpr size_t N = sizeof...(PTs);
+    int bits[] = {PointerLikeTypeTraits<PTs>::NumLowBitsAvailable...};
+    int prevBits = 0;
+    size_t i = 0;
+    while (i < N) {
+      int tierBits = bits[i];
+      int newBits = tierBits - prevBits;
+      size_t tierEnd = i;
+      while (tierEnd < N && bits[tierEnd] == tierBits)
+        ++tierEnd;
+      bool isLastTier = (tierEnd == N);
+      size_t typesInTier = tierEnd - i;
+      size_t capacity =
+          isLastTier ? size_t(1) << newBits : (size_t(1) << newBits) - 1;
+      if (typesInTier > capacity)
+        return false;
+      prevBits = tierBits;
+      i = tierEnd;
+    }
+    return true;
+  }
+}
+
 /// Tag descriptor for one type in the union.
 struct TagEntry {
   intptr_t value; ///< Bit pattern stored in the low bits.
@@ -57,6 +103,39 @@ constexpr std::array<TagEntry, sizeof...(PTs)> computeFixedTags() {
     result[i].mask = mask;
   }
   return result;
+}
+
+/// Compute variable-length tag table for multi-tier.  Types must be in
+/// ascending NumLowBitsAvailable order.  Groups types into tiers by bit count;
+/// each non-final tier reserves one code as an escape prefix.
+template <typename... PTs>
+constexpr std::array<TagEntry, sizeof...(PTs)> computeExtendedTags() {
+  constexpr size_t N = sizeof...(PTs);
+  std::array<TagEntry, N> result = {};
+  if constexpr (N == 0)
+    return result;
+  else {
+    int bits[] = {PointerLikeTypeTraits<PTs>::NumLowBitsAvailable...};
+    intptr_t escapePrefix = 0;
+    int prevBits = 0;
+    size_t i = 0;
+    while (i < N) {
+      int tierBits = bits[i];
+      int newBits = tierBits - prevBits;
+      size_t tierEnd = i;
+      while (tierEnd < N && bits[tierEnd] == tierBits)
+        ++tierEnd;
+      for (size_t j = 0; j < tierEnd - i; ++j) {
+        result[i + j].value = escapePrefix | (intptr_t(j) << prevBits);
+        result[i + j].mask = (intptr_t(1) << tierBits) - 1;
+      }
+      intptr_t escapeCode = (intptr_t(1) << newBits) - 1;
+      escapePrefix |= escapeCode << prevBits;
+      prevBits = tierBits;
+      i = tierEnd;
+    }
+    return result;
+  }
 }
 
 /// CRTP base that generates non-template constructors and assignment operators
@@ -103,6 +182,13 @@ public:
 /// This implementation is extremely efficient in space due to leveraging the
 /// low bits of the pointer, while exposing a natural and type-safe API.
 ///
+/// When all types have enough alignment for a fixed-width tag (single-tier),
+/// the tag is placed in the high end of the available low bits, leaving spare
+/// low bits for nesting in PointerIntPair or SmallPtrSet.  When types have
+/// heterogeneous alignment (multi-tier), a variable-length escape-encoded tag
+/// is used; in that case, types must be listed in non-decreasing
+/// NumLowBitsAvailable order.
+///
 /// Common use patterns would be something like this:
 ///    PointerUnion<int*, float*> P;
 ///    P = (int*)0;
@@ -135,6 +221,10 @@ class PointerUnion
   // are only instantiated when called.  This avoids evaluating alignof() on
   // potentially incomplete types at class-definition time.
 
+  static constexpr bool singleTier() {
+    return pointer_union_detail::isSingleTier<PTs...>();
+  }
+
   static constexpr int minBits() {
     return pointer_union_detail::lowBitsAvailable<PTs...>();
   }
@@ -143,15 +233,33 @@ class PointerUnion
     return pointer_union_detail::bitsRequired(sizeof...(PTs));
   }
 
-  /// The tag is shifted to the high end of the available low bits so that
-  /// the lowest bits remain free for nesting in PointerIntPair or SmallPtrSet.
-  static constexpr int tagShift() { return minBits() - tagBits(); }
+  /// In single-tier mode, the tag is shifted to the high end of the available
+  /// low bits so that the lowest bits remain free for nesting.  In multi-tier
+  /// mode, the tag starts at bit 0.
+  static constexpr int tagShift() {
+    return singleTier() ? (minBits() - tagBits()) : 0;
+  }
 
   static constexpr auto tagTable() {
-    if constexpr (sizeof...(PTs) == 0)
+    if constexpr (sizeof...(PTs) == 0) {
       return std::array<pointer_union_detail::TagEntry, 0>{};
-    else
+    } else if constexpr (singleTier()) {
       return pointer_union_detail::computeFixedTags<PTs...>();
+    } else {
+      static_assert(pointer_union_detail::typesInAscendingBitOrder<PTs...>(),
+                    "Multi-tier PointerUnion types must be in ascending "
+                    "NumLowBitsAvailable order");
+      static_assert(pointer_union_detail::extendedTagsFit<PTs...>(),
+                    "Too many types for the available low bits");
+      return pointer_union_detail::computeExtendedTags<PTs...>();
+    }
+  }
+
+  // Multi-tier isNull: check membership in the sparse set of tag values.
+  template <size_t... Is>
+  static constexpr bool isNullCheck(intptr_t v, std::index_sequence<Is...>) {
+    constexpr auto table = tagTable();
+    return ((v == table[Is].value) || ...);
   }
 
   template <typename T>
@@ -185,9 +293,13 @@ public:
   /// Test if the pointer held in the union is null, regardless of
   /// which type it is.
   bool isNull() const {
-    // All null values fit entirely within the tag field.
-    return static_cast<uintptr_t>(this->Val.asInt()) <
-           (uintptr_t(1) << minBits());
+    if constexpr (singleTier()) {
+      // All null values fit entirely within the tag field.
+      return static_cast<uintptr_t>(this->Val.asInt()) <
+             (uintptr_t(1) << minBits());
+    } else {
+      return isNullCheck(this->Val.asInt(), std::index_sequence_for<PTs...>{});
+    }
   }
 
   explicit operator bool() const { return !isNull(); }
@@ -283,7 +395,7 @@ struct CastInfo<To, const PointerUnion<PTs...>>
           CastInfo<To, PointerUnion<PTs...>>> {};
 
 // Teach SmallPtrSet that PointerUnion is "basically a pointer".
-// Spare low bits below the tag are available for nesting.
+// In single-tier mode, spare low bits are available for nesting.
 // This specialization is only instantiated when used (lazy), so
 // PointerLikeTypeTraits<PTs> / alignof() are not evaluated for
 // incomplete types.

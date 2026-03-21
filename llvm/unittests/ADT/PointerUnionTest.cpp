@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "gtest/gtest.h"
 using namespace llvm;
@@ -287,6 +288,323 @@ TEST_F(PointerUnionTest, NewCastInfra) {
   EXPECT_EQ(result2, &d);
   static_assert(std::is_same_v<const double *, decltype(result2)>,
                 "type mismatch for cast with PointerUnion");
+}
+
+//===----------------------------------------------------------------------===//
+// Multi-tier PointerUnion tests
+//===----------------------------------------------------------------------===//
+
+template <int I> struct alignas(4) Align4 {};
+template <int I> struct alignas(8) Align8 {};
+template <int I> struct alignas(16) Align16 {};
+
+// 2-tier: 3 x 2-bit + 2 x 3-bit types.
+using PU2Tier = PointerUnion<Align4<0> *, Align4<1> *, Align4<2> *,
+                             Align8<0> *, Align8<1> *>;
+
+// 3-tier: 3 x 2-bit + 1 x 3-bit + 2 x 4-bit types.
+using PU3Tier = PointerUnion<Align4<0> *, Align4<1> *, Align4<2> *,
+                             Align8<0> *, Align16<0> *, Align16<1> *>;
+
+// NumLowBitsAvailable is 0 for multi-tier PointerUnion.
+static_assert(PointerLikeTypeTraits<PU2Tier>::NumLowBitsAvailable == 0);
+static_assert(PointerLikeTypeTraits<PU3Tier>::NumLowBitsAvailable == 0);
+
+struct PointerUnion2TierTest : public testing::Test {
+  Align4<0> a0;
+  Align4<1> a1;
+  Align4<2> a2;
+  Align8<0> b0;
+  Align8<1> b1;
+
+  PU2Tier pa0, pa1, pa2, pb0, pb1, null;
+  PU2Tier na0, na1, na2, nb0, nb1;
+
+  PointerUnion2TierTest()
+      : pa0(&a0), pa1(&a1), pa2(&a2), pb0(&b0), pb1(&b1), null(),
+        na0((Align4<0> *)nullptr), na1((Align4<1> *)nullptr),
+        na2((Align4<2> *)nullptr), nb0((Align8<0> *)nullptr),
+        nb1((Align8<1> *)nullptr) {}
+};
+
+TEST_F(PointerUnion2TierTest, Isa) {
+  // Tier 0 types
+  EXPECT_TRUE(isa<Align4<0> *>(pa0));
+  EXPECT_FALSE(isa<Align4<1> *>(pa0));
+  EXPECT_FALSE(isa<Align4<2> *>(pa0));
+  EXPECT_FALSE(isa<Align8<0> *>(pa0));
+  EXPECT_FALSE(isa<Align8<1> *>(pa0));
+
+  EXPECT_TRUE(isa<Align4<1> *>(pa1));
+  EXPECT_TRUE(isa<Align4<2> *>(pa2));
+
+  // Tier 1 types
+  EXPECT_TRUE(isa<Align8<0> *>(pb0));
+  EXPECT_FALSE(isa<Align4<0> *>(pb0));
+  EXPECT_FALSE(isa<Align8<1> *>(pb0));
+
+  EXPECT_TRUE(isa<Align8<1> *>(pb1));
+  EXPECT_FALSE(isa<Align8<0> *>(pb1));
+
+  // Null pointers preserve type identity
+  EXPECT_TRUE(isa<Align4<0> *>(na0));
+  EXPECT_TRUE(isa<Align8<1> *>(nb1));
+  EXPECT_FALSE(isa<Align8<0> *>(na0));
+}
+
+TEST_F(PointerUnion2TierTest, Cast) {
+  EXPECT_EQ(cast<Align4<0> *>(pa0), &a0);
+  EXPECT_EQ(cast<Align4<1> *>(pa1), &a1);
+  EXPECT_EQ(cast<Align4<2> *>(pa2), &a2);
+  EXPECT_EQ(cast<Align8<0> *>(pb0), &b0);
+  EXPECT_EQ(cast<Align8<1> *>(pb1), &b1);
+}
+
+TEST_F(PointerUnion2TierTest, DynCast) {
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pa0), &a0);
+  EXPECT_EQ(dyn_cast<Align4<1> *>(pa0), nullptr);
+  EXPECT_EQ(dyn_cast<Align8<0> *>(pa0), nullptr);
+
+  EXPECT_EQ(dyn_cast<Align8<0> *>(pb0), &b0);
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pb0), nullptr);
+
+  // pb1 has the all-ones tag -- most likely to expose masking bugs.
+  EXPECT_EQ(dyn_cast<Align8<1> *>(pb1), &b1);
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pb1), nullptr);
+  EXPECT_EQ(dyn_cast<Align4<1> *>(pb1), nullptr);
+  EXPECT_EQ(dyn_cast<Align4<2> *>(pb1), nullptr);
+  EXPECT_EQ(dyn_cast<Align8<0> *>(pb1), nullptr);
+
+  EXPECT_EQ(dyn_cast_if_present<Align4<0> *>(na0), nullptr);
+  EXPECT_EQ(dyn_cast_if_present<Align8<0> *>(na0), nullptr);
+  EXPECT_EQ(dyn_cast_if_present<Align8<0> *>(nb0), nullptr);
+}
+
+TEST_F(PointerUnion2TierTest, Null) {
+  EXPECT_FALSE(pa0.isNull());
+  EXPECT_FALSE(pb0.isNull());
+  EXPECT_TRUE(null.isNull());
+  EXPECT_TRUE(!null);
+  EXPECT_TRUE((bool)pa0);
+
+  EXPECT_TRUE(na0.isNull());
+  EXPECT_TRUE(na1.isNull());
+  EXPECT_TRUE(na2.isNull());
+  EXPECT_TRUE(nb0.isNull());
+  EXPECT_TRUE(nb1.isNull());
+}
+
+TEST_F(PointerUnion2TierTest, NullDiscrimination) {
+  // Null pointers of different types have different opaque values.
+  EXPECT_NE(na0, na1);
+  EXPECT_NE(na0, na2);
+  EXPECT_NE(na0, nb0);
+  EXPECT_NE(na1, nb0);
+  EXPECT_NE(nb0, nb1);
+
+  // Default-constructed is null of first type.
+  EXPECT_EQ(null, na0);
+}
+
+TEST_F(PointerUnion2TierTest, Comparison) {
+  EXPECT_EQ(pa0, pa0);
+  EXPECT_NE(pa0, pa1);
+  EXPECT_NE(pa0, pb0);
+
+  PU2Tier other(&a0);
+  EXPECT_EQ(pa0, other);
+}
+
+TEST_F(PointerUnion2TierTest, Assignment) {
+  PU2Tier u;
+  EXPECT_TRUE(u.isNull());
+
+  u = &a0;
+  EXPECT_TRUE(isa<Align4<0> *>(u));
+  EXPECT_EQ(cast<Align4<0> *>(u), &a0);
+
+  u = &b0;
+  EXPECT_TRUE(isa<Align8<0> *>(u));
+  EXPECT_EQ(cast<Align8<0> *>(u), &b0);
+
+  u = &a2;
+  EXPECT_TRUE(isa<Align4<2> *>(u));
+
+  u = nullptr;
+  EXPECT_TRUE(u.isNull());
+}
+
+TEST_F(PointerUnion2TierTest, GetAddrOfPtr1) {
+  EXPECT_TRUE((void *)pa0.getAddrOfPtr1() == (void *)&pa0);
+  EXPECT_TRUE((void *)null.getAddrOfPtr1() == (void *)&null);
+}
+
+TEST_F(PointerUnion2TierTest, OpaqueValueRoundTrip) {
+  void *opaque = pa0.getOpaqueValue();
+  PU2Tier restored = PU2Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pa0, restored);
+  EXPECT_EQ(cast<Align4<0> *>(restored), &a0);
+
+  opaque = pb0.getOpaqueValue();
+  restored = PU2Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pb0, restored);
+  EXPECT_EQ(cast<Align8<0> *>(restored), &b0);
+
+  opaque = pb1.getOpaqueValue();
+  restored = PU2Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pb1, restored);
+  EXPECT_EQ(cast<Align8<1> *>(restored), &b1);
+}
+
+// 3-tier tests
+
+struct PointerUnion3TierTest : public testing::Test {
+  Align4<0> a0;
+  Align4<1> a1;
+  Align4<2> a2;
+  Align8<0> b0;
+  Align16<0> c0;
+  Align16<1> c1;
+
+  PU3Tier pa0, pa1, pa2, pb0, pc0, pc1, null;
+
+  PointerUnion3TierTest()
+      : pa0(&a0), pa1(&a1), pa2(&a2), pb0(&b0), pc0(&c0), pc1(&c1), null() {}
+};
+
+TEST_F(PointerUnion3TierTest, Isa) {
+  EXPECT_TRUE(isa<Align4<0> *>(pa0));
+  EXPECT_FALSE(isa<Align8<0> *>(pa0));
+  EXPECT_FALSE(isa<Align16<0> *>(pa0));
+
+  EXPECT_TRUE(isa<Align8<0> *>(pb0));
+  EXPECT_FALSE(isa<Align4<0> *>(pb0));
+  EXPECT_FALSE(isa<Align16<0> *>(pb0));
+
+  EXPECT_TRUE(isa<Align16<0> *>(pc0));
+  EXPECT_FALSE(isa<Align4<0> *>(pc0));
+  EXPECT_FALSE(isa<Align8<0> *>(pc0));
+  EXPECT_FALSE(isa<Align16<1> *>(pc0));
+
+  EXPECT_TRUE(isa<Align16<1> *>(pc1));
+  EXPECT_FALSE(isa<Align16<0> *>(pc1));
+}
+
+TEST_F(PointerUnion3TierTest, Cast) {
+  EXPECT_EQ(cast<Align4<0> *>(pa0), &a0);
+  EXPECT_EQ(cast<Align4<1> *>(pa1), &a1);
+  EXPECT_EQ(cast<Align4<2> *>(pa2), &a2);
+  EXPECT_EQ(cast<Align8<0> *>(pb0), &b0);
+  EXPECT_EQ(cast<Align16<0> *>(pc0), &c0);
+  EXPECT_EQ(cast<Align16<1> *>(pc1), &c1);
+}
+
+TEST_F(PointerUnion3TierTest, DynCast) {
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pa0), &a0);
+  EXPECT_EQ(dyn_cast<Align8<0> *>(pa0), nullptr);
+  EXPECT_EQ(dyn_cast<Align16<0> *>(pa0), nullptr);
+
+  EXPECT_EQ(dyn_cast<Align8<0> *>(pb0), &b0);
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pb0), nullptr);
+  EXPECT_EQ(dyn_cast<Align16<0> *>(pb0), nullptr);
+
+  EXPECT_EQ(dyn_cast<Align16<0> *>(pc0), &c0);
+  EXPECT_EQ(dyn_cast<Align16<1> *>(pc0), nullptr);
+  EXPECT_EQ(dyn_cast<Align4<0> *>(pc0), nullptr);
+
+  EXPECT_EQ(dyn_cast<Align16<1> *>(pc1), &c1);
+  EXPECT_EQ(dyn_cast<Align16<0> *>(pc1), nullptr);
+}
+
+TEST_F(PointerUnion3TierTest, Null) {
+  EXPECT_TRUE(null.isNull());
+  EXPECT_FALSE(pa0.isNull());
+  EXPECT_FALSE(pb0.isNull());
+  EXPECT_FALSE(pc0.isNull());
+  EXPECT_FALSE(pc1.isNull());
+
+  PU3Tier na0((Align4<0> *)nullptr);
+  PU3Tier nb0((Align8<0> *)nullptr);
+  PU3Tier nc0((Align16<0> *)nullptr);
+  PU3Tier nc1((Align16<1> *)nullptr);
+  EXPECT_TRUE(na0.isNull());
+  EXPECT_TRUE(nb0.isNull());
+  EXPECT_TRUE(nc0.isNull());
+  EXPECT_TRUE(nc1.isNull());
+
+  // Null discrimination across all three tiers.
+  EXPECT_NE(na0, nb0);
+  EXPECT_NE(nb0, nc0);
+  EXPECT_NE(nc0, nc1);
+  EXPECT_NE(na0, nc0);
+}
+
+TEST_F(PointerUnion3TierTest, Assignment) {
+  PU3Tier u;
+  EXPECT_TRUE(u.isNull());
+
+  u = &a0;
+  EXPECT_TRUE(isa<Align4<0> *>(u));
+  EXPECT_EQ(cast<Align4<0> *>(u), &a0);
+
+  u = &b0;
+  EXPECT_TRUE(isa<Align8<0> *>(u));
+  EXPECT_EQ(cast<Align8<0> *>(u), &b0);
+
+  u = &c1;
+  EXPECT_TRUE(isa<Align16<1> *>(u));
+  EXPECT_EQ(cast<Align16<1> *>(u), &c1);
+
+  u = nullptr;
+  EXPECT_TRUE(u.isNull());
+}
+
+TEST_F(PointerUnion3TierTest, OpaqueValueRoundTrip) {
+  // pb0 has tag 0x3 which doubles as the escape prefix for tier-2.
+  void *opaque = pb0.getOpaqueValue();
+  PU3Tier restored = PU3Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pb0, restored);
+  EXPECT_EQ(cast<Align8<0> *>(restored), &b0);
+
+  opaque = pc0.getOpaqueValue();
+  restored = PU3Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pc0, restored);
+  EXPECT_EQ(cast<Align16<0> *>(restored), &c0);
+
+  opaque = pc1.getOpaqueValue();
+  restored = PU3Tier::getFromOpaqueValue(opaque);
+  EXPECT_EQ(pc1, restored);
+  EXPECT_EQ(cast<Align16<1> *>(restored), &c1);
+}
+
+TEST_F(PointerUnion3TierTest, ConstCast) {
+  const PU3Tier cpc0(&c0);
+  EXPECT_TRUE(isa<Align16<0> *>(cpc0));
+  EXPECT_FALSE(isa<Align4<0> *>(cpc0));
+  EXPECT_EQ(cast<Align16<0> *>(cpc0), &c0);
+  EXPECT_EQ(dyn_cast<Align8<0> *>(cpc0), nullptr);
+}
+
+TEST(PointerUnionMultiTierDenseMapTest, BasicOperations) {
+  Align4<0> a0;
+  Align8<0> b0;
+  Align8<1> b1;
+
+  DenseMap<PU2Tier, int> map;
+  PU2Tier ka(&a0), kb(&b0), kb1(&b1);
+
+  map[ka] = 1;
+  map[kb] = 2;
+  map[kb1] = 3;
+
+  EXPECT_EQ(map[ka], 1);
+  EXPECT_EQ(map[kb], 2);
+  EXPECT_EQ(map[kb1], 3);
+
+  EXPECT_EQ(map.count(ka), 1u);
+  map.erase(ka);
+  EXPECT_EQ(map.count(ka), 0u);
+  EXPECT_EQ(map.count(kb), 1u);
 }
 
 } // end anonymous namespace
