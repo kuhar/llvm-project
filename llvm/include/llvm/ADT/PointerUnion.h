@@ -16,11 +16,12 @@
 #define LLVM_ADT_POINTERUNION_H
 
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/PointerIntPair.h" // For detail::PunnedPointer.
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -28,63 +29,76 @@
 namespace llvm {
 
 namespace pointer_union_detail {
-  /// Determine the number of bits required to store integers with values < n.
-  /// This is ceil(log2(n)).
-  constexpr int bitsRequired(unsigned n) {
-    return n == 0 ? 0 : llvm::bit_width_constexpr(n - 1);
-  }
 
-  template <typename... Ts> constexpr int lowBitsAvailable() {
-    return std::min<int>({PointerLikeTypeTraits<Ts>::NumLowBitsAvailable...});
-  }
-
-  /// Provide PointerLikeTypeTraits for void* that is used by PointerUnion
-  /// for the template arguments.
-  template <typename ...PTs> class PointerUnionUIntTraits {
-  public:
-    static inline void *getAsVoidPointer(void *P) { return P; }
-    static inline void *getFromVoidPointer(void *P) { return P; }
-    static constexpr int NumLowBitsAvailable = lowBitsAvailable<PTs...>();
-  };
-
-  template <typename Derived, typename ValTy, int I, typename ...Types>
-  class PointerUnionMembers;
-
-  template <typename Derived, typename ValTy, int I>
-  class PointerUnionMembers<Derived, ValTy, I> {
-  protected:
-    ValTy Val;
-    PointerUnionMembers() = default;
-    PointerUnionMembers(ValTy Val) : Val(Val) {}
-
-    friend struct PointerLikeTypeTraits<Derived>;
-  };
-
-  template <typename Derived, typename ValTy, int I, typename Type,
-            typename ...Types>
-  class PointerUnionMembers<Derived, ValTy, I, Type, Types...>
-      : public PointerUnionMembers<Derived, ValTy, I + 1, Types...> {
-    using Base = PointerUnionMembers<Derived, ValTy, I + 1, Types...>;
-  public:
-    using Base::Base;
-    PointerUnionMembers() = default;
-    PointerUnionMembers(Type V)
-        : Base(ValTy(const_cast<void *>(
-                         PointerLikeTypeTraits<Type>::getAsVoidPointer(V)),
-                     I)) {}
-
-    using Base::operator=;
-    Derived &operator=(Type V) {
-      this->Val = ValTy(
-          const_cast<void *>(PointerLikeTypeTraits<Type>::getAsVoidPointer(V)),
-          I);
-      return static_cast<Derived &>(*this);
-    };
-  };
+/// Determine the number of bits required to store integers with values < n.
+/// This is ceil(log2(n)).
+constexpr int bitsRequired(unsigned n) {
+  return n == 0 ? 0 : llvm::bit_width_constexpr(n - 1);
 }
 
+template <typename... Ts> constexpr int lowBitsAvailable() {
+  return std::min<int>({PointerLikeTypeTraits<Ts>::NumLowBitsAvailable...});
+}
+
+/// Tag descriptor for one type in the union.
+struct TagEntry {
+  intptr_t value; ///< Bit pattern stored in the low bits.
+  intptr_t mask;  ///< Mask covering all tag bits for this entry.
+};
+
+/// Compute fixed-width tag table (all types have enough bits for the tag).
+template <typename... PTs>
+constexpr std::array<TagEntry, sizeof...(PTs)> computeFixedTags() {
+  constexpr size_t N = sizeof...(PTs);
+  constexpr intptr_t mask = (intptr_t(1) << bitsRequired(N)) - 1;
+  std::array<TagEntry, N> result = {};
+  for (size_t i = 0; i < N; ++i) {
+    result[i].value = intptr_t(i);
+    result[i].mask = mask;
+  }
+  return result;
+}
+
+/// CRTP base that generates non-template constructors and assignment operators
+/// for each type in the union.  Non-template constructors allow implicit
+/// conversions (derived-to-base, non-const-to-const) matching the historical
+/// PointerUnion behavior.
+template <typename Derived, int I, typename... Types>
+class PointerUnionMembers;
+
+template <typename Derived, int I>
+class PointerUnionMembers<Derived, I> {
+protected:
+  detail::PunnedPointer<void *> Val;
+  PointerUnionMembers() : Val(intptr_t(0)) {}
+
+  template <typename To, typename From, typename Enable>
+  friend struct ::llvm::CastInfo;
+  template <typename> friend struct ::llvm::PointerLikeTypeTraits;
+};
+
+template <typename Derived, int I, typename Type, typename... Types>
+class PointerUnionMembers<Derived, I, Type, Types...>
+    : public PointerUnionMembers<Derived, I + 1, Types...> {
+  using Base = PointerUnionMembers<Derived, I + 1, Types...>;
+
+public:
+  using Base::Base;
+  PointerUnionMembers() = default;
+
+  PointerUnionMembers(Type V) { this->Val = Derived::encode(V); }
+
+  using Base::operator=;
+  Derived &operator=(Type V) {
+    this->Val = Derived::encode(V);
+    return static_cast<Derived &>(*this);
+  }
+};
+
+} // end namespace pointer_union_detail
+
 /// A discriminated union of two or more pointer types, with the discriminator
-/// in the low bit of the pointer.
+/// in the low bits of the pointer.
 ///
 /// This implementation is extremely efficient in space due to leveraging the
 /// low bits of the pointer, while exposing a natural and type-safe API.
@@ -102,63 +116,91 @@ namespace pointer_union_detail {
 ///    PointerUnion<int*, int*> Q; // compile time failure.
 template <typename... PTs>
 class PointerUnion
-    : public pointer_union_detail::PointerUnionMembers<
-          PointerUnion<PTs...>,
-          PointerIntPair<
-              void *, pointer_union_detail::bitsRequired(sizeof...(PTs)), int,
-              pointer_union_detail::PointerUnionUIntTraits<PTs...>>,
-          0, PTs...> {
+    : public pointer_union_detail::PointerUnionMembers<PointerUnion<PTs...>, 0,
+                                                       PTs...> {
   static_assert(TypesAreDistinct<PTs...>::value,
                 "PointerUnion alternative types cannot be repeated");
-  // The first type is special because we want to directly cast a pointer to a
-  // default-initialized union to a pointer to the first type. But we don't
-  // want PointerUnion to be a 'template <typename First, typename ...Rest>'
-  // because it's much more convenient to have a name for the whole pack. So
-  // split off the first type here.
-  using First = TypeAtIndex<0, PTs...>;
-  using Base = typename PointerUnion::PointerUnionMembers;
 
-  // Give the CastInfo specialization below access to protected members.
-  //
-  // This makes all of CastInfo a friend, which is more than strictly
-  // necessary. It's a workaround for C++'s inability to friend a
-  // partial template specialization.
-  template <typename To, typename From, typename Enable> friend struct CastInfo;
+  using Base = typename PointerUnion::PointerUnionMembers;
+  using First = TypeAtIndex<0, PTs...>;
+
+  template <typename, int, typename...>
+  friend class pointer_union_detail::PointerUnionMembers;
+  template <typename To, typename From, typename Enable>
+  friend struct CastInfo;
+  template <typename> friend struct PointerLikeTypeTraits;
+
+  // --- Lazy tag configuration ---
+  // These are constexpr *functions*, not static data members, so their bodies
+  // are only instantiated when called.  This avoids evaluating alignof() on
+  // potentially incomplete types at class-definition time.
+
+  static constexpr int minBits() {
+    return pointer_union_detail::lowBitsAvailable<PTs...>();
+  }
+
+  static constexpr int tagBits() {
+    return pointer_union_detail::bitsRequired(sizeof...(PTs));
+  }
+
+  /// The tag is shifted to the high end of the available low bits so that
+  /// the lowest bits remain free for nesting in PointerIntPair or SmallPtrSet.
+  static constexpr int tagShift() { return minBits() - tagBits(); }
+
+  static constexpr auto tagTable() {
+    if constexpr (sizeof...(PTs) == 0)
+      return std::array<pointer_union_detail::TagEntry, 0>{};
+    else
+      return pointer_union_detail::computeFixedTags<PTs...>();
+  }
+
+  template <typename T>
+  static intptr_t encode(T V) {
+    constexpr auto table = tagTable();
+    constexpr int shift = tagShift();
+    constexpr size_t Idx = FirstIndexOfType<T, PTs...>::value;
+    static_assert(table[0].value == 0,
+                  "First type must have tag value 0 for getAddrOfPtr1");
+    void *VoidPtr =
+        const_cast<void *>(PointerLikeTypeTraits<T>::getAsVoidPointer(V));
+    intptr_t ptrInt = reinterpret_cast<intptr_t>(VoidPtr);
+    assert((ptrInt & (table[Idx].mask << shift)) == 0 &&
+           "Pointer low bits collide with tag");
+    return ptrInt | (table[Idx].value << shift);
+  }
 
 public:
-  PointerUnion() = default;
 
+  PointerUnion() = default;
   PointerUnion(std::nullptr_t) : PointerUnion() {}
   using Base::Base;
+  using Base::operator=;
+
+  /// Assignment from nullptr clears the union, resetting to the first type.
+  const PointerUnion &operator=(std::nullptr_t) {
+    this->Val = intptr_t(0);
+    return *this;
+  }
 
   /// Test if the pointer held in the union is null, regardless of
   /// which type it is.
-  bool isNull() const { return !this->Val.getPointer(); }
+  bool isNull() const {
+    // All null values fit entirely within the tag field.
+    return static_cast<uintptr_t>(this->Val.asInt()) <
+           (uintptr_t(1) << minBits());
+  }
 
   explicit operator bool() const { return !isNull(); }
 
-  // FIXME: Replace the uses of is(), get() and dyn_cast() with
-  //        isa<T>, cast<T> and the llvm::dyn_cast<T>
-
-  /// Test if the Union currently holds the type matching T.
-  template <typename T>
-  [[deprecated("Use isa instead")]]
-  inline bool is() const {
+  template <typename T> [[deprecated("Use isa instead")]] bool is() const {
     return isa<T>(*this);
   }
 
-  /// Returns the value of the specified pointer type.
-  ///
-  /// If the specified pointer type is incorrect, assert.
-  template <typename T>
-  [[deprecated("Use cast instead")]]
-  inline T get() const {
+  template <typename T> [[deprecated("Use cast instead")]] T get() const {
     assert(isa<T>(*this) && "Invalid accessor called");
     return cast<T>(*this);
   }
 
-  /// Returns the current pointer if it is of the specified pointer type,
-  /// otherwise returns null.
   template <typename T> inline T dyn_cast() const {
     return llvm::dyn_cast_if_present<T>(*this);
   }
@@ -173,47 +215,39 @@ public:
   /// it.
   First *getAddrOfPtr1() {
     assert(isa<First>(*this) && "Val is not the first pointer");
+    // tag == 0 for first type, so asInt() is the raw pointer value.
     assert(
         PointerLikeTypeTraits<First>::getAsVoidPointer(cast<First>(*this)) ==
-            this->Val.getPointer() &&
+            reinterpret_cast<void *>(this->Val.asInt()) &&
         "Can't get the address because PointerLikeTypeTraits changes the ptr");
     return const_cast<First *>(
-        reinterpret_cast<const First *>(this->Val.getAddrOfPointer()));
+        reinterpret_cast<const First *>(this->Val.getPointerAddress()));
   }
 
-  /// Assignment from nullptr which just clears the union.
-  const PointerUnion &operator=(std::nullptr_t) {
-    this->Val.initWithPointer(nullptr);
-    return *this;
+  void *getOpaqueValue() const {
+    return reinterpret_cast<void *>(this->Val.asInt());
   }
 
-  /// Assignment from elements of the union.
-  using Base::operator=;
-
-  void *getOpaqueValue() const { return this->Val.getOpaqueValue(); }
   static inline PointerUnion getFromOpaqueValue(void *VP) {
     PointerUnion V;
-    V.Val = decltype(V.Val)::getFromOpaqueValue(VP);
+    V.Val = reinterpret_cast<intptr_t>(VP);
     return V;
+  }
+
+  friend bool operator==(PointerUnion lhs, PointerUnion rhs) {
+    return lhs.getOpaqueValue() == rhs.getOpaqueValue();
+  }
+
+  friend bool operator!=(PointerUnion lhs, PointerUnion rhs) {
+    return lhs.getOpaqueValue() != rhs.getOpaqueValue();
+  }
+
+  friend bool operator<(PointerUnion lhs, PointerUnion rhs) {
+    return lhs.getOpaqueValue() < rhs.getOpaqueValue();
   }
 };
 
-template <typename ...PTs>
-bool operator==(PointerUnion<PTs...> lhs, PointerUnion<PTs...> rhs) {
-  return lhs.getOpaqueValue() == rhs.getOpaqueValue();
-}
-
-template <typename ...PTs>
-bool operator!=(PointerUnion<PTs...> lhs, PointerUnion<PTs...> rhs) {
-  return lhs.getOpaqueValue() != rhs.getOpaqueValue();
-}
-
-template <typename ...PTs>
-bool operator<(PointerUnion<PTs...> lhs, PointerUnion<PTs...> rhs) {
-  return lhs.getOpaqueValue() < rhs.getOpaqueValue();
-}
-
-// Specialization of CastInfo for PointerUnion
+// Specialization of CastInfo for PointerUnion.
 template <typename To, typename... PTs>
 struct CastInfo<To, PointerUnion<PTs...>>
     : public DefaultDoCastIfPossible<To, PointerUnion<PTs...>,
@@ -221,12 +255,22 @@ struct CastInfo<To, PointerUnion<PTs...>>
   using From = PointerUnion<PTs...>;
 
   static inline bool isPossible(From &f) {
-    return f.Val.getInt() == FirstIndexOfType<To, PTs...>::value;
+    constexpr auto table = From::tagTable();
+    constexpr int shift = From::tagShift();
+    constexpr size_t Idx = FirstIndexOfType<To, PTs...>::value;
+    intptr_t v = reinterpret_cast<intptr_t>(f.getOpaqueValue());
+    constexpr intptr_t mask = table[Idx].mask << shift;
+    constexpr intptr_t value = table[Idx].value << shift;
+    return (v & mask) == value;
   }
 
   static To doCast(From &f) {
     assert(isPossible(f) && "cast to an incompatible type!");
-    return PointerLikeTypeTraits<To>::getFromVoidPointer(f.Val.getPointer());
+    constexpr intptr_t ptrMask =
+        ~((intptr_t(1) << PointerLikeTypeTraits<To>::NumLowBitsAvailable) - 1);
+    void *ptr = reinterpret_cast<void *>(
+        reinterpret_cast<intptr_t>(f.getOpaqueValue()) & ptrMask);
+    return PointerLikeTypeTraits<To>::getFromVoidPointer(ptr);
   }
 
   static inline To castFailed() { return To(); }
@@ -234,30 +278,32 @@ struct CastInfo<To, PointerUnion<PTs...>>
 
 template <typename To, typename... PTs>
 struct CastInfo<To, const PointerUnion<PTs...>>
-    : public ConstStrippingForwardingCast<To, const PointerUnion<PTs...>,
-                                          CastInfo<To, PointerUnion<PTs...>>> {
-};
+    : public ConstStrippingForwardingCast<
+          To, const PointerUnion<PTs...>,
+          CastInfo<To, PointerUnion<PTs...>>> {};
 
-// Teach SmallPtrSet that PointerUnion is "basically a pointer", that has
-// # low bits available = min(PT1bits,PT2bits)-1.
-template <typename ...PTs>
+// Teach SmallPtrSet that PointerUnion is "basically a pointer".
+// Spare low bits below the tag are available for nesting.
+// This specialization is only instantiated when used (lazy), so
+// PointerLikeTypeTraits<PTs> / alignof() are not evaluated for
+// incomplete types.
+template <typename... PTs>
 struct PointerLikeTypeTraits<PointerUnion<PTs...>> {
-  static inline void *getAsVoidPointer(const PointerUnion<PTs...> &P) {
+  using Union = PointerUnion<PTs...>;
+
+  static inline void *getAsVoidPointer(const Union &P) {
     return P.getOpaqueValue();
   }
 
-  static inline PointerUnion<PTs...> getFromVoidPointer(void *P) {
-    return PointerUnion<PTs...>::getFromOpaqueValue(P);
+  static inline Union getFromVoidPointer(void *P) {
+    return Union::getFromOpaqueValue(P);
   }
 
-  // The number of bits available are the min of the pointer types minus the
-  // bits needed for the discriminator.
-  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<decltype(
-      PointerUnion<PTs...>::Val)>::NumLowBitsAvailable;
+  static constexpr int NumLowBitsAvailable = Union::tagShift();
 };
 
 // Teach DenseMap how to use PointerUnions as keys.
-template <typename ...PTs> struct DenseMapInfo<PointerUnion<PTs...>> {
+template <typename... PTs> struct DenseMapInfo<PointerUnion<PTs...>> {
   using Union = PointerUnion<PTs...>;
   using FirstInfo = DenseMapInfo<TypeAtIndex<0, PTs...>>;
 
