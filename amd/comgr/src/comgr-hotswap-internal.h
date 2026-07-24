@@ -111,6 +111,8 @@ inline std::optional<uint64_t> checkedSubUint64(uint64_t LHS, uint64_t RHS,
 //
 // Opt-in via AMD_COMGR_TIME_STATISTICS. When disabled each hook is a single
 // branch -- no clock read, no lock -- so no compile-time gate is needed.
+// AMD_COMGR_HOTSWAP_PROFILE_MODE=coarse keeps top-level phase:* rows and the
+// dispatch-internal common phases while suppressing strategy-specific timing.
 //
 // retargetCodeObject is single-threaded per call but runs concurrently across
 // threads, so each call owns a stack-local HotswapProfile that records into a
@@ -131,8 +133,11 @@ enum class HotswapMetric : uint8_t {
   InputCopy,
   ElfParse,
   InitLLVM,
+  EntryDisplacementAnalysis,
+  EntryDisplacementEmit,
   Decode,
   B0A0Dispatch,
+  RevisionMetadata,
   PoolSetup,
   FixupTrampolines,
   EntryTrampolines,
@@ -146,8 +151,11 @@ enum class HotswapMetric : uint8_t {
   Unaccounted,
   // dispatch-internal sub-phases (shown indented under B0A0Dispatch)
   NopSledScan,
+  SiteControlFlow,
   CfgBuild,
   Liveness,
+  TrampolineLayout,
+  ResourceMetadata,
   // strat:* parents
   InPlace,
   Trampoline,
@@ -175,6 +183,11 @@ enum class HotswapMetric : uint8_t {
 
 inline constexpr size_t HotswapMetricCount =
     static_cast<size_t>(HotswapMetric::Count);
+
+enum class HotswapProfileMode : uint8_t {
+  Detailed,
+  Coarse,
+};
 
 inline uint64_t profNowNs() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -204,8 +217,11 @@ inline constexpr HotswapMetricInfo hotswapMetricInfo[HotswapMetricCount] = {
     {"phase:input_copy", HotswapMetric::Count, true},
     {"phase:elf_parse", HotswapMetric::Count, true},
     {"phase:initLLVM", HotswapMetric::Count, true},
+    {"phase:entry_displacement_analysis", HotswapMetric::Count, true},
+    {"phase:entry_displacement_emit", HotswapMetric::Count, true},
     {"phase:decode", HotswapMetric::Count, true},
     {"phase:b0a0_dispatch", HotswapMetric::Count, true},
+    {"phase:revision_metadata", HotswapMetric::Count, true},
     {"phase:pool_setup", HotswapMetric::Count, true},
     {"phase:fixup_trampolines", HotswapMetric::Count, true},
     {"phase:entry_trampolines", HotswapMetric::Count, true},
@@ -218,8 +234,11 @@ inline constexpr HotswapMetricInfo hotswapMetricInfo[HotswapMetricCount] = {
     {"phase:output_copy", HotswapMetric::Count, true},
     {"phase:unaccounted", HotswapMetric::Count, false},
     {"nop_sled_scan", HotswapMetric::B0A0Dispatch, false},
+    {"site_control_flow", HotswapMetric::B0A0Dispatch, false},
     {"cfg_build", HotswapMetric::B0A0Dispatch, false},
     {"liveness", HotswapMetric::B0A0Dispatch, false},
+    {"trampoline_layout", HotswapMetric::B0A0Dispatch, false},
+    {"resource_metadata", HotswapMetric::B0A0Dispatch, false},
     {"strat:inplace", HotswapMetric::Count, false},
     {"strat:trampoline", HotswapMetric::Count, false},
     {"strat:wmma_split", HotswapMetric::Count, false},
@@ -239,15 +258,34 @@ inline constexpr HotswapMetricInfo hotswapMetricInfo[HotswapMetricCount] = {
     {"jump:declined_far", HotswapMetric::Count, false},
 };
 
+/// Coarse profiles retain the top-level pipeline partition and common
+/// B0A0-dispatch children. Derive membership from the per-metric metadata so
+/// inserting or reordering a strategy metric cannot change it accidentally.
+inline constexpr bool isCoarseHotswapMetric(HotswapMetric Metric) {
+  const HotswapMetricInfo &Info =
+      hotswapMetricInfo[static_cast<size_t>(Metric)];
+  return Info.PartitionsTotal || Metric == HotswapMetric::RewriteTotal ||
+         Metric == HotswapMetric::Unaccounted ||
+         Info.Parent == HotswapMetric::B0A0Dispatch;
+}
+
 /// True when hotswap timings should be recorded (AMD_COMGR_TIME_STATISTICS).
 inline bool hotswapProfilingEnabled() { return env::needTimeStatistics(); }
+
+/// Unset and unrecognized values retain the historical detailed profile.
+inline HotswapProfileMode hotswapProfileMode() {
+  return env::shouldUseCoarseHotswapProfile() ? HotswapProfileMode::Coarse
+                                              : HotswapProfileMode::Detailed;
+}
 
 /// Per-rewrite profiling session. Lives on the retargetCodeObject stack and is
 /// referenced from PatchContext so deep patch sites record into its lock-free
 /// local array. Merges once into Comgr TimeStatistics on destruction.
 class HotswapProfile {
 public:
-  explicit HotswapProfile(bool Enabled) : Enabled(Enabled) {}
+  explicit HotswapProfile(
+      bool Enabled, HotswapProfileMode Mode = HotswapProfileMode::Detailed)
+      : Enabled(Enabled), Mode(Mode) {}
   HotswapProfile(const HotswapProfile &) = delete;
   HotswapProfile &operator=(const HotswapProfile &) = delete;
   ~HotswapProfile() {
@@ -256,6 +294,9 @@ public:
   }
 
   bool enabled() const { return Enabled; }
+  bool detailed() const {
+    return Enabled && Mode == HotswapProfileMode::Detailed;
+  }
 
   /// RAII timer. Records the elapsed ns (plus any patches) under Metric on
   /// finish() or destruction. A disabled session hands out an inert scope with
@@ -299,11 +340,18 @@ public:
   buildRecords(llvm::SmallVectorImpl<std::string> &Names);
 
 private:
+  /// Coarse mode keeps the top-level pipeline and common dispatch children.
+  bool records(HotswapMetric Metric) const {
+    return Enabled && (Mode == HotswapProfileMode::Detailed ||
+                       isCoarseHotswapMetric(Metric));
+  }
+
   /// Merge this rewrite's samples into Comgr TimeStatistics in one batch under
   /// a single lock (see buildRecords). Defined in comgr-hotswap-profile.cpp.
   void flush();
 
   bool Enabled;
+  HotswapProfileMode Mode;
   std::array<HotswapSample, HotswapMetricCount> Samples{};
 };
 
@@ -707,7 +755,7 @@ public:
                       llvm::ArrayRef<uint8_t> SNopBytes) const;
 
 private:
-  enum class KernelSgprCacheState {
+  enum class KernelMetadataCacheState {
     Uninitialized,
     Metadata,
     NoMetadata,
@@ -723,7 +771,7 @@ private:
   const FunctionTextRange *
   findFunctionTextRangeAtAddress(uint64_t TextAddress) const;
   void initializeKernelDescriptorCache() const;
-  void initializeKernelSgprCountCache() const;
+  void initializeKernelMetadataCache() const;
 
   ELFFileT File;
   ELFT::ShdrRange Sections;
@@ -734,9 +782,15 @@ private:
       KernelDescriptorCache;
   mutable llvm::StringMap<uint64_t> KernelDescriptorFileOffsetCache;
   mutable llvm::StringMap<uint64_t> KernelDescriptorVAddrCache;
-  mutable KernelSgprCacheState SgprCacheState =
-      KernelSgprCacheState::Uninitialized;
+  mutable KernelMetadataCacheState MetadataCacheState =
+      KernelMetadataCacheState::Uninitialized;
   mutable llvm::StringMap<std::optional<unsigned>> KernelSgprCountCache;
+  mutable llvm::StringMap<std::optional<unsigned>> KernelVgprCountCache;
+  mutable llvm::StringMap<std::optional<unsigned>>
+      KernelMaxFlatWorkgroupSizeCache;
+  mutable llvm::StringMap<std::optional<unsigned>> KernelWavefrontSizeCache;
+  mutable llvm::StringMap<std::optional<KernelClusterDims>>
+      KernelClusterDimsCache;
 };
 
 // -- Free-function ELF helpers (no ELF state required) ------------------------
@@ -890,7 +944,9 @@ struct InternalDecodedInst {
   uint64_t Offset = 0;
   uint32_t Size = 0;
   llvm::MCInst Inst;
-  std::string Mnemonic;
+  /// View into LLVM's process-lifetime generated mnemonic table or a static
+  /// HotSwap sentinel such as "<unknown>" or "<replaced>".
+  llvm::StringRef Mnemonic;
   bool DecodeSucceeded = false;
 };
 
@@ -998,12 +1054,30 @@ struct CFG {
 
 /// Dataflow-liveness result for a kernel's VGPR set. \c LiveBefore[i] and
 /// \c LiveAfter[i] are the live-in / live-out bitvectors for Decoded[i].
+/// \c ConservativeLiveBefore replaces those arrays when every instruction has
+/// the same all-live result, avoiding two identical BitVector allocations per
+/// decoded instruction in the weak fallback solver.
 /// \c Converged is false when the iterative solver hit its iteration cap;
 /// callers fall back to a conservative all-VGPRs-live analysis in that case.
 struct LivenessInfo {
   std::vector<llvm::BitVector> LiveBefore;
   std::vector<llvm::BitVector> LiveAfter;
+  llvm::BitVector ConservativeLiveBefore;
   bool Converged = false;
+
+  const llvm::BitVector &liveBefore(size_t Index) const {
+    if (!ConservativeLiveBefore.empty())
+      return ConservativeLiveBefore;
+    assert(Index < LiveBefore.size());
+    return LiveBefore[Index];
+  }
+
+  void setConservativeAllLive(unsigned MaxVgprs) {
+    LiveBefore.clear();
+    LiveAfter.clear();
+    ConservativeLiveBefore.resize(MaxVgprs);
+    ConservativeLiveBefore.set(0, MaxVgprs);
+  }
 };
 
 /// Allocates scratch VGPRs for a patch point, preferring to reuse dead slots
@@ -1290,16 +1364,17 @@ struct EncodedSetPcGateway {
 };
 
 /// Find the nearest short-branch-reachable gateway whose remaining space fits
-/// the set-PC sequence encoded for that candidate's address. The returned
-/// plan does not advance the sled or modify text.
+/// the set-PC sequence. Candidate widths are computed from the displacement;
+/// only the selected candidate is encoded. The returned plan does not advance
+/// the sled or modify text.
 llvm::Expected<std::optional<EncodedSetPcGateway>>
 findNearestSetPcGateway(std::vector<NopSled> &Gateways, const LLVMState &LS,
                         uint64_t FromOffset, uint64_t TargetOffset,
                         unsigned SgprBase);
 
 /// Count set-PC gateway slots reachable from \p FromOffset, up to \p MaxSlots.
-/// Zero means that no candidate fits; an Error means that a reachable
-/// candidate could not be encoded.
+/// Candidate widths are computed without assembly. Zero means that no
+/// candidate fits; an Error means that a reachable candidate is invalid.
 llvm::Expected<uint64_t> countReachableSetPcGatewaySlots(
     llvm::ArrayRef<NopSled> Gateways, const LLVMState &LS, uint64_t FromOffset,
     uint64_t TargetOffset, unsigned SgprBase, uint64_t MaxSlots);
@@ -1544,9 +1619,13 @@ std::unique_ptr<llvm::WritableMemoryBuffer> addKernelEntryTrampolineSymbols(
     llvm::ArrayRef<KernelEntryTrampolineFixup> Fixups);
 
 /// Apply direct .text displacement to a newly allocated output buffer.
+/// When \p Profile is provided, validation/branch repair and ELF emission are
+/// recorded separately; all scopes finish before the caller can recursively
+/// rewrite the displaced buffer.
 llvm::Expected<std::unique_ptr<llvm::WritableMemoryBuffer>>
 tryApplyTextDisplacementToNewBuffer(const ElfView &Elf, const LLVMState &LS,
-                                    llvm::ArrayRef<DisplacementEdit> Edits);
+                                    llvm::ArrayRef<DisplacementEdit> Edits,
+                                    HotswapProfile *Profile = nullptr);
 
 // -- Function declarations (GFX1250 hotswap policy layer) ---------------------
 

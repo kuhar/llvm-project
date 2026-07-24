@@ -16,6 +16,7 @@
 #include "llvm/Support/MathExtras.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -73,6 +74,7 @@ struct KernelDescriptorElfOptions {
   std::optional<unsigned> MetadataVgprCount;
   std::optional<unsigned> MetadataMaxFlatWorkgroupSize;
   std::optional<unsigned> MetadataWavefrontSize;
+  std::optional<std::array<unsigned, 3>> MetadataClusterDims;
   std::optional<std::string> MetadataGfx1250Revision;
   bool MetadataOmitSgprCount = false;
   bool MetadataSgprCountAsString = false;
@@ -134,6 +136,12 @@ makeAmdgpuMetadataBlob(const KernelDescriptorElfOptions &Options) {
     if (Options.MetadataWavefrontSize)
       Kernel[".wavefront_size"] =
           static_cast<uint64_t>(*Options.MetadataWavefrontSize);
+    if (Options.MetadataClusterDims) {
+      llvm::msgpack::ArrayDocNode Dims = Doc.getArrayNode();
+      for (unsigned Dim : *Options.MetadataClusterDims)
+        Dims.push_back(Doc.getNode(Dim));
+      Kernel[".cluster_dims"] = Dims;
+    }
     if (Options.MetadataGfx1250Revision)
       Kernel[".gfx1250_revision"] =
           Doc.getNode(*Options.MetadataGfx1250Revision, /*Copy=*/true);
@@ -209,8 +217,9 @@ makeKernelDescriptorElf(llvm::ArrayRef<uint8_t> Text,
       Options.MetadataSgprCount || Options.MetadataGfx1250Revision ||
       Options.MetadataOmitSgprCount || Options.MetadataSgprCountAsString ||
       Options.MetadataMaxFlatWorkgroupSize || Options.MetadataWavefrontSize ||
-      Options.MetadataVgprCount || Options.MetadataOmitVgprCount ||
-      Options.MetadataVgprCountAsString || !Options.MetadataKernels.empty();
+      Options.MetadataClusterDims || Options.MetadataVgprCount ||
+      Options.MetadataOmitVgprCount || Options.MetadataVgprCountAsString ||
+      !Options.MetadataKernels.empty();
   std::vector<uint8_t> MetadataNote;
   if (HasMetadataNote) {
     std::string MetadataBlob = makeAmdgpuMetadataBlob(Options);

@@ -245,6 +245,12 @@ include:
 * `AMD_COMGR_TIME_STATISTICS_GRANULARITY`: If this is set to "us" or "ns",
   Comgr-specific timing information in logs will be in units of "us" or "ns"
   respectively. Defaults to "ms" otherwise.
+* `AMD_COMGR_HOTSWAP_PROFILE_MODE`: When time statistics are enabled, setting
+  this to `coarse` limits HotSwap profiling to top-level pipeline phases and
+  the common B0-to-A0 dispatch phases (NOP-sled scan, site/control-flow
+  analysis, CFG construction, liveness, trampoline layout, and resource
+  metadata). Strategy and jump details remain enabled when this is unset or
+  has any other value.
 * `AMD_COMGR_DRIVER_OPTIONS_APPEND`: If set, the space-separated options are
   appended to all clang driver invocations. This can be used to inject
   additional compiler flags for debugging or experimentation without modifying

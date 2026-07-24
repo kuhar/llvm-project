@@ -10,6 +10,7 @@
 #include "comgr-test-elf-utils.h"
 #include "gtest/gtest.h"
 
+#include <array>
 #include <cstring>
 #include <limits>
 
@@ -830,6 +831,7 @@ TEST(ElfView, ReadsWorkgroupCapacityMetadata) {
   Opts.MetadataVgprCount = 120;
   Opts.MetadataMaxFlatWorkgroupSize = 1024;
   Opts.MetadataWavefrontSize = 32;
+  Opts.MetadataClusterDims = std::array<unsigned, 3>{2, 3, 4};
   comgr_test::KernelDescriptorElf Obj =
       comgr_test::makeKernelDescriptorElf(makeText(), Opts);
 
@@ -839,6 +841,12 @@ TEST(ElfView, ReadsWorkgroupCapacityMetadata) {
   EXPECT_EQ(ViewOrErr->getKernelMetadataVgprCount("entry_kernel"), 120u);
   EXPECT_EQ(ViewOrErr->getKernelMaxFlatWorkgroupSize("entry_kernel"), 1024u);
   EXPECT_EQ(ViewOrErr->getKernelWavefrontSize("entry_kernel"), 32u);
+  std::optional<KernelClusterDims> ClusterDims =
+      ViewOrErr->getKernelClusterDims("entry_kernel");
+  ASSERT_TRUE(ClusterDims);
+  EXPECT_EQ(ClusterDims->X, 2u);
+  EXPECT_EQ(ClusterDims->Y, 3u);
+  EXPECT_EQ(ClusterDims->Z, 4u);
 }
 
 TEST(ElfView, UpdateKernelDescriptorVgprCountIsChecked) {
@@ -874,6 +882,7 @@ TEST(ElfView, UpdateKernelMetadataVgprCountsUpdatesInPlace) {
   llvm::Expected<ElfView> ViewOrErr =
       ElfView::create(Obj.Bytes.data(), Obj.Bytes.size());
   ASSERT_TRUE((bool)ViewOrErr) << llvm::toString(ViewOrErr.takeError());
+  EXPECT_EQ(ViewOrErr->getKernelMetadataVgprCount("entry_kernel"), 9u);
   llvm::StringMap<unsigned> RequiredVgprs;
   RequiredVgprs.try_emplace("entry_kernel", 10u);
   ASSERT_TRUE(ViewOrErr->updateKernelMetadataVgprCounts(RequiredVgprs));

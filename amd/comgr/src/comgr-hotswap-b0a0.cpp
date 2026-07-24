@@ -227,11 +227,9 @@ LLVM_ATTRIBUTE_WEAK CFG buildCfg(ArrayRef<InternalDecodedInst> Decoded,
 LLVM_ATTRIBUTE_WEAK LivenessInfo computeLiveness(
     ArrayRef<InternalDecodedInst> Decoded, const CFG &, const MCInstrInfo &,
     const MCRegisterInfo &, unsigned MaxVgprs) {
+  (void)Decoded;
   LivenessInfo Info;
-  BitVector AllLive(MaxVgprs);
-  AllLive.set(0, MaxVgprs);
-  Info.LiveBefore.resize(Decoded.size(), AllLive);
-  Info.LiveAfter.resize(Decoded.size(), AllLive);
+  Info.setConservativeAllLive(MaxVgprs);
   Info.Converged = true;
   return Info;
 }
@@ -447,12 +445,54 @@ std::optional<SmallVector<uint8_t>> encodeSetPCLongBranch(const LLVMState &LS,
   return Bytes;
 }
 
+static bool isSetPcDeltaInline(uint64_t Delta) {
+  int64_t SignedDelta = static_cast<int64_t>(Delta);
+  if (SignedDelta >= -16 && SignedDelta <= 64)
+    return true;
+
+  // Keep this in sync with AMDGPU::isInlinableLiteral64. HotSwap only invokes
+  // this gfx1250 path, whose subtarget includes the inv2pi inline immediate.
+  switch (Delta) {
+  case 0x3ff0000000000000ULL: // 1.0
+  case 0xbff0000000000000ULL: // -1.0
+  case 0x3fe0000000000000ULL: // 0.5
+  case 0xbfe0000000000000ULL: // -0.5
+  case 0x4000000000000000ULL: // 2.0
+  case 0xc000000000000000ULL: // -2.0
+  case 0x4010000000000000ULL: // 4.0
+  case 0xc010000000000000ULL: // -4.0
+  case 0x3fc45f306dc9c882ULL: // 1 / (2 * pi)
+    return true;
+  default:
+    return false;
+  }
+}
+
+static std::optional<uint32_t>
+getSetPcLongBranchLayoutSize(uint64_t FromOffset, uint64_t TargetOffset) {
+  std::optional<uint64_t> PcBase = checkedAddUint64(
+      FromOffset, MinInstSize, "set-PC long branch layout PC base");
+  if (!PcBase)
+    return std::nullopt;
+  uint64_t Delta = TargetOffset - *PcBase;
+
+  // s_get_pc_i64 and s_set_pc_i64 each occupy one dword. The intervening
+  // s_add_nc_u64 occupies one dword for an inline immediate, two for a
+  // non-negative signed-32-bit literal, and three for a 64-bit literal.
+  if (isSetPcDeltaInline(Delta))
+    return 3 * MinInstSize;
+  if (Delta <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()))
+    return 4 * MinInstSize;
+  return SetPcReturnReserveBytes;
+}
+
 Expected<std::optional<EncodedSetPcGateway>>
 findNearestSetPcGateway(std::vector<NopSled> &Gateways, const LLVMState &LS,
                         uint64_t FromOffset, uint64_t TargetOffset,
                         unsigned SgprBase) {
   NopSled *Best = nullptr;
-  SmallVector<uint8_t> BestBytes;
+  uint32_t BestLayoutSize = 0;
+  uint64_t BestUsableEnd = 0;
   uint64_t BestDistance = std::numeric_limits<uint64_t>::max();
   for (NopSled &Sled : Gateways) {
     if (FromOffset < Sled.FunctionStart || FromOffset >= Sled.FunctionEnd)
@@ -465,22 +505,37 @@ findNearestSetPcGateway(std::vector<NopSled> &Gateways, const LLVMState &LS,
     if (Distance >= MaxSledDistance || Distance >= BestDistance ||
         LS.encodeSBranch(FromOffset, Sled.WritePos).empty())
       continue;
-    std::optional<SmallVector<uint8_t>> Bytes =
-        encodeSetPCLongBranch(LS, Sled.WritePos, TargetOffset, SgprBase);
-    if (!Bytes)
+
+    std::optional<uint32_t> LayoutSize =
+        getSetPcLongBranchLayoutSize(Sled.WritePos, TargetOffset);
+    if ((SgprBase & 1u) != 0 || !LayoutSize)
       return createStringError(
           Twine("failed to encode set-PC gateway at candidate offset 0x") +
           utohexstr(Sled.WritePos));
-    if (Bytes->size() > UsableEnd - Sled.WritePos)
+    if (*LayoutSize > UsableEnd - Sled.WritePos)
       continue;
+
     Best = &Sled;
-    BestBytes = std::move(*Bytes);
+    BestLayoutSize = *LayoutSize;
+    BestUsableEnd = UsableEnd;
     BestDistance = Distance;
   }
   if (!Best)
     return std::nullopt;
+  std::optional<SmallVector<uint8_t>> BestBytes =
+      encodeSetPCLongBranch(LS, Best->WritePos, TargetOffset, SgprBase);
+  if (!BestBytes)
+    return createStringError(
+        Twine("failed to encode set-PC gateway at candidate offset 0x") +
+        utohexstr(Best->WritePos));
+  if (BestBytes->size() != BestLayoutSize ||
+      BestBytes->size() > BestUsableEnd - Best->WritePos)
+    return createStringError(
+        Twine("set-PC gateway layout mismatch at candidate offset 0x") +
+        utohexstr(Best->WritePos) + ": predicted " + Twine(BestLayoutSize) +
+        " bytes, encoded " + Twine(BestBytes->size()) + " bytes");
   return std::optional<EncodedSetPcGateway>(
-      EncodedSetPcGateway{Best, std::move(BestBytes)});
+      EncodedSetPcGateway{Best, std::move(*BestBytes)});
 }
 
 static std::optional<unsigned> numberedSgprIndex(const MCRegisterInfo &MRI,
@@ -1917,17 +1972,18 @@ countReachableSetPcGatewaySlots(ArrayRef<NopSled> Gateways, const LLVMState &LS,
       if (Distance >= MaxSledDistance ||
           LS.encodeSBranch(FromOffset, Candidate).empty())
         break;
-      std::optional<SmallVector<uint8_t>> Bytes =
-          encodeSetPCLongBranch(LS, Candidate, TargetOffset, SgprBase);
-      if (!Bytes)
+
+      std::optional<uint32_t> LayoutSize =
+          getSetPcLongBranchLayoutSize(Candidate, TargetOffset);
+      if ((SgprBase & 1u) != 0 || !LayoutSize)
         return createStringError(
             Twine("failed to encode set-PC gateway while counting candidate "
                   "offset 0x") +
             utohexstr(Candidate));
-      if (Bytes->size() > UsableEnd - Candidate)
+      if (*LayoutSize > UsableEnd - Candidate)
         break;
       ++Slots;
-      Candidate += Bytes->size();
+      Candidate += *LayoutSize;
     }
     if (Slots == MaxSlots)
       break;
@@ -2238,6 +2294,8 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
   std::vector<NopSled> Sleds = buildNopSledMap(Decoded, LS, Elf);
   SledScope.finish();
 
+  HotswapProfile::Scope SiteScope =
+      Profile.time(HotswapMetric::SiteControlFlow);
   std::optional<DeclaredTextEntryInfo> DeclaredEntries =
       collectDeclaredTextEntries(Elf);
   if (!DeclaredEntries)
@@ -2257,6 +2315,7 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
   } else {
     truncateNopSledsAtDirectTargets(Sleds, ControlFlow->Targets);
   }
+  SiteScope.finish();
 
   HotswapProfile::Scope CfgScope = Profile.time(HotswapMetric::CfgBuild);
   CFG Cfg = buildCfg(Decoded, *LS.MCII);
@@ -2270,12 +2329,7 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
   if (!Liveness.Converged) {
     log() << "hotswap: error: liveness analysis did not converge, using "
           << "conservative all-VGPRs-live fallback\n";
-    BitVector AllVgprs(Config.MaxVgprs);
-    AllVgprs.set(0, Config.MaxVgprs);
-    for (size_t I = 0, LE = Liveness.LiveBefore.size(); I < LE; ++I) {
-      Liveness.LiveBefore[I] = AllVgprs;
-      Liveness.LiveAfter[I] = AllVgprs;
-    }
+    Liveness.setConservativeAllLive(Config.MaxVgprs);
   }
 
   StringMap<KernelPatchStats> KernelStats;
@@ -2320,7 +2374,7 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
     Passes.push_back({VT.applyTrampolinePatches, HotswapMetric::Trampoline});
   }
 
-  const bool Prof = Ctx.Profile.enabled();
+  const bool ProfileStrategies = Ctx.Profile.detailed();
 
   for (size_t Idx = 0, E = Decoded.size(); Idx < E; ++Idx) {
     const InternalDecodedInst &DI = Decoded[Idx];
@@ -2328,9 +2382,9 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
       continue;
 
     for (TimedPass &Pass : Passes) {
-      const uint64_t T0 = Prof ? profNowNs() : 0;
+      const uint64_t T0 = ProfileStrategies ? profNowNs() : 0;
       std::optional<uint32_t> P = runPerInstPass(Pass.Fn, Ctx, Idx);
-      if (Prof) {
+      if (ProfileStrategies) {
         Pass.Nanos += profNowNs() - T0;
         Pass.Patches += P.value_or(0);
       }
@@ -2343,7 +2397,7 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
     }
   }
 
-  if (Prof)
+  if (ProfileStrategies)
     for (const TimedPass &Pass : Passes)
       Ctx.Profile.add(Pass.Metric, Pass.Nanos, Pass.Patches);
 
@@ -2375,18 +2429,24 @@ static std::optional<uint32_t> applyGfx1250B0toA0Rules(
     Patched += P;
   }
 
-  if (!OutTrampolines.empty()) {
-    if (!ControlFlow->HasUnresolvedTargets) {
-      mergeAdjacentLongTrampolines(OutTrampolines, ControlFlow->Targets);
-      expandStraightLineTrampolines(Ctx, ControlFlow->Targets);
-      mergeAdjacentLongTrampolines(OutTrampolines, ControlFlow->Targets);
+  {
+    HotswapProfile::Scope LayoutScope =
+        Profile.time(HotswapMetric::TrampolineLayout);
+    if (!OutTrampolines.empty()) {
+      if (!ControlFlow->HasUnresolvedTargets) {
+        mergeAdjacentLongTrampolines(OutTrampolines, ControlFlow->Targets);
+        expandStraightLineTrampolines(Ctx, ControlFlow->Targets);
+        mergeAdjacentLongTrampolines(OutTrampolines, ControlFlow->Targets);
+      }
+      appendPoolBranchIslands(OutTrampolines);
+      if (!assignLongBranchGateways(Ctx, ControlFlow->Targets,
+                                    !ControlFlow->HasUnresolvedTargets))
+        return std::nullopt;
     }
-    appendPoolBranchIslands(OutTrampolines);
-    if (!assignLongBranchGateways(Ctx, ControlFlow->Targets,
-                                  !ControlFlow->HasUnresolvedTargets))
-      return std::nullopt;
   }
 
+  HotswapProfile::Scope ResourceScope =
+      Profile.time(HotswapMetric::ResourceMetadata);
   struct ResourceCounts {
     unsigned Vgprs;
     unsigned Sgprs;
@@ -2753,14 +2813,18 @@ static amd_comgr_status_t retargetCodeObjectImpl(
   // append the established entry stubs below.
   if (Options.RunEntryTrampolines && AllowTextDisplacement && !UseFastAppend) {
     std::vector<DisplacementEdit> EntryDisplacements;
+    HotswapProfile::Scope EntryAnalysisScope =
+        Profile.time(HotswapMetric::EntryDisplacementAnalysis);
     std::optional<uint32_t> EntryCount =
         collectKernelEntryDisplacements(Elf, LS, EntryDisplacements);
+    EntryAnalysisScope.finish();
     if (!EntryCount)
       return AMD_COMGR_STATUS_ERROR;
 
     if (!EntryDisplacements.empty()) {
       Expected<std::unique_ptr<WritableMemoryBuffer>> DisplacedOrErr =
-          tryApplyTextDisplacementToNewBuffer(Elf, LS, EntryDisplacements);
+          tryApplyTextDisplacementToNewBuffer(Elf, LS, EntryDisplacements,
+                                              &Profile);
       if (DisplacedOrErr) {
         std::unique_ptr<WritableMemoryBuffer> Displaced =
             std::move(*DisplacedOrErr);
@@ -2822,8 +2886,12 @@ static amd_comgr_status_t retargetCodeObjectImpl(
   // gfx1250 revision is recorded per kernel in the AMDGPU metadata note.
   // Running a B0 object on A0 requires retagging that metadata even when no
   // machine instruction needed rewriting.
-  if (Options.RunB0A0Patches && !Elf.updateGfx1250RevisionMetadata("A0"))
-    return AMD_COMGR_STATUS_ERROR;
+  if (Options.RunB0A0Patches) {
+    HotswapProfile::Scope RevisionScope =
+        Profile.time(HotswapMetric::RevisionMetadata);
+    if (!Elf.updateGfx1250RevisionMetadata("A0"))
+      return AMD_COMGR_STATUS_ERROR;
+  }
 
   std::unique_ptr<WritableMemoryBuffer> Result;
   uint64_t PoolT0 = Prof ? profNowNs() : 0;
@@ -3004,7 +3072,7 @@ amd_comgr_status_t retargetCodeObject(const void *ElfData, size_t ElfSize,
 
   // One profiling session per code object, merged into TimeStatistics when it
   // goes out of scope. Prof gates the manual per-phase clock reads.
-  HotswapProfile Profile(hotswapProfilingEnabled());
+  HotswapProfile Profile(hotswapProfilingEnabled(), hotswapProfileMode());
   // RAII guard: records phase:rewrite_total on every return path.
   [[maybe_unused]] HotswapProfile::Scope TotalScope =
       Profile.time(HotswapMetric::RewriteTotal);

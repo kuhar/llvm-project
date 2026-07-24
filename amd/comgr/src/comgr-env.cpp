@@ -77,6 +77,11 @@ bool needTimeStatistics() {
   return TimeStatistics && StringRef(TimeStatistics) != "0";
 }
 
+bool shouldUseCoarseHotswapProfile() {
+  static char *Mode = COMGR_GETENV("AMD_COMGR_HOTSWAP_PROFILE_MODE");
+  return Mode && StringRef(Mode) == "coarse";
+}
+
 uint32_t getGranularityUnitsPerSecond() {
   StringRef G = getTimeStatisticsGranularity();
   if (G == "us")

@@ -489,7 +489,7 @@ bool decodeTextSection(const uint8_t *Text, uint64_t TextSize,
   struct DecodeCacheEntry {
     MCInst Inst;
     uint32_t Size;
-    std::string Mnemonic;
+    StringRef Mnemonic;
   };
   StringMap<DecodeCacheEntry> LocalCache;
   while (Pos < TextSize) {
@@ -519,7 +519,7 @@ bool decodeTextSection(const uint8_t *Text, uint64_t TextSize,
 
     if (Status == MCDisassembler::Fail) {
       DI.Size = MinInstSize;
-      DI.Mnemonic = UnknownMnemonic.str();
+      DI.Mnemonic = UnknownMnemonic;
     } else {
       DI.DecodeSucceeded = true;
       DI.Size = static_cast<uint32_t>(InstSize);
@@ -530,10 +530,10 @@ bool decodeTextSection(const uint8_t *Text, uint64_t TextSize,
       // back to TableGen opcode names.
       if (S.MCIP) {
         std::pair<const char *, uint64_t> Mnem = S.MCIP->getMnemonic(DI.Inst);
-        DI.Mnemonic = Mnem.first ? StringRef(Mnem.first).rtrim().str()
-                                 : UnknownMnemonic.str();
+        DI.Mnemonic = Mnem.first ? StringRef(Mnem.first).rtrim()
+                                 : StringRef(UnknownMnemonic);
       } else {
-        DI.Mnemonic = UnknownMnemonic.str();
+        DI.Mnemonic = UnknownMnemonic;
       }
     }
     // Cache only successful decodes whose key window covers the instruction

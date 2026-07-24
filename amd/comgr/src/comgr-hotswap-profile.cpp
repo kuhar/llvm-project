@@ -28,17 +28,17 @@ void HotswapProfile::Scope::finish() {
 }
 
 HotswapProfile::Scope HotswapProfile::time(HotswapMetric Metric) {
-  return Scope(Enabled ? this : nullptr, Metric);
+  return Scope(records(Metric) ? this : nullptr, Metric);
 }
 
 void HotswapProfile::count(HotswapMetric Metric, uint64_t N) {
-  if (Enabled)
+  if (records(Metric))
     Samples[static_cast<size_t>(Metric)].Calls += N;
 }
 
 void HotswapProfile::add(HotswapMetric Metric, uint64_t Nanos,
                          uint64_t Patches) {
-  if (!Enabled)
+  if (!records(Metric))
     return;
   HotswapSample &S = Samples[static_cast<size_t>(Metric)];
   S.Nanos += Nanos;

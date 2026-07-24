@@ -20,8 +20,10 @@
 #include "gtest/gtest.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 
+#include <array>
 #include <string>
 #include <thread>
 #include <vector>
@@ -50,6 +52,7 @@ TEST(HotswapProfile, DisabledSessionRecordsNothing) {
 TEST(HotswapProfile, EnabledSessionAddAccumulates) {
   HotswapProfile Profile(/*Enabled=*/true);
   EXPECT_TRUE(Profile.enabled());
+  EXPECT_TRUE(Profile.detailed());
 
   Profile.add(HotswapMetric::Decode, 500, 2);
   Profile.add(HotswapMetric::Decode, 1500, 3);
@@ -110,6 +113,63 @@ TEST(HotswapProfile, DisabledScopeRecordsNothing) {
   EXPECT_EQ(Profile.sample(HotswapMetric::Trampoline).Calls, 0u);
 }
 
+// Coarse sessions keep common phases while strategy timers and counters are
+// inert. In particular, time() must hand out an inert strategy scope so callers
+// do not read the clock.
+TEST(HotswapProfile, CoarseSessionRecordsOnlyCommonPhases) {
+  HotswapProfile Profile(/*Enabled=*/true, HotswapProfileMode::Coarse);
+  EXPECT_TRUE(Profile.enabled());
+  EXPECT_FALSE(Profile.detailed());
+
+  static constexpr std::array<HotswapMetric, 26> ExpectedCoarseMetrics = {
+      HotswapMetric::RewriteTotal,
+      HotswapMetric::InputCopy,
+      HotswapMetric::ElfParse,
+      HotswapMetric::InitLLVM,
+      HotswapMetric::EntryDisplacementAnalysis,
+      HotswapMetric::EntryDisplacementEmit,
+      HotswapMetric::Decode,
+      HotswapMetric::B0A0Dispatch,
+      HotswapMetric::RevisionMetadata,
+      HotswapMetric::PoolSetup,
+      HotswapMetric::FixupTrampolines,
+      HotswapMetric::EntryTrampolines,
+      HotswapMetric::PrefetchGuard,
+      HotswapMetric::GrowElf,
+      HotswapMetric::DebugSections,
+      HotswapMetric::KdRewrite,
+      HotswapMetric::SymbolInsert,
+      HotswapMetric::ScratchVerify,
+      HotswapMetric::OutputCopy,
+      HotswapMetric::Unaccounted,
+      HotswapMetric::NopSledScan,
+      HotswapMetric::SiteControlFlow,
+      HotswapMetric::CfgBuild,
+      HotswapMetric::Liveness,
+      HotswapMetric::TrampolineLayout,
+      HotswapMetric::ResourceMetadata,
+  };
+
+  for (size_t I = 0; I < HotswapMetricCount; ++I) {
+    HotswapMetric Metric = static_cast<HotswapMetric>(I);
+    Profile.add(Metric, 100, 0);
+    EXPECT_EQ(Profile.sample(Metric).Calls,
+              llvm::is_contained(ExpectedCoarseMetrics, Metric) ? 1u : 0u)
+        << "metric index " << I;
+  }
+
+  // time() and count() use the same semantic membership check as add().
+  {
+    HotswapProfile::Scope S = Profile.time(HotswapMetric::TrampolineDs2Addr);
+    S.addPatches(4);
+  }
+  Profile.count(HotswapMetric::JumpShort, 5);
+
+  EXPECT_EQ(Profile.sample(HotswapMetric::Trampoline).Calls, 0u);
+  EXPECT_EQ(Profile.sample(HotswapMetric::TrampolineDs2Addr).Calls, 0u);
+  EXPECT_EQ(Profile.sample(HotswapMetric::JumpShort).Calls, 0u);
+}
+
 // The label/parent/partition table must stay in lockstep with the enum.
 TEST(HotswapProfile, MetricInfoTableWellFormed) {
   size_t PartitionCount = 0;
@@ -136,6 +196,24 @@ TEST(HotswapProfile, MetricInfoTableWellFormed) {
   EXPECT_STREQ(
       hotswapMetricInfo[static_cast<size_t>(HotswapMetric::RewriteTotal)].Label,
       "phase:rewrite_total");
+  EXPECT_TRUE(hotswapMetricInfo[static_cast<size_t>(
+                                    HotswapMetric::EntryDisplacementAnalysis)]
+                  .PartitionsTotal);
+  EXPECT_TRUE(hotswapMetricInfo[static_cast<size_t>(
+                                    HotswapMetric::EntryDisplacementEmit)]
+                  .PartitionsTotal);
+  EXPECT_EQ(
+      hotswapMetricInfo[static_cast<size_t>(HotswapMetric::SiteControlFlow)]
+          .Parent,
+      HotswapMetric::B0A0Dispatch);
+  EXPECT_EQ(
+      hotswapMetricInfo[static_cast<size_t>(HotswapMetric::TrampolineLayout)]
+          .Parent,
+      HotswapMetric::B0A0Dispatch);
+  EXPECT_EQ(
+      hotswapMetricInfo[static_cast<size_t>(HotswapMetric::ResourceMetadata)]
+          .Parent,
+      HotswapMetric::B0A0Dispatch);
 }
 
 // flush()/buildRecords() derives phase:unaccounted = rewrite_total - sum of the
@@ -147,6 +225,9 @@ TEST(HotswapProfile, FlushDerivesUnaccountedAndConvertsUnits) {
   Profile.add(HotswapMetric::RewriteTotal, 10000, 0);
   Profile.add(HotswapMetric::Decode, 3000, 0);
   Profile.add(HotswapMetric::GrowElf, 2000, 0);
+  Profile.add(HotswapMetric::EntryDisplacementAnalysis, 500, 0);
+  Profile.add(HotswapMetric::EntryDisplacementEmit, 750, 0);
+  Profile.add(HotswapMetric::RevisionMetadata, 250, 0);
   // A strat child: exercises the parent/child row name and confirms a
   // non-partitioned row does not change the unaccounted residual.
   Profile.add(HotswapMetric::TrampolineDs2Addr, 1000, 4);
@@ -156,8 +237,9 @@ TEST(HotswapProfile, FlushDerivesUnaccountedAndConvertsUnits) {
       Records = Profile.buildRecords(Names);
 
   // buildRecords() writes the derived residual back into the samples:
-  // 10000 - (3000 + 2000) = 5000. The strat child (1000) does not partition.
-  EXPECT_EQ(Profile.sample(HotswapMetric::Unaccounted).Nanos, 5000u);
+  // 10000 - (3000 + 2000 + 500 + 750 + 250) = 3500. The strat child (1000)
+  // does not partition.
+  EXPECT_EQ(Profile.sample(HotswapMetric::Unaccounted).Nanos, 3500u);
 
   llvm::StringMap<COMGR::TimeStatistics::PerfStatRecord> ByName;
   for (const COMGR::TimeStatistics::PerfStatRecord &R : Records)
@@ -169,9 +251,15 @@ TEST(HotswapProfile, FlushDerivesUnaccountedAndConvertsUnits) {
                    10000.0 * UnitsPerNs);
   EXPECT_DOUBLE_EQ(ByName["phase:decode"].TimeTaken, 3000.0 * UnitsPerNs);
   EXPECT_DOUBLE_EQ(ByName["phase:grow_elf"].TimeTaken, 2000.0 * UnitsPerNs);
+  EXPECT_DOUBLE_EQ(ByName["phase:entry_displacement_analysis"].TimeTaken,
+                   500.0 * UnitsPerNs);
+  EXPECT_DOUBLE_EQ(ByName["phase:entry_displacement_emit"].TimeTaken,
+                   750.0 * UnitsPerNs);
+  EXPECT_DOUBLE_EQ(ByName["phase:revision_metadata"].TimeTaken,
+                   250.0 * UnitsPerNs);
 
   ASSERT_TRUE(ByName.count("phase:unaccounted"));
-  EXPECT_DOUBLE_EQ(ByName["phase:unaccounted"].TimeTaken, 5000.0 * UnitsPerNs);
+  EXPECT_DOUBLE_EQ(ByName["phase:unaccounted"].TimeTaken, 3500.0 * UnitsPerNs);
 
   // Child rows carry the "parent/child" name and their patch counts.
   ASSERT_TRUE(ByName.count("strat:trampoline/ds_2addr"));

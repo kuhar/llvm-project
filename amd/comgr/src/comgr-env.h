@@ -50,6 +50,10 @@ bool shouldEmitVerboseLogs();
 /// Return whether the environment requests time statistics collection.
 bool needTimeStatistics();
 
+/// True when AMD_COMGR_HOTSWAP_PROFILE_MODE is exactly "coarse". Coarse
+/// HotSwap profiling keeps common pipeline phases but omits strategy detail.
+bool shouldUseCoarseHotswapProfile();
+
 /// Return granularity (ms, us, ns) units per second
 uint32_t getGranularityUnitsPerSecond();
 

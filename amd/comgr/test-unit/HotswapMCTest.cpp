@@ -533,6 +533,59 @@ TEST(FindNearestSetPcGateway, DistinguishesNoFitFromEncodingFailure) {
             std::string::npos);
 }
 
+TEST(FindNearestSetPcGateway, AnalyticalWidthsMatchEncodedBoundaries) {
+  LLVMState S = initLLVM(makeGfx1250Ident());
+  ASSERT_TRUE(S.Valid);
+
+  struct WidthCase {
+    uint64_t Delta;
+    uint32_t ExpectedSize;
+  };
+  constexpr WidthCase Cases[] = {
+      {64, 12},
+      {65, 16},
+      {static_cast<uint64_t>(std::numeric_limits<int32_t>::max()), 16},
+      {static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) + 1, 20},
+      {static_cast<uint64_t>(-17), 20},
+      {0x3ff0000000000000ULL, 12},
+      {0xbff0000000000000ULL, 12},
+      {0x3fe0000000000000ULL, 12},
+      {0xbfe0000000000000ULL, 12},
+      {0x4000000000000000ULL, 12},
+      {0xc000000000000000ULL, 12},
+      {0x4010000000000000ULL, 12},
+      {0xc010000000000000ULL, 12},
+      {0x3fc45f306dc9c882ULL, 12},
+  };
+
+  constexpr uint64_t GatewayOffset = 0x100;
+  constexpr uint64_t PcBase = GatewayOffset + MinInstSize;
+  for (const WidthCase &C : Cases) {
+    SCOPED_TRACE("delta=0x" + llvm::utohexstr(C.Delta));
+    uint64_t TargetOffset = PcBase + C.Delta;
+    std::optional<llvm::SmallVector<uint8_t>> Encoded =
+        encodeSetPCLongBranch(S, GatewayOffset, TargetOffset, /*SgprBase=*/12);
+    ASSERT_TRUE(Encoded);
+    ASSERT_EQ(Encoded->size(), C.ExpectedSize);
+
+    // Give the candidate exactly the space required by the real encoding.
+    // An analytical overestimate rejects the candidate; an underestimate is
+    // rejected by findNearestSetPcGateway's post-encode consistency check.
+    std::vector<NopSled> Gateways = {
+        {/*Start=*/GatewayOffset,
+         /*End=*/GatewayOffset + Encoded->size(),
+         /*WritePos=*/GatewayOffset,
+         /*FunctionStart=*/0,
+         /*FunctionEnd=*/std::numeric_limits<uint64_t>::max()}};
+    llvm::Expected<std::optional<EncodedSetPcGateway>> GatewayOrErr =
+        findNearestSetPcGateway(Gateways, S, /*FromOffset=*/0, TargetOffset,
+                                /*SgprBase=*/12);
+    ASSERT_TRUE((bool)GatewayOrErr) << llvm::toString(GatewayOrErr.takeError());
+    ASSERT_TRUE(*GatewayOrErr);
+    EXPECT_EQ((*GatewayOrErr)->Bytes.size(), Encoded->size());
+  }
+}
+
 TEST(CountReachableSetPcGatewaySlots, DistinguishesZeroFromEncodingFailure) {
   LLVMState S = initLLVM(makeGfx1250Ident());
   ASSERT_TRUE(S.Valid);
@@ -553,6 +606,20 @@ TEST(CountReachableSetPcGatewaySlots, DistinguishesZeroFromEncodingFailure) {
   std::string Error = llvm::toString(EncodingFailure.takeError());
   EXPECT_NE(Error.find("failed to encode set-PC gateway while counting"),
             std::string::npos);
+}
+
+TEST(CountReachableSetPcGatewaySlots, UsesExactWidthsWithoutEncoding) {
+  LLVMState S = initLLVM(makeGfx1250Ident());
+  ASSERT_TRUE(S.Valid);
+
+  std::vector<NopSled> Gateways = {
+      {/*Start=*/0x100, /*End=*/0x130, /*WritePos=*/0x100,
+       /*FunctionStart=*/0, /*FunctionEnd=*/0x1000}};
+  llvm::Expected<uint64_t> Slots = countReachableSetPcGatewaySlots(
+      Gateways, S, /*FromOffset=*/0, /*TargetOffset=*/0x108,
+      /*SgprBase=*/12, /*MaxSlots=*/3);
+  ASSERT_TRUE((bool)Slots) << llvm::toString(Slots.takeError());
+  EXPECT_EQ(*Slots, 3u);
 }
 
 TEST(EncodeSetPCLongBranch, RejectsPcBaseOverflow) {
@@ -2164,9 +2231,12 @@ TEST(TextDisplacement, ReencodesForwardSBranchAcrossInsertion) {
   Edit.OriginalSize = 0;
   Edit.ReplacementBytes.assign(S.SNopBytes.begin(), S.SNopBytes.end());
 
+  HotswapProfile Profile(/*Enabled=*/true);
   llvm::Expected<std::unique_ptr<llvm::WritableMemoryBuffer>> OutOrErr =
-      tryApplyTextDisplacementToNewBuffer(*ViewOrErr, S, {Edit});
+      tryApplyTextDisplacementToNewBuffer(*ViewOrErr, S, {Edit}, &Profile);
   ASSERT_TRUE((bool)OutOrErr) << llvm::toString(OutOrErr.takeError());
+  EXPECT_EQ(Profile.sample(HotswapMetric::EntryDisplacementAnalysis).Calls, 2u);
+  EXPECT_EQ(Profile.sample(HotswapMetric::EntryDisplacementEmit).Calls, 3u);
   std::unique_ptr<llvm::WritableMemoryBuffer> Out = std::move(*OutOrErr);
 
   uint8_t *OutData = reinterpret_cast<uint8_t *>(Out->getBufferStart());
@@ -3396,9 +3466,11 @@ TEST(DecodeCache, RepeatedInstructionsReuseDecodeWithPerOccurrenceOffset) {
   ASSERT_EQ(Decoded.size(), Count);
 
   const llvm::MCInst Ref = assembleOne("s_nop 0", S);
+  const char *MnemonicStorage = Decoded.front().Mnemonic.data();
   uint64_t ExpectedOffset = 0;
   for (const InternalDecodedInst &DI : Decoded) {
     EXPECT_EQ(DI.Mnemonic, "s_nop");
+    EXPECT_EQ(DI.Mnemonic.data(), MnemonicStorage);
     EXPECT_EQ(DI.Size, MinInstSize);
     // Cache hits must still report a successful decode.
     EXPECT_TRUE(DI.DecodeSucceeded);
@@ -3479,4 +3551,16 @@ TEST(DecodeCache, TruncatedFinalWindowDecodesWithoutStaleHit) {
   EXPECT_EQ(Last.Size, MinInstSize);
   // Stream consumed exactly (no over-run).
   EXPECT_EQ(Consumed, Text.size());
+}
+
+TEST(LivenessInfo, ConservativeFallbackSharesOneAllLiveVector) {
+  LivenessInfo Info;
+  Info.setConservativeAllLive(/*MaxVgprs=*/64);
+
+  EXPECT_TRUE(Info.LiveBefore.empty());
+  EXPECT_TRUE(Info.LiveAfter.empty());
+  ASSERT_EQ(Info.ConservativeLiveBefore.size(), 64u);
+  EXPECT_TRUE(Info.ConservativeLiveBefore.all());
+  EXPECT_EQ(&Info.liveBefore(0), &Info.liveBefore(1));
+  EXPECT_EQ(&Info.liveBefore(1), &Info.liveBefore(2));
 }

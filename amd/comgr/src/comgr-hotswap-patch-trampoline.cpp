@@ -692,7 +692,7 @@ std::optional<ScratchAlloc> tryAllocScratchVgpr(PatchContext &Ctx, size_t Idx) {
           KernelName, getKernelVgprGranuleSize(Ctx, KernelName)))
     KdVgprs = *Opt;
 
-  VgprAllocator Alloc(Ctx.Liveness.LiveBefore[Idx], KdVgprs,
+  VgprAllocator Alloc(Ctx.Liveness.liveBefore(Idx), KdVgprs,
                       Ctx.Config.MaxVgprs);
   std::optional<unsigned> ScratchOpt = Alloc.alloc();
   if (!ScratchOpt)
@@ -1115,7 +1115,8 @@ bool patchClusterLoadMaskA0(PatchContext &Ctx, size_t Idx) {
   }
 
   std::string S = "s" + std::to_string(ScratchSgpr->Sgpr);
-  std::string Context = DI.Mnemonic + " M0 mask at 0x" + utohexstr(DI.Offset);
+  std::string Context =
+      (Twine(DI.Mnemonic) + " M0 mask at 0x" + utohexstr(DI.Offset)).str();
   std::optional<SmallVector<uint8_t>> Prefix =
       buildClusterLoadA0MaskPrefix(Ctx, S, Context);
   std::string RestoreAsm = "s_mov_b32 m0, " + S;

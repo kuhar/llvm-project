@@ -718,9 +718,14 @@ Error rewriteKernelDescriptorEntriesForDisplacement(
   return Error::success();
 }
 
+static HotswapProfile *activeProfile(HotswapProfile *Profile) {
+  return Profile && Profile->enabled() ? Profile : nullptr;
+}
+
 Error applyTextDisplacement(const ElfView &Elf, const LLVMState &LS,
                             const DisplacementPlan &Plan,
-                            WritableMemoryBuffer &OutBuf) {
+                            WritableMemoryBuffer &OutBuf,
+                            HotswapProfile *Profile) {
   const size_t InputSize = Elf.size();
   const size_t NewSize = Plan.newElfSize(InputSize);
   if (OutBuf.getBufferSize() != NewSize) {
@@ -728,45 +733,58 @@ Error applyTextDisplacement(const ElfView &Elf, const LLVMState &LS,
         "output buffer has incorrect size for displacement");
   }
 
-  SmallVector<uint8_t> NewText = Plan.buildText(
-      ArrayRef<uint8_t>(Elf.textData(), Elf.textSize()), LS.SNopBytes);
-  if (NewText.size() != Plan.paddedTextSize()) {
-    return makeDisplacementError(
-        "rebuilt .text size does not match displacement plan");
+  SmallVector<uint8_t> NewText;
+  {
+    HotswapProfile::Scope EmitScope(activeProfile(Profile),
+                                    HotswapMetric::EntryDisplacementEmit);
+    NewText = Plan.buildText(ArrayRef<uint8_t>(Elf.textData(), Elf.textSize()),
+                             LS.SNopBytes);
+    if (NewText.size() != Plan.paddedTextSize()) {
+      return makeDisplacementError(
+          "rebuilt .text size does not match displacement plan");
+    }
   }
-  if (Error Err = repairBranches(Elf, LS, Plan, NewText))
-    return Err;
-
-  uint8_t *Out = reinterpret_cast<uint8_t *>(OutBuf.getBufferStart());
-  const uint8_t *Input = Elf.data();
-  const uint64_t TextOffset = Elf.textOffset();
-  const uint64_t TextEnd = TextOffset + Elf.textSize();
-
-  std::memcpy(Out, Input, TextOffset);
-  std::memcpy(Out + TextOffset, NewText.data(), NewText.size());
-  if (TextEnd < InputSize) {
-    std::memcpy(Out + TextOffset + NewText.size(), Input + TextEnd,
-                InputSize - TextEnd);
+  {
+    HotswapProfile::Scope AnalysisScope(
+        activeProfile(Profile), HotswapMetric::EntryDisplacementAnalysis);
+    if (Error Err = repairBranches(Elf, LS, Plan, NewText))
+      return Err;
   }
 
-  if (Error Err = adjustSectionHeadersForTextGrowth(Out, NewSize, Elf,
-                                                    Plan.paddedGrowth()))
-    return Err;
-  if (Error Err = adjustProgramHeadersForTextGrowth(Out, NewSize, Elf,
-                                                    Plan.paddedGrowth()))
-    return Err;
-  if (Error Err = adjustSymbolValuesForDisplacement(Out, NewSize, Elf, Plan))
-    return Err;
+  {
+    HotswapProfile::Scope EmitScope(activeProfile(Profile),
+                                    HotswapMetric::EntryDisplacementEmit);
+    uint8_t *Out = reinterpret_cast<uint8_t *>(OutBuf.getBufferStart());
+    const uint8_t *Input = Elf.data();
+    const uint64_t TextOffset = Elf.textOffset();
+    const uint64_t TextEnd = TextOffset + Elf.textSize();
 
-  if (Error Err =
-          rewriteKernelDescriptorEntriesForDisplacement(OutBuf, Elf, Plan))
-    return Err;
+    std::memcpy(Out, Input, TextOffset);
+    std::memcpy(Out + TextOffset, NewText.data(), NewText.size());
+    if (TextEnd < InputSize) {
+      std::memcpy(Out + TextOffset + NewText.size(), Input + TextEnd,
+                  InputSize - TextEnd);
+    }
 
-  log() << "hotswap: displacement: grew ELF from " << InputSize << " to "
-        << NewSize << " bytes (" << Plan.edits().size() << " edit"
-        << (Plan.edits().size() == 1 ? "" : "s") << ", raw growth "
-        << Plan.rawGrowth() << " bytes, padded growth " << Plan.paddedGrowth()
-        << " bytes).\n";
+    if (Error Err = adjustSectionHeadersForTextGrowth(Out, NewSize, Elf,
+                                                      Plan.paddedGrowth()))
+      return Err;
+    if (Error Err = adjustProgramHeadersForTextGrowth(Out, NewSize, Elf,
+                                                      Plan.paddedGrowth()))
+      return Err;
+    if (Error Err = adjustSymbolValuesForDisplacement(Out, NewSize, Elf, Plan))
+      return Err;
+
+    if (Error Err =
+            rewriteKernelDescriptorEntriesForDisplacement(OutBuf, Elf, Plan))
+      return Err;
+
+    log() << "hotswap: displacement: grew ELF from " << InputSize << " to "
+          << NewSize << " bytes (" << Plan.edits().size() << " edit"
+          << (Plan.edits().size() == 1 ? "" : "s") << ", raw growth "
+          << Plan.rawGrowth() << " bytes, padded growth " << Plan.paddedGrowth()
+          << " bytes).\n";
+  }
   return Error::success();
 }
 
@@ -908,26 +926,38 @@ DisplacementPlan::buildText(ArrayRef<uint8_t> OldText,
 
 Expected<std::unique_ptr<WritableMemoryBuffer>>
 tryApplyTextDisplacementToNewBuffer(const ElfView &Elf, const LLVMState &LS,
-                                    ArrayRef<DisplacementEdit> Edits) {
-  if (Error Err = validateDebugSections(Elf))
-    return std::move(Err);
-  if (Error Err = validateTextRelocations(Elf))
-    return std::move(Err);
+                                    ArrayRef<DisplacementEdit> Edits,
+                                    HotswapProfile *Profile) {
+  Expected<DisplacementPlan> PlanOrErr = [&]() -> Expected<DisplacementPlan> {
+    HotswapProfile::Scope AnalysisScope(
+        activeProfile(Profile), HotswapMetric::EntryDisplacementAnalysis);
+    if (Error Err = validateDebugSections(Elf))
+      return std::move(Err);
+    if (Error Err = validateTextRelocations(Elf))
+      return std::move(Err);
 
-  Expected<DisplacementPlan> PlanOrErr = DisplacementPlan::create(Elf, Edits);
+    Expected<DisplacementPlan> Plan = DisplacementPlan::create(Elf, Edits);
+    if (!Plan)
+      return Plan.takeError();
+    if (Error Err = validateKernelEntryMappings(Elf, *Plan))
+      return std::move(Err);
+    return std::move(*Plan);
+  }();
   if (!PlanOrErr)
     return PlanOrErr.takeError();
-  if (Error Err = validateKernelEntryMappings(Elf, *PlanOrErr))
-    return std::move(Err);
 
-  std::unique_ptr<WritableMemoryBuffer> Out =
-      WritableMemoryBuffer::getNewUninitMemBuffer(
-          PlanOrErr->newElfSize(Elf.size()));
-  if (!Out) {
-    return makeDisplacementError(
-        "failed to allocate displacement output buffer");
+  std::unique_ptr<WritableMemoryBuffer> Out;
+  {
+    HotswapProfile::Scope EmitScope(activeProfile(Profile),
+                                    HotswapMetric::EntryDisplacementEmit);
+    Out = WritableMemoryBuffer::getNewUninitMemBuffer(
+        PlanOrErr->newElfSize(Elf.size()));
+    if (!Out) {
+      return makeDisplacementError(
+          "failed to allocate displacement output buffer");
+    }
   }
-  if (Error Err = applyTextDisplacement(Elf, LS, *PlanOrErr, *Out))
+  if (Error Err = applyTextDisplacement(Elf, LS, *PlanOrErr, *Out, Profile))
     return std::move(Err);
   return std::move(Out);
 }
