@@ -513,10 +513,15 @@ bool SIFoldOperandsImpl::tryFoldImmWithOpSel(MachineInstr *MI, unsigned UseOpNo,
   int OpNo = MI->getOperandNo(&Old);
   uint8_t OpType = TII->get(Opcode).operands()[OpNo].OperandType;
 
+  const bool UpperBF16 = ST->hasBF16InlineConstFromUpperFP32() &&
+                         (OpType == AMDGPU::OPERAND_REG_INLINE_C_V2BF16 ||
+                          OpType == AMDGPU::OPERAND_REG_IMM_V2BF16);
+
   // If the literal can be inlined as-is, apply it and short-circuit the
   // tests below. The main motivation for this is to avoid unintuitive
   // uses of opsel.
-  if (AMDGPU::isInlinableLiteralV216(ImmVal, OpType)) {
+  if (AMDGPU::isInlinableLiteralV216(ImmVal, OpType) &&
+      !(UpperBF16 && AMDGPU::getInlineEncodingV2BF16(ImmVal) >= 240)) {
     Old.ChangeToImmediate(ImmVal);
     return true;
   }
@@ -547,32 +552,38 @@ bool SIFoldOperandsImpl::tryFoldImmWithOpSel(MachineInstr *MI, unsigned UseOpNo,
   uint32_t Imm = (static_cast<uint32_t>(ImmHi) << 16) | ImmLo;
   unsigned NewModVal = ModVal & ~(SISrcMods::OP_SEL_0 | SISrcMods::OP_SEL_1);
 
+  // Floating BF16 inline operands use FP32 bits on these targets. Translate
+  // selectors from the logical low-half BF16 immediate to the encoded operand.
+  // Integer inline constants retain their ordinary sign-extended bit patterns.
+  auto foldInline = [&](uint32_t Value, unsigned Modifiers) -> bool {
+    if (UpperBF16 && AMDGPU::getInlineEncodingV2BF16(Value) >= 240) {
+      // The FP32 1/(2*pi) constant has nonzero low bits (0xf983), so it
+      // cannot supply the zero half of a mixed BF16 vector.
+      if (AMDGPU::getInlineEncodingV2BF16(Value) == 248 &&
+          (Modifiers & (SISrcMods::OP_SEL_0 | SISrcMods::OP_SEL_1)))
+        return false;
+      Modifiers ^= SISrcMods::OP_SEL_0 | SISrcMods::OP_SEL_1;
+    }
+    Mod.setImm(Modifiers);
+    Old.ChangeToImmediate(Value);
+    return true;
+  };
+
   // Helper function that attempts to inline the given value with a newly
   // chosen opsel pattern.
   auto tryFoldToInline = [&](uint32_t Imm) -> bool {
-    if (AMDGPU::isInlinableLiteralV216(Imm, OpType)) {
-      Mod.setImm(NewModVal | SISrcMods::OP_SEL_1);
-      Old.ChangeToImmediate(Imm);
+    if (AMDGPU::isInlinableLiteralV216(Imm, OpType) &&
+        foldInline(Imm, NewModVal | SISrcMods::OP_SEL_1))
       return true;
-    }
 
     // Try to shuffle the halves around and leverage opsel to get an inline
     // constant.
     uint16_t Lo = static_cast<uint16_t>(Imm);
     uint16_t Hi = static_cast<uint16_t>(Imm >> 16);
     if (Lo == Hi) {
-      if (AMDGPU::isInlinableLiteralV216(Lo, OpType)) {
-        // If the target has feature 'BF16InlineConstFromUpperFP32', packed BF16
-        // instructions using inline constant must use OPSEL to select the upper
-        // 16-bits from FP32.
-        if (ST->hasBF16InlineConstFromUpperFP32() &&
-            (OpType == AMDGPU::OPERAND_REG_INLINE_C_V2BF16 ||
-             OpType == AMDGPU::OPERAND_REG_IMM_V2BF16))
-          NewModVal |= (SISrcMods::OP_SEL_0 | SISrcMods::OP_SEL_1);
-        Mod.setImm(NewModVal);
-        Old.ChangeToImmediate(Lo);
+      if (AMDGPU::isInlinableLiteralV216(Lo, OpType) &&
+          foldInline(Lo, NewModVal))
         return true;
-      }
 
       if (static_cast<int16_t>(Lo) < 0) {
         int32_t SExt = static_cast<int16_t>(Lo);
@@ -593,11 +604,9 @@ bool SIFoldOperandsImpl::tryFoldImmWithOpSel(MachineInstr *MI, unsigned UseOpNo,
       }
     } else {
       uint32_t Swapped = (static_cast<uint32_t>(Lo) << 16) | Hi;
-      if (AMDGPU::isInlinableLiteralV216(Swapped, OpType)) {
-        Mod.setImm(NewModVal | SISrcMods::OP_SEL_0);
-        Old.ChangeToImmediate(Swapped);
+      if (AMDGPU::isInlinableLiteralV216(Swapped, OpType) &&
+          foldInline(Swapped, NewModVal | SISrcMods::OP_SEL_0))
         return true;
-      }
     }
 
     return false;
@@ -651,8 +660,13 @@ bool SIFoldOperandsImpl::updateOperand(FoldCandidate &Fold) const {
 
     // We can't represent the candidate as an inline constant. Try as a literal
     // with the original opsel, checking constant bus limitations.
-    MachineOperand New = MachineOperand::CreateImm(*ImmVal);
     int OpNo = MI->getOperandNo(&Old);
+    // A rejected inline constant (e.g. mixed BF16 1/(2*pi) and zero) would
+    // still receive its inline encoding if inserted as a literal here.
+    if (AMDGPU::isInlinableLiteralV216(
+            *ImmVal, TII->get(MI->getOpcode()).operands()[OpNo].OperandType))
+      return false;
+    MachineOperand New = MachineOperand::CreateImm(*ImmVal);
     if (!TII->isOperandLegal(*MI, OpNo, &New))
       return false;
     Old.ChangeToImmediate(*ImmVal);
