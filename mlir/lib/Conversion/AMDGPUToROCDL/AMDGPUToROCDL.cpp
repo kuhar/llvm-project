@@ -3685,17 +3685,16 @@ struct AMDGPUMakeDmaBaseLowering : public ConvertOpToLLVMPattern<BaseOp> {
     sgprs[0] = consts[1];
 
     if constexpr (BaseOp::isGather()) {
-      sgprs[0] = setValueAtOffset(rewriter, loc, sgprs[0], consts[1], 30);
+      // Group 0 encodes gather mode in bit 31 and the index size in bit 30.
+      sgprs[0] = setValueAtOffset(rewriter, loc, sgprs[0], consts[1], 31);
 
       auto type = cast<TDMGatherBaseType>(op.getResult().getType());
       Type indexType = type.getIndexType();
       unsigned indexSize = indexType.getIntOrFloatBitWidth();
       assert(llvm::is_contained({16u, 32u}, indexSize) &&
              "expected index_size to be 16 or 32");
-      unsigned idx = (indexSize / 16) - 1;
-
-      if (idx)
-        sgprs[0] = setValueAtOffset(rewriter, loc, sgprs[0], consts[1], 31);
+      if (indexSize == 32)
+        sgprs[0] = setValueAtOffset(rewriter, loc, sgprs[0], consts[1], 30);
     }
 
     ValueRange ldsIndices = adaptor.getLdsIndices();

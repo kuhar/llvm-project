@@ -235,7 +235,7 @@ func.func @make_gather_dma_base(%idx: index, %mem: memref<8xi32, #gpu.address_sp
   // CHECK-DAG: %[[C2:.+]] = llvm.mlir.constant(2 : i32) : i32
   // CHECK-DAG: %[[C3:.+]] = llvm.mlir.constant(3 : i32) : i32
 
-  // CHECK-DAG: %[[GATHER_MODE_OFFSET:.+]] = llvm.mlir.constant(30 : i32) : i32
+  // CHECK-DAG: %[[GATHER_MODE_OFFSET:.+]] = llvm.mlir.constant(31 : i32) : i32
   // CHECK-DAG: %[[GATHER_MODE_BIT:.+]] = llvm.shl %[[C1]], %[[GATHER_MODE_OFFSET]]
   // CHECK: %[[SGPR0:.+]] = llvm.or disjoint %[[C1]], %[[GATHER_MODE_BIT]]
 
@@ -249,11 +249,11 @@ func.func @make_gather_dma_base(%idx: index, %mem: memref<8xi32, #gpu.address_sp
   // CHECK-DAG: %[[C2:.+]] = llvm.mlir.constant(2 : i32) : i32
   // CHECK-DAG: %[[C3:.+]] = llvm.mlir.constant(3 : i32) : i32
 
-  // CHECK-DAG: %[[GATHER_MODE_OFFSET:.+]] = llvm.mlir.constant(30 : i32) : i32
+  // CHECK-DAG: %[[GATHER_MODE_OFFSET:.+]] = llvm.mlir.constant(31 : i32) : i32
   // CHECK-DAG: %[[GATHER_MODE_BIT:.+]] = llvm.shl %[[C1]], %[[GATHER_MODE_OFFSET]]
   // CHECK: %[[SGPR0_0:.+]] = llvm.or disjoint %[[C1]], %[[GATHER_MODE_BIT]]
 
-  // CHECK-DAG: %[[INDEX_SIZE_OFFSET:.+]] = llvm.mlir.constant(31 : i32) : i32
+  // CHECK-DAG: %[[INDEX_SIZE_OFFSET:.+]] = llvm.mlir.constant(30 : i32) : i32
   // CHECK-DAG: %[[INDEX_SIZE_BIT:.+]] = llvm.shl %[[C1]], %[[INDEX_SIZE_OFFSET]]
   // CHECK: %[[SGPR0:.+]] = llvm.or disjoint %[[SGPR0_0]], %[[INDEX_SIZE_BIT]]
 
